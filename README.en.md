@@ -140,9 +140,8 @@ Launchly is not usable as a product yet. The commands below only validate the cu
 ### CLI Scaffold
 
 ```bash
-cd cli
-go test ./...
-go run ./cmd/launchly doctor
+(cd cli && go test ./...)
+(cd cli && go run ./cmd/launchly doctor)
 ```
 
 ### Web Scaffold

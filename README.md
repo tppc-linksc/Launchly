@@ -140,9 +140,8 @@ scripts                  工具脚本目录
 ### CLI 骨架
 
 ```bash
-cd cli
-go test ./...
-go run ./cmd/launchly doctor
+(cd cli && go test ./...)
+(cd cli && go run ./cmd/launchly doctor)
 ```
 
 ### Web 骨架
