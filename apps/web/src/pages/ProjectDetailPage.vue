@@ -52,7 +52,12 @@
           <p style="color: #8c8c8c; margin: 0;">选择左侧环境卡片进入变量管理</p>
         </a-card>
         <a-card title="最近部署" size="small">
-          <p style="color: #8c8c8c; margin: 0;">暂无部署记录</p>
+          <div v-if="recentDeployments.length === 0" style="color: #8c8c8c;">暂无部署记录</div>
+          <div v-for="d in recentDeployments" :key="d.id" style="margin-bottom: 8px; cursor: pointer;" @click="$router.push(`/deployments/${d.id}`)">
+            <a-tag :color="d.status === 'SUCCEEDED' ? 'green' : d.status === 'FAILED' ? 'red' : d.status === 'RUNNING' ? 'processing' : 'default'" size="small" style="margin-right: 6px;">{{ d.status }}</a-tag>
+            <span style="font-size: 13px;">{{ d.branch || d.commitSha || '-' }}</span>
+            <span style="font-size: 11px; color: #999; float: right;">{{ d.createdAt?.slice(0, 10) }}</span>
+          </div>
         </a-card>
       </a-col>
     </a-row>
@@ -67,20 +72,25 @@
           <a-textarea v-model:value="deployForm.notes" placeholder="可选" :rows="2" />
         </a-form-item>
       </a-form>
+      <a-alert v-if="deployError" :message="deployError" type="error" show-icon style="margin-top: 12px;" />
     </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { fetchProject, fetchEnvironments, createDeployment } from '../api/client'
+import { useRoute, useRouter } from 'vue-router'
+import { message } from 'ant-design-vue'
+import { fetchProject, fetchEnvironments, fetchDeployments, createDeployment } from '../api/client'
 
 const route = useRoute()
+const router = useRouter()
 const project = ref<any>(null)
 const environments = ref<any[]>([])
+const recentDeployments = ref<any[]>([])
 const showDeploy = ref(false)
 const deployLoading = ref(false)
+const deployError = ref('')
 const deployForm = ref({ branch: '', notes: '' })
 
 function envColor(type: string) {
@@ -90,25 +100,40 @@ function envColor(type: string) {
 onMounted(async () => {
   const id = route.params.id as string
   try {
-    const [pRes, eRes] = await Promise.all([fetchProject(id), fetchEnvironments(id)])
+    const [pRes, eRes, dRes] = await Promise.all([
+      fetchProject(id),
+      fetchEnvironments(id),
+      fetchDeployments({ projectId: id }),
+    ])
     project.value = pRes.data
     environments.value = eRes.data
+    recentDeployments.value = (dRes.data || []).slice(0, 5)
   } catch {}
 })
 
 async function doDeploy() {
   deployLoading.value = true
+  deployError.value = ''
   try {
     const testEnv = environments.value.find((e: any) => e.type === 'TEST')
-    if (!testEnv) return
-    await createDeployment({
+    if (!testEnv) {
+      deployError.value = '未找到 Test 环境'
+      deployLoading.value = false
+      return
+    }
+    const res = await createDeployment({
       projectId: project.value.id,
       environmentId: testEnv.id,
       branch: deployForm.value.branch || project.value.defaultBranch,
       notes: deployForm.value.notes,
     })
     showDeploy.value = false
-  } catch {}
+    deployForm.value = { branch: '', notes: '' }
+    message.success('部署已创建')
+    router.push(`/deployments/${res.data.id}`)
+  } catch (e: any) {
+    deployError.value = e.response?.data?.message || '部署创建失败'
+  }
   deployLoading.value = false
 }
 </script>
