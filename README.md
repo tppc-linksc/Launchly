@@ -137,31 +137,49 @@ scripts                  工具脚本目录
 
 当前还不是可用产品，以下命令仅用于验证开发骨架。
 
-### CLI 骨架
+### 1. CLI 骨架
 
 ```bash
-(cd cli && go test ./...)
-(cd cli && go run ./cmd/launchly doctor)
+cd cli
+go test ./...
+go run ./cmd/launchly doctor
 ```
 
-### Web 骨架
+### 2. 启动 PostgreSQL（API 依赖）
+
+API 需要 PostgreSQL 才能启动。本地开发时用 Docker 快速起一个：
 
 ```bash
-pnpm install
-pnpm dev:web
+docker run -d --name launchly-postgres-dev \
+  -e POSTGRES_USER=launchly \
+  -e POSTGRES_PASSWORD=launchly_dev_password \
+  -e POSTGRES_DB=launchly \
+  -p 5432:5432 \
+  postgres:16-alpine
 ```
 
-### API 骨架
+> 一键部署（`launchly install`）会通过 docker-compose 自动启动 PostgreSQL，不需要手动执行这一步。这个手动启动仅用于本地开发。
+
+### 3. API 骨架
 
 ```bash
 cd services/api
 mvn spring-boot:run
 ```
 
+启动后 API 会自动执行 Flyway 数据库迁移。
+
 健康检查：
 
 ```bash
 curl http://localhost:8080/api/health
+```
+
+### 4. Web 骨架
+
+```bash
+pnpm install
+pnpm dev:web
 ```
 
 ## 开发指南

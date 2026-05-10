@@ -137,31 +137,49 @@ scripts                  Utility scripts
 
 Launchly is not usable as a product yet. The commands below only validate the current development scaffold.
 
-### CLI Scaffold
+### 1. CLI Scaffold
 
 ```bash
-(cd cli && go test ./...)
-(cd cli && go run ./cmd/launchly doctor)
+cd cli
+go test ./...
+go run ./cmd/launchly doctor
 ```
 
-### Web Scaffold
+### 2. Start PostgreSQL (API dependency)
+
+The API requires a running PostgreSQL instance. For local development, start one with Docker:
 
 ```bash
-pnpm install
-pnpm dev:web
+docker run -d --name launchly-postgres-dev \
+  -e POSTGRES_USER=launchly \
+  -e POSTGRES_PASSWORD=launchly_dev_password \
+  -e POSTGRES_DB=launchly \
+  -p 5432:5432 \
+  postgres:16-alpine
 ```
 
-### API Scaffold
+> One-click deployment (`launchly install`) starts PostgreSQL automatically via docker-compose. This manual step is only needed for local development.
+
+### 3. API Scaffold
 
 ```bash
 cd services/api
 mvn spring-boot:run
 ```
 
+Flyway migrations run automatically on startup.
+
 Health check:
 
 ```bash
 curl http://localhost:8080/api/health
+```
+
+### 4. Web Scaffold
+
+```bash
+pnpm install
+pnpm dev:web
 ```
 
 ## Development Guide
