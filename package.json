@@ -1,0 +1,11 @@
+{
+  "name": "launchly",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Self-hosted deployment and testing collaboration platform.",
+  "scripts": {
+    "dev:web": "pnpm --dir apps/web dev",
+    "build:web": "pnpm --dir apps/web build"
+  }
+}
+

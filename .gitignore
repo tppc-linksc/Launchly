@@ -1,0 +1,26 @@
+.DS_Store
+
+# Environment and local runtime
+.env
+.env.*
+!.env.example
+data/
+logs/
+tmp/
+
+# Node / frontend
+node_modules/
+dist/
+.vite/
+
+# Java / Maven
+target/
+*.class
+
+# IDE
+.idea/
+.vscode/
+
+# Local development planning docs, not for upload
+docs/dev-tasks/
+

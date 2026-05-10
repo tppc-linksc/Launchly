@@ -1,0 +1,17 @@
+server:
+  port: ${LAUNCHLY_APP_PORT:8080}
+
+spring:
+  application:
+    name: launchly-api
+  datasource:
+    url: jdbc:postgresql://${LAUNCHLY_DB_HOST:localhost}:${LAUNCHLY_DB_PORT:5432}/${LAUNCHLY_DB_NAME:launchly}
+    username: ${LAUNCHLY_DB_USER:launchly}
+    password: ${LAUNCHLY_DB_PASSWORD:launchly_dev_password}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+

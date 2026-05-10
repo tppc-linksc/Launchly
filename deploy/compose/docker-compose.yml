@@ -1,0 +1,48 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: launchly-postgres
+    environment:
+      POSTGRES_DB: ${LAUNCHLY_DB_NAME:-launchly}
+      POSTGRES_USER: ${LAUNCHLY_DB_USER:-launchly}
+      POSTGRES_PASSWORD: ${LAUNCHLY_DB_PASSWORD:-launchly_dev_password}
+    volumes:
+      - launchly-postgres-data:/var/lib/postgresql/data
+    ports:
+      - "${LAUNCHLY_DB_PORT:-5432}:5432"
+
+  app:
+    image: ghcr.io/launchly/launchly-app:latest
+    container_name: launchly-app
+    depends_on:
+      - postgres
+    environment:
+      LAUNCHLY_DB_HOST: postgres
+      LAUNCHLY_DB_PORT: 5432
+      LAUNCHLY_DB_NAME: ${LAUNCHLY_DB_NAME:-launchly}
+      LAUNCHLY_DB_USER: ${LAUNCHLY_DB_USER:-launchly}
+      LAUNCHLY_DB_PASSWORD: ${LAUNCHLY_DB_PASSWORD:-launchly_dev_password}
+    ports:
+      - "${LAUNCHLY_APP_PORT:-8080}:8080"
+    volumes:
+      - launchly-data:/var/lib/launchly
+
+  worker:
+    image: ghcr.io/launchly/launchly-worker:latest
+    container_name: launchly-worker
+    depends_on:
+      - postgres
+    environment:
+      LAUNCHLY_DB_HOST: postgres
+      LAUNCHLY_DB_PORT: 5432
+      LAUNCHLY_DB_NAME: ${LAUNCHLY_DB_NAME:-launchly}
+      LAUNCHLY_DB_USER: ${LAUNCHLY_DB_USER:-launchly}
+      LAUNCHLY_DB_PASSWORD: ${LAUNCHLY_DB_PASSWORD:-launchly_dev_password}
+    volumes:
+      - launchly-data:/var/lib/launchly
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  launchly-postgres-data:
+  launchly-data:
+
