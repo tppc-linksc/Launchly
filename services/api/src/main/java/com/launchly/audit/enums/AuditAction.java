@@ -1,0 +1,16 @@
+package com.launchly.audit.enums;
+
+public enum AuditAction {
+    LOGIN,
+    CREATE_PROJECT,
+    UPDATE_PROJECT,
+    DELETE_PROJECT,
+    UPDATE_ENV_VAR,
+    TRIGGER_DEPLOY,
+    PUBLISH_PRODUCTION,
+    ROLLBACK,
+    CREATE_INVITATION,
+    UPDATE_MEMBER_ROLE,
+    GATE_EXEMPT,
+    DELETE_RECORD
+}

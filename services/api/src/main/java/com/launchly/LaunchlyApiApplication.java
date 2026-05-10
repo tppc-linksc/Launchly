@@ -2,10 +2,12 @@ package com.launchly;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @SpringBootApplication
+@EnableAsync
 public class LaunchlyApiApplication {
     public static void main(String[] args) {
         SpringApplication.run(LaunchlyApiApplication.class, args);
@@ -22,4 +24,3 @@ public class LaunchlyApiApplication {
     record HealthResponse(String status, String service) {
     }
 }
-

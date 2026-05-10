@@ -55,25 +55,23 @@ Launchly aims to fill that gap.
 
 ## Project Status
 
-Launchly is currently in **pre-alpha / early scaffold stage**.
+Launchly is currently in **pre-alpha / MVP integration-ready stage**.
 
 Completed:
 
-- Product design document.
+- Product design and architecture documentation.
 - Base monorepo layout.
-- Vue 3 Web UI scaffold.
-- Spring Boot API Server scaffold.
-- Spring Boot Worker scaffold.
-- Go CLI scaffold.
-- Docker Compose deployment template.
+- Core Web/API/Worker/CLI modules (Weeks 1-13).
+- JWT-authenticated Owner initialization flow.
+- Deployment task pipeline (clone/build/deploy/health check) with stage logs.
+- Test case, issue, release, gate, and rollback baseline flow.
+- Docker Compose local-build deployment template.
 
 Not implemented yet:
 
-- Real authentication and permission system.
-- Workspace initialization and invitations.
-- Project onboarding and repository binding.
-- Deployment execution, test cases, issue workflow, and release gates.
-- Complete `launchly install` one-command installer.
+- Member management page `/members` (currently placeholder).
+- Fine-grained RBAC policy (currently MVP-level authentication/authorization).
+- Remote image publish pipeline for `launchly install` (local compose build path is available).
 
 ## Design Principles
 
@@ -179,12 +177,22 @@ Recommended local tools:
 | Docker + Docker Compose | Self-hosted deployment and local integration |
 | PostgreSQL | Local database debugging; the final product will include it |
 
+API development conventions:
+
+- Backend framework: Spring Boot 3.x with `spring-boot-starter-web` for REST APIs.
+- Database: PostgreSQL with Flyway migrations enabled.
+- Security: Spring Security + JWT (Bearer Token) is integrated for protected APIs; fine-grained RBAC is still in progress.
+- API modules are organized into `auth`, `workspace`, `project`, `environment`, `deployment`, `testcase`, `issue`, `release`, `notification`, `audit`, and `common` packages, matching the core modules in the product design.
+- Worker pipeline runs staged tasks in sequence (clone -> build -> deploy -> health check) with stage logs.
+- Sensitive environment variables are encrypted at rest and decrypted by Worker at deployment time.
+
 Development principles:
 
 - Public README files should describe the real project state and avoid presenting planned features as completed.
 - Product decisions live in `docs/product`.
 - Local development plans live in `docs/dev-tasks`, which is ignored by git.
-- Task docs must include goals, human decision points, AI-executable tasks, outputs, and acceptance criteria.
+- Weekly task docs use an AI-primary execution format: goals, prerequisites, human review points, files, inputs, outputs, constraints, and completion criteria.
+- Humans mainly review boundaries and key decisions; AI should execute concrete code, documentation, and verification tasks whenever possible.
 - Implementation should stay aligned with the current product design.
 
 ## Project Progress
@@ -198,10 +206,14 @@ Development principles:
 | Worker scaffold | Done |
 | CLI scaffold | Done |
 | Docker Compose template | Done |
-| Auth and Workspace | Not started |
-| Project onboarding and repository binding | Not started |
-| Deployment execution and environment management | Not started |
-| Tests, issues, and release gates | Not started |
+| Week 1: Foundation & baseline | Done |
+| Weeks 2-13 core modules | Done (MVP integration can start) |
+| Auth and Workspace | Basic flow implemented |
+| Project onboarding and repository binding | Basic flow implemented |
+| Deployment execution and environment management | Basic flow implemented |
+| Tests, issues, and release gates | Basic flow implemented |
+| Members page `/members` | Placeholder, pending implementation |
+| CLI one-click install via remote images | Pending image publish pipeline |
 
 ## Documentation
 
@@ -222,4 +234,3 @@ Before opening broader contribution, the project should add:
 ## License
 
 The license has not been decided yet. A `LICENSE` file should be added before the project is formally open sourced.
-

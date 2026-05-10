@@ -3,7 +3,22 @@
     "allow": [
       "Bash(git init *)",
       "Bash(git remote *)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(go test *)",
+      "Bash(pnpm -v)",
+      "Bash(java -version)",
+      "Bash(mvn -v)",
+      "Bash(go version *)",
+      "Bash(brew install *)",
+      "Bash(export JAVA_HOME=\"/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home\")",
+      "Bash(export PATH=\"$JAVA_HOME/bin:$PATH\")",
+      "Bash(pnpm install *)",
+      "Bash(mvn compile *)",
+      "Bash(go build *)",
+      "Bash(pnpm --filter @launchly/web add axios)",
+      "Bash(go run *)"
     ]
   }
 }

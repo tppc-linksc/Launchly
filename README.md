@@ -55,25 +55,23 @@ Launchly 的目标是补上这条轻量链路。
 
 ## 项目状态
 
-Launchly 当前处于 **pre-alpha / 早期骨架阶段**。
+Launchly 当前处于 **pre-alpha / MVP 联调准备阶段**。
 
 已经完成：
 
-- 产品设计文档归档。
+- 产品设计文档归档与架构设计。
 - 基础 monorepo 目录结构。
-- Vue 3 Web UI 骨架。
-- Spring Boot API Server 骨架。
-- Spring Boot Worker 骨架。
-- Go CLI 骨架。
-- Docker Compose 部署模板。
+- Web/API/Worker/CLI 核心模块（第 1-13 周）。
+- JWT 鉴权与 Owner 初始化主流程。
+- 部署任务链路（clone/build/deploy/health check）与阶段日志。
+- 测试用例、Issue、Release、门禁、回滚基础链路。
+- Docker Compose 本地构建部署模板。
 
 尚未完成：
 
-- 真实登录与权限系统。
-- Workspace 初始化和邀请加入。
-- 项目接入与仓库绑定。
-- 部署执行、测试用例、Issue 流转、Release 门禁。
-- `launchly install` 完整一键安装。
+- 成员管理页面 `/members`（当前为占位页）。
+- 权限系统细粒度 RBAC（当前为 MVP 基础鉴权）。
+- `launchly install` 远程镜像发布链路（本地 compose build 已可用）。
 
 ## 设计理念
 
@@ -179,12 +177,22 @@ curl http://localhost:8080/api/health
 | Docker + Docker Compose | 自托管部署和本地集成 |
 | PostgreSQL | 本地调试数据库，最终产品会内置 |
 
+API 开发约定：
+
+- 后端框架：Spring Boot 3.x，通过 `spring-boot-starter-web` 提供 REST API。
+- 数据库：PostgreSQL，通过 Flyway 管理数据库迁移。
+- 安全：Spring Security + JWT（Bearer Token）已接入，受保护接口需要登录态；RBAC 细粒度权限仍在后续迭代。
+- API 模块按 `auth`、`workspace`、`project`、`environment`、`deployment`、`testcase`、`issue`、`release`、`notification`、`audit`、`common` 分包，对应产品设计中的核心模块。
+- Worker 部署流水线已接入任务串行执行（clone -> build -> deploy -> health check）和阶段日志。
+- 环境变量敏感值已启用加密存储，部署时在 Worker 侧解密注入。
+
 开发原则：
 
 - 对外 README 只描述真实状态，不把计划能力写成已完成能力。
 - 产品决策写入 `docs/product`。
 - 本地开发计划写入 `docs/dev-tasks`，该目录不会上传。
-- 任务文档必须写清楚目标、人工确认点、AI 可执行任务、产出物和验收标准。
+- 周任务文档采用 AI 主执行格式：写清楚目标、前置条件、人工审核点、任务文件、输入、输出、约束和完成标准。
+- 人主要负责审核边界和关键决策，AI 尽量执行可落地的代码、文档和验证任务。
 - 实现应和当前产品设计保持一致。
 
 ## 项目进展
@@ -198,10 +206,14 @@ curl http://localhost:8080/api/health
 | Worker 骨架 | 已完成 |
 | CLI 骨架 | 已完成 |
 | Docker Compose 模板 | 已完成 |
-| 账号与 Workspace | 未开始 |
-| 项目接入与仓库绑定 | 未开始 |
-| 部署执行与环境管理 | 未开始 |
-| 测试、Issue、Release 门禁 | 未开始 |
+| 第 1 周：基础与开发基线 | 已完成 |
+| 第 2-13 周核心模块 | 已完成（已可进入 MVP 联调） |
+| 账号与 Workspace | 已实现基础流程 |
+| 项目接入与仓库绑定 | 已实现基础流程 |
+| 部署执行与环境管理 | 已实现基础流程 |
+| 测试、Issue、Release 门禁 | 已实现基础流程 |
+| 成员管理页面 `/members` | 占位，待实现 |
+| CLI 远程镜像一键安装 | 依赖镜像发布，待补齐发布链路 |
 
 ## 文档
 
@@ -222,4 +234,3 @@ curl http://localhost:8080/api/health
 ## 开源协议
 
 许可证尚未确定。正式开源前需要补充 `LICENSE` 文件。
-

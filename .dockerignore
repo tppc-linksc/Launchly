@@ -1,0 +1,12 @@
+.git
+.idea
+.vscode
+.claude
+node_modules
+apps/web/node_modules
+apps/web/dist
+services/api/target
+services/worker/target
+cli/launchly
+docs/dev-tasks
+*.log

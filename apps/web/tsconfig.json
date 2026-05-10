@@ -10,9 +10,9 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "esModuleInterop": true,
+    "skipLibCheck": true,
     "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "types": ["vite/client"]
   },
   "include": ["src/**/*.ts", "src/**/*.vue"]
 }
-

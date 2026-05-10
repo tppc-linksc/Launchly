@@ -8,10 +8,24 @@ spring:
     url: jdbc:postgresql://${LAUNCHLY_DB_HOST:localhost}:${LAUNCHLY_DB_PORT:5432}/${LAUNCHLY_DB_NAME:launchly}
     username: ${LAUNCHLY_DB_USER:launchly}
     password: ${LAUNCHLY_DB_PASSWORD:launchly_dev_password}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+launchly:
+  encryption:
+    key: ${LAUNCHLY_ENCRYPTION_KEY:${LAUNCHLY_JWT_SECRET:launchly-dev-secret-do-not-use-in-production}}
+  jwt:
+    secret: ${LAUNCHLY_JWT_SECRET:launchly-dev-secret-do-not-use-in-production}
+    access-token-expiration: 3600000
+    refresh-token-expiration: 2592000000
 
 management:
   endpoints:
     web:
       exposure:
         include: health,info
-

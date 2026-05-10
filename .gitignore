@@ -17,10 +17,12 @@ dist/
 target/
 *.class
 
+# Local binaries
+cli/launchly
+
 # IDE
 .idea/
 .vscode/
 
 # Local development planning docs, not for upload
 docs/dev-tasks/
-

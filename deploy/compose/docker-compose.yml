@@ -12,7 +12,10 @@ services:
       - "${LAUNCHLY_DB_PORT:-5432}:5432"
 
   app:
-    image: ghcr.io/launchly/launchly-app:latest
+    image: ${LAUNCHLY_APP_IMAGE:-launchly-app:local}
+    build:
+      context: ../..
+      dockerfile: services/api/Dockerfile
     container_name: launchly-app
     depends_on:
       - postgres
@@ -22,13 +25,18 @@ services:
       LAUNCHLY_DB_NAME: ${LAUNCHLY_DB_NAME:-launchly}
       LAUNCHLY_DB_USER: ${LAUNCHLY_DB_USER:-launchly}
       LAUNCHLY_DB_PASSWORD: ${LAUNCHLY_DB_PASSWORD:-launchly_dev_password}
+      LAUNCHLY_JWT_SECRET: ${LAUNCHLY_JWT_SECRET:-launchly-dev-secret-do-not-use-in-production}
+      LAUNCHLY_ENCRYPTION_KEY: ${LAUNCHLY_ENCRYPTION_KEY:-launchly-dev-secret-do-not-use-in-production}
     ports:
       - "${LAUNCHLY_APP_PORT:-8080}:8080"
     volumes:
       - launchly-data:/var/lib/launchly
 
   worker:
-    image: ghcr.io/launchly/launchly-worker:latest
+    image: ${LAUNCHLY_WORKER_IMAGE:-launchly-worker:local}
+    build:
+      context: ../..
+      dockerfile: services/worker/Dockerfile
     container_name: launchly-worker
     depends_on:
       - postgres
@@ -38,6 +46,8 @@ services:
       LAUNCHLY_DB_NAME: ${LAUNCHLY_DB_NAME:-launchly}
       LAUNCHLY_DB_USER: ${LAUNCHLY_DB_USER:-launchly}
       LAUNCHLY_DB_PASSWORD: ${LAUNCHLY_DB_PASSWORD:-launchly_dev_password}
+      LAUNCHLY_JWT_SECRET: ${LAUNCHLY_JWT_SECRET:-launchly-dev-secret-do-not-use-in-production}
+      LAUNCHLY_ENCRYPTION_KEY: ${LAUNCHLY_ENCRYPTION_KEY:-launchly-dev-secret-do-not-use-in-production}
     volumes:
       - launchly-data:/var/lib/launchly
       - /var/run/docker.sock:/var/run/docker.sock
@@ -45,4 +55,3 @@ services:
 volumes:
   launchly-postgres-data:
   launchly-data:
-
