@@ -27,3 +27,4 @@ cli/launchly
 # Local development planning docs, not for upload
 docs/dev-tasks/
 docs/product/Launchly-mvp-flow-simulator.html
+.claude/settings.local.json
