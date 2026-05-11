@@ -1,11 +1,11 @@
 <template>
   <div>
-    <h2>Deployments</h2>
+    <h2>部署记录</h2>
     <p style="color: #8c8c8c; margin-bottom: 24px;">查看所有环境的部署记录、构建日志与部署状态。</p>
     <a-table :columns="columns" :data-source="deployments" row-key="id" :loading="loading" @row-click="(r: any) => $router.push(`/deployments/${r.id}`)" style="cursor: pointer;">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'status'">
-          <a-tag :color="statusColor(record.status)">{{ record.status }}</a-tag>
+          <a-tag :color="statusColor(record.status)">{{ deployStatusMap[record.status] || record.status }}</a-tag>
         </template>
         <template v-if="column.key === 'action'">
           <a-button type="link" @click.stop="$router.push(`/deployments/${record.id}`)">详情</a-button>
@@ -18,10 +18,9 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { fetchDeployments } from '../api/client'
+import { deployStatusMap } from '../utils/display'
 
-const router = useRouter()
 const columns = [
   { title: '分支', dataIndex: 'branch' },
   { title: 'Commit', dataIndex: 'commitSha', ellipsis: true },

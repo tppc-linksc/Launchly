@@ -2,7 +2,7 @@
   <div>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
       <div>
-        <h2>Issue</h2>
+        <h2>Issue 列表</h2>
         <p style="color: #8c8c8c;">管理测试失败等问题，指派、修复、复测。</p>
       </div>
       <div style="display: flex; gap: 12px;">
@@ -15,28 +15,28 @@
 
     <div style="display: flex; gap: 12px; margin-bottom: 16px;">
       <a-select v-model:value="filterStatus" placeholder="状态筛选" style="width: 140px;" allow-clear @change="loadIssues">
-        <a-select-option value="OPEN">Open</a-select-option>
-        <a-select-option value="ASSIGNED">Assigned</a-select-option>
-        <a-select-option value="FIXING">Fixing</a-select-option>
-        <a-select-option value="FIXED">Fixed</a-select-option>
-        <a-select-option value="REOPENED">Reopened</a-select-option>
-        <a-select-option value="CLOSED">Closed</a-select-option>
+        <a-select-option value="OPEN">{{ issueStatusMap.OPEN }}</a-select-option>
+        <a-select-option value="ASSIGNED">{{ issueStatusMap.ASSIGNED }}</a-select-option>
+        <a-select-option value="FIXING">{{ issueStatusMap.FIXING }}</a-select-option>
+        <a-select-option value="FIXED">{{ issueStatusMap.FIXED }}</a-select-option>
+        <a-select-option value="REOPENED">{{ issueStatusMap.REOPENED }}</a-select-option>
+        <a-select-option value="CLOSED">{{ issueStatusMap.CLOSED }}</a-select-option>
       </a-select>
       <a-select v-model:value="filterPriority" placeholder="优先级" style="width: 120px;" allow-clear @change="loadIssues">
-        <a-select-option value="P0">P0</a-select-option>
-        <a-select-option value="P1">P1</a-select-option>
-        <a-select-option value="P2">P2</a-select-option>
-        <a-select-option value="P3">P3</a-select-option>
+        <a-select-option value="P0">{{ priorityMap.P0 }}</a-select-option>
+        <a-select-option value="P1">{{ priorityMap.P1 }}</a-select-option>
+        <a-select-option value="P2">{{ priorityMap.P2 }}</a-select-option>
+        <a-select-option value="P3">{{ priorityMap.P3 }}</a-select-option>
       </a-select>
     </div>
 
     <a-table :columns="columns" :data-source="issues" row-key="id" :loading="loading" @row-click="(r: any) => $router.push(`/issues/${r.id}`)" style="cursor: pointer;">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'priority'">
-          <a-tag :color="priorityColor(record.priority)">{{ record.priority }}</a-tag>
+          <a-tag :color="priorityColor(record.priority)">{{ priorityMap[record.priority] || record.priority }}</a-tag>
         </template>
         <template v-if="column.key === 'status'">
-          <a-tag :color="statusColor(record.status)">{{ record.status }}</a-tag>
+          <a-tag :color="statusColor(record.status)">{{ issueStatusMap[record.status] || record.status }}</a-tag>
         </template>
         <template v-if="column.key === 'action'">
           <a-button type="link" @click.stop="$router.push(`/issues/${record.id}`)">详情</a-button>
@@ -56,10 +56,10 @@
         </a-form-item>
         <a-form-item label="优先级">
           <a-select v-model:value="form.priority">
-            <a-select-option value="P0">P0 - 阻塞</a-select-option>
-            <a-select-option value="P1">P1 - 高</a-select-option>
-            <a-select-option value="P2">P2 - 中</a-select-option>
-            <a-select-option value="P3">P3 - 低</a-select-option>
+            <a-select-option value="P0">{{ priorityMap.P0 }}</a-select-option>
+            <a-select-option value="P1">{{ priorityMap.P1 }}</a-select-option>
+            <a-select-option value="P2">{{ priorityMap.P2 }}</a-select-option>
+            <a-select-option value="P3">{{ priorityMap.P3 }}</a-select-option>
           </a-select>
         </a-form-item>
       </a-form>
@@ -70,6 +70,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { fetchProjects, fetchIssues, createIssue } from '../api/client'
+import { issueStatusMap, priorityMap } from '../utils/display'
 
 const columns = [
   { title: '标题', dataIndex: 'title' },
@@ -87,7 +88,6 @@ const loading = ref(false)
 const showCreate = ref(false)
 const filterStatus = ref('')
 const filterPriority = ref('')
-
 const form = ref({ title: '', description: '', priority: 'P2' })
 
 function priorityColor(p: string) {

@@ -137,6 +137,12 @@ scripts                  Utility scripts
 
 Launchly is not usable as a product yet. The commands below only validate the current development scaffold.
 
+Mandatory prerequisites:
+
+- Docker is installed and the Docker engine is running.
+- Local port `5432` is available (or set another port via env, for example `LAUNCHLY_DB_PORT=55432`).
+- If you skip the database step and start the API directly, startup will fail (`Connection refused` / `Failed to configure a DataSource`).
+
 ### 1. CLI Scaffold
 
 ```bash
@@ -168,6 +174,13 @@ mvn spring-boot:run
 ```
 
 Flyway migrations run automatically on startup.
+
+If your PostgreSQL does not use `5432`, set the port explicitly:
+
+```bash
+cd services/api
+LAUNCHLY_DB_PORT=55432 mvn spring-boot:run
+```
 
 Health check:
 

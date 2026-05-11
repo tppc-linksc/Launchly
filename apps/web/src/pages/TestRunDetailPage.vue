@@ -2,7 +2,7 @@
   <div>
     <a-page-header title="测试执行详情" @back="() => $router.back()">
       <template #extra>
-        <a-tag :color="statusColor(testRun?.status)">{{ testRun?.status }}</a-tag>
+        <a-tag :color="statusColor(testRun?.status)">{{ testRunStatusMap[testRun?.status] || testRun?.status }}</a-tag>
       </template>
     </a-page-header>
 
@@ -19,19 +19,22 @@
         <template v-if="column.key === 'result'">
           <a-select v-model:value="record.result" size="small" style="width: 100px;" @change="(v: string) => updateResult(record, v)">
             <a-select-option value="PASSED">
-              <span style="color: #52c41a;">PASSED</span>
+              <span style="color: #52c41a;">{{ testResultMap.PASSED }}</span>
             </a-select-option>
             <a-select-option value="FAILED">
-              <span style="color: #ff4d4f;">FAILED</span>
+              <span style="color: #ff4d4f;">{{ testResultMap.FAILED }}</span>
             </a-select-option>
             <a-select-option value="BLOCKED">
-              <span style="color: #faad14;">BLOCKED</span>
+              <span style="color: #faad14;">{{ testResultMap.BLOCKED }}</span>
             </a-select-option>
-            <a-select-option value="SKIPPED">SKIPPED</a-select-option>
+            <a-select-option value="SKIPPED">{{ testResultMap.SKIPPED }}</a-select-option>
           </a-select>
         </template>
         <template v-if="column.key === 'notes'">
           <a-input v-model:value="record.notes" size="small" placeholder="备注" @blur="updateNotes(record)" />
+        </template>
+        <template v-if="column.key === 'action'">
+          <a-button v-if="record.result === 'FAILED'" type="link" size="small" danger @click="handleCreateIssue(record)">创建 Issue</a-button>
         </template>
       </template>
     </a-table>
@@ -42,10 +45,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { fetchTestRun, fetchTestRunCases, fetchTestCases, updateTestRunCase } from '../api/client'
+import { useRoute, useRouter } from 'vue-router'
+import { message } from 'ant-design-vue'
+import { fetchTestRun, fetchTestRunCases, fetchTestCases, updateTestRunCase, createIssueFromFailedTest } from '../api/client'
+import { testRunStatusMap, testResultMap } from '../utils/display'
 
 const route = useRoute()
+const router = useRouter()
 const testRun = ref<any>(null)
 const cases = ref<any[]>([])
 const loading = ref(false)
@@ -56,6 +62,7 @@ const columns = [
   { title: '备注', dataIndex: 'notes', key: 'notes' },
   { title: '执行人', dataIndex: 'executedBy' },
   { title: '执行时间', dataIndex: 'executedAt' },
+  { title: '操作', key: 'action', width: 100 },
 ]
 
 function statusColor(s: string) {
@@ -82,6 +89,21 @@ async function updateNotes(record: any) {
     })
   } catch (e: any) {
     console.error('Update test notes failed', e)
+  }
+}
+
+async function handleCreateIssue(record: any) {
+  try {
+    const res = await createIssueFromFailedTest(
+      record.projectId || testRun.value?.projectId,
+      record.id,
+      testRun.value?.deploymentId,
+      record.testCaseId,
+    )
+    message.success('Issue 已创建')
+    router.push(`/issues/${res.data.id}`)
+  } catch (e: any) {
+    message.error(e.response?.data?.message || '创建 Issue 失败')
   }
 }
 

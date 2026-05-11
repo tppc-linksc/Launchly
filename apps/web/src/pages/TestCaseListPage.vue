@@ -16,10 +16,10 @@
     <a-table :columns="columns" :data-source="testCases" row-key="id" :loading="loading">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'priority'">
-          <a-tag :color="priorityColor(record.priority)">{{ record.priority }}</a-tag>
+          <a-tag :color="priorityColor(record.priority)">{{ priorityMap[record.priority] || record.priority }}</a-tag>
         </template>
         <template v-if="column.key === 'status'">
-          <a-tag :color="record.status === 'ACTIVE' ? 'green' : 'default'">{{ record.status }}</a-tag>
+          <a-tag :color="record.status === 'ACTIVE' ? 'green' : 'default'">{{ record.status === 'ACTIVE' ? '启用' : '停用' }}</a-tag>
         </template>
         <template v-if="column.key === 'action'">
           <a-button type="link" size="small" @click="editCase(record)">编辑</a-button>
@@ -43,17 +43,17 @@
           <a-input v-model:value="form.module" placeholder="如：登录模块" />
         </a-form-item>
         <a-form-item label="测试步骤">
-          <a-textarea v-model:value="form.steps" :rows="3" placeholder="1. 打开页面\n2. 点击按钮\n3. 验证结果" />
+          <a-textarea v-model:value="form.steps" :rows="3" placeholder="1. 打开页面&#10;2. 点击按钮&#10;3. 验证结果" />
         </a-form-item>
         <a-form-item label="预期结果">
           <a-textarea v-model:value="form.expectedResult" :rows="2" placeholder="预期结果描述" />
         </a-form-item>
         <a-form-item label="优先级">
           <a-select v-model:value="form.priority">
-            <a-select-option value="P0">P0 - 阻塞</a-select-option>
-            <a-select-option value="P1">P1 - 高</a-select-option>
-            <a-select-option value="P2">P2 - 中</a-select-option>
-            <a-select-option value="P3">P3 - 低</a-select-option>
+            <a-select-option value="P0">{{ priorityMap.P0 }}</a-select-option>
+            <a-select-option value="P1">{{ priorityMap.P1 }}</a-select-option>
+            <a-select-option value="P2">{{ priorityMap.P2 }}</a-select-option>
+            <a-select-option value="P3">{{ priorityMap.P3 }}</a-select-option>
           </a-select>
         </a-form-item>
         <a-form-item label="标签">
@@ -67,6 +67,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { fetchProjects, fetchTestCases, createTestCase, updateTestCase, deleteTestCase } from '../api/client'
+import { priorityMap } from '../utils/display'
 
 const columns = [
   { title: '标题', dataIndex: 'title' },

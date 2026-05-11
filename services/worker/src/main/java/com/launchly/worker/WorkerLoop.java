@@ -4,9 +4,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.launchly.worker.entities.Deployment;
 import com.launchly.worker.entities.DeploymentStageLog;
+import com.launchly.worker.entities.Environment;
 import com.launchly.worker.entities.Task;
 import com.launchly.worker.repositories.DeploymentRepository;
 import com.launchly.worker.repositories.DeploymentStageLogRepository;
+import com.launchly.worker.repositories.EnvironmentRepository;
 import com.launchly.worker.repositories.TaskRepository;
 import com.launchly.worker.runner.*;
 import org.slf4j.Logger;
@@ -28,6 +30,7 @@ public class WorkerLoop {
     private final TaskRepository taskRepository;
     private final DeploymentRepository deploymentRepository;
     private final DeploymentStageLogRepository stageLogRepository;
+    private final EnvironmentRepository environmentRepository;
     private final GitRunner gitRunner;
     private final ShellRunner shellRunner;
     private final DockerRunner dockerRunner;
@@ -36,6 +39,7 @@ public class WorkerLoop {
     public WorkerLoop(TaskRepository taskRepository,
                       DeploymentRepository deploymentRepository,
                       DeploymentStageLogRepository stageLogRepository,
+                      EnvironmentRepository environmentRepository,
                       GitRunner gitRunner,
                       ShellRunner shellRunner,
                       DockerRunner dockerRunner,
@@ -43,6 +47,7 @@ public class WorkerLoop {
         this.taskRepository = taskRepository;
         this.deploymentRepository = deploymentRepository;
         this.stageLogRepository = stageLogRepository;
+        this.environmentRepository = environmentRepository;
         this.gitRunner = gitRunner;
         this.shellRunner = shellRunner;
         this.dockerRunner = dockerRunner;
@@ -213,8 +218,36 @@ public class WorkerLoop {
                 deployment.setStatus("SUCCEEDED");
                 deployment.setFinishedAt(Instant.now());
                 deploymentRepository.save(deployment);
+
+                // Update environment status
+                environmentRepository.findById(deployment.getEnvironmentId()).ifPresent(env -> {
+                    env.setStatus("active");
+                    env.setCurrentDeploymentId(deploymentId);
+                    if (env.getUrl() == null || env.getUrl().isBlank()) {
+                        if ("local".equals(env.getDeployMode())) {
+                            env.setUrl("http://localhost:" + effectivePort(env));
+                        }
+                    }
+                    environmentRepository.save(env);
+                });
             });
         }
+    }
+
+    /**
+     * Determine the effective external port for an environment.
+     * Priority: environment.externalPort → per-type default → 3000.
+     */
+    static int effectivePort(Environment env) {
+        if (env.getExternalPort() != null && env.getExternalPort() > 0) {
+            return env.getExternalPort();
+        }
+        return switch (env.getType()) {
+            case "TEST" -> 3001;
+            case "STAGING" -> 3002;
+            case "PRODUCTION" -> 3003;
+            default -> 3000;
+        };
     }
 
     private void failDeployment(String deploymentId, String errorMessage) {

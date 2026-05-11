@@ -1,23 +1,26 @@
 <template>
   <a-layout class="app-shell">
     <a-layout-sider width="220" theme="light">
-      <div class="brand">Launchly</div>
+      <div class="brand">
+        <img src="/Launchly-icon.png" alt="Launchly" class="brand-icon" />
+        <span>Launchly</span>
+      </div>
       <a-menu mode="inline" :selected-keys="[activeKey]" @click="onMenuClick">
-        <a-menu-item key="dashboard">Dashboard</a-menu-item>
-        <a-menu-item key="projects">Projects</a-menu-item>
-        <a-menu-item key="deployments">Deployments</a-menu-item>
-        <a-menu-item key="environments">Environments</a-menu-item>
-        <a-menu-item key="tests">Tests</a-menu-item>
-        <a-menu-item key="issues">Issues</a-menu-item>
-        <a-menu-item key="releases">Releases</a-menu-item>
-        <a-menu-item key="members">Members</a-menu-item>
-        <a-menu-item key="settings">Settings</a-menu-item>
+        <a-menu-item key="dashboard">仪表盘</a-menu-item>
+        <a-menu-item key="projects">项目</a-menu-item>
+        <a-menu-item key="deployments">部署</a-menu-item>
+        <a-menu-item key="environments">环境</a-menu-item>
+        <a-menu-item key="tests">测试</a-menu-item>
+        <a-menu-item key="issues">Issue</a-menu-item>
+        <a-menu-item key="releases">发布</a-menu-item>
+        <a-menu-item key="members">成员</a-menu-item>
+        <a-menu-item key="settings">设置</a-menu-item>
       </a-menu>
     </a-layout-sider>
     <a-layout>
       <a-layout-header class="topbar">
         <div class="topbar-left">
-          <span class="workspace-label">{{ auth.workspace?.name || 'Default Workspace' }}</span>
+          <span class="workspace-label">{{ auth.workspace?.name || '默认工作空间' }}</span>
         </div>
         <div class="topbar-right">
           <a-tag color="processing">pre-alpha</a-tag>
@@ -66,10 +69,17 @@ function onMenuClick({ key }: { key: string }) {
   height: 56px;
   display: flex;
   align-items: center;
+  gap: 10px;
   padding: 0 20px;
   font-weight: 700;
-  font-size: 16px;
+  font-size: 26px;
   border-bottom: 1px solid #f0f0f0;
+}
+.brand-icon {
+  width: 44px;
+  height: 44px;
+  display: block;
+  object-fit: contain;
 }
 .topbar {
   height: 56px;

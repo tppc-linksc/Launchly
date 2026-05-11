@@ -53,9 +53,15 @@ public class ProjectService {
 
         project = projectRepository.save(project);
 
-        Environment testEnv = new Environment(project.getId(), "Test", EnvironmentType.TEST);
-        Environment stagingEnv = new Environment(project.getId(), "Staging", EnvironmentType.STAGING);
-        Environment prodEnv = new Environment(project.getId(), "Production", EnvironmentType.PRODUCTION);
+        Environment testEnv = new Environment(project.getId(), "测试环境", EnvironmentType.TEST);
+        testEnv.setExternalPort(3001);
+        testEnv.setDeployMode("local");
+        Environment stagingEnv = new Environment(project.getId(), "预发环境", EnvironmentType.STAGING);
+        stagingEnv.setExternalPort(3002);
+        stagingEnv.setDeployMode("local");
+        Environment prodEnv = new Environment(project.getId(), "生产环境", EnvironmentType.PRODUCTION);
+        prodEnv.setExternalPort(3003);
+        prodEnv.setDeployMode("local");
         environmentRepository.saveAll(List.of(testEnv, stagingEnv, prodEnv));
         auditService.record(userId, workspaceId, AuditAction.CREATE_PROJECT, "project", project.getId(),
                 Map.of("name", project.getName()));

@@ -68,6 +68,11 @@ export function fetchEnvironments(projectId: string) {
   return api.get('/environments', { params: { projectId } })
 }
 
+// Environment API
+export function updateEnvironment(id: string, data: any) {
+  return api.put(`/environments/${id}`, data)
+}
+
 // Environment Variable API
 export function fetchEnvVariables(environmentId: string) {
   return api.get(`/environments/${environmentId}/variables`)

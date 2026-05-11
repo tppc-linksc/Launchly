@@ -1,8 +1,9 @@
 package com.launchly.worker.runner;
 
-import com.launchly.worker.entities.Deployment;
+import com.launchly.worker.entities.Environment;
 import com.launchly.worker.entities.Project;
 import com.launchly.worker.repositories.DeploymentRepository;
+import com.launchly.worker.repositories.EnvironmentRepository;
 import com.launchly.worker.repositories.ProjectRepository;
 import org.springframework.stereotype.Component;
 
@@ -16,10 +17,14 @@ public class ShellRunner implements Runner {
     private static final String BUILD_ROOT = "/tmp/launchly-builds";
 
     private final ProjectRepository projectRepository;
+    private final EnvironmentRepository environmentRepository;
     private final DeploymentRepository deploymentRepository;
 
-    public ShellRunner(ProjectRepository projectRepository, DeploymentRepository deploymentRepository) {
+    public ShellRunner(ProjectRepository projectRepository,
+                       EnvironmentRepository environmentRepository,
+                       DeploymentRepository deploymentRepository) {
         this.projectRepository = projectRepository;
+        this.environmentRepository = environmentRepository;
         this.deploymentRepository = deploymentRepository;
     }
 
@@ -27,6 +32,7 @@ public class ShellRunner implements Runner {
     public RunnerResult execute(RunnerContext context) {
         String refId = context.getRefId();
         String projectId = (String) context.getPayload().getOrDefault("projectId", "");
+        String environmentId = (String) context.getPayload().getOrDefault("environmentId", "");
 
         Project project = projectRepository.findById(projectId).orElse(null);
         if (project == null) {
@@ -40,11 +46,10 @@ public class ShellRunner implements Runner {
 
         // Determine which command to execute based on task type
         String taskType = context.getTaskType();
-        String command = null;
+        String command;
         int timeout = DEFAULT_TIMEOUT;
 
         if ("PROJECT_BUILD".equals(taskType)) {
-            // Build: install dependencies + build
             StringBuilder buildCmd = new StringBuilder();
             if (project.getInstallCommand() != null && !project.getInstallCommand().isEmpty()) {
                 buildCmd.append(project.getInstallCommand()).append(" && ");
@@ -61,7 +66,9 @@ public class ShellRunner implements Runner {
             if (healthPath == null || healthPath.isEmpty()) {
                 return RunnerResult.success("No health check path configured, skipping", "");
             }
-            int port = project.getDefaultPort() != null ? project.getDefaultPort() : 3000;
+
+            // Use effective external port for health check
+            int port = getEffectiveHealthCheckPort(environmentId, project);
             command = "curl -f -s -o /dev/null -w '%{http_code}' http://localhost:" + port + healthPath
                     + " | grep -q '200' && echo 'Health check OK' || exit 1";
             timeout = 120; // 2 minutes
@@ -70,5 +77,19 @@ public class ShellRunner implements Runner {
         }
 
         return CommandExecutor.execute(command, workDir, timeout);
+    }
+
+    /**
+     * Determine the port to use for health check.
+     * Same fallback rule as DockerRunner: environment.externalPort → type default → project.defaultPort → 3000.
+     */
+    private int getEffectiveHealthCheckPort(String environmentId, Project project) {
+        if (environmentId != null && !environmentId.isEmpty()) {
+            Environment env = environmentRepository.findById(environmentId).orElse(null);
+            if (env != null) {
+                return DockerRunner.getEffectivePort(env, project);
+            }
+        }
+        return project.getDefaultPort() != null ? project.getDefaultPort() : 3000;
     }
 }

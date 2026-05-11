@@ -137,6 +137,12 @@ scripts                  工具脚本目录
 
 当前还不是可用产品，以下命令仅用于验证开发骨架。
 
+前置条件（必须）：
+
+- 已安装 Docker，且 Docker 引擎正在运行。
+- 本地 `5432` 端口可用（或通过环境变量改用其他端口，例如 `LAUNCHLY_DB_PORT=55432`）。
+- 如果跳过数据库步骤直接启动 API，启动会失败（`Connection refused` / `Failed to configure a DataSource`）。
+
 ### 1. CLI 骨架
 
 ```bash
@@ -168,6 +174,13 @@ mvn spring-boot:run
 ```
 
 启动后 API 会自动执行 Flyway 数据库迁移。
+
+如果你本地 PostgreSQL 不在 `5432`，启动时显式指定端口：
+
+```bash
+cd services/api
+LAUNCHLY_DB_PORT=55432 mvn spring-boot:run
+```
 
 健康检查：
 

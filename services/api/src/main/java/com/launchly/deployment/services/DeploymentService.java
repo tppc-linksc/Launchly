@@ -2,6 +2,7 @@ package com.launchly.deployment.services;
 
 import com.launchly.audit.enums.AuditAction;
 import com.launchly.audit.services.AuditService;
+import com.launchly.common.security.AuthContext;
 import com.launchly.deployment.dto.CreateDeploymentRequest;
 import com.launchly.deployment.dto.DeploymentResponse;
 import com.launchly.deployment.entities.Deployment;
@@ -10,6 +11,8 @@ import com.launchly.deployment.enums.DeploymentStage;
 import com.launchly.deployment.enums.DeploymentStatus;
 import com.launchly.deployment.repositories.DeploymentRepository;
 import com.launchly.deployment.repositories.DeploymentStageLogRepository;
+import com.launchly.environment.entities.Environment;
+import com.launchly.environment.repositories.EnvironmentRepository;
 import com.launchly.project.entities.Project;
 import com.launchly.project.repositories.ProjectRepository;
 import com.launchly.worker.enums.TaskType;
@@ -27,22 +30,45 @@ public class DeploymentService {
     private final DeploymentStageLogRepository stageLogRepository;
     private final TaskService taskService;
     private final ProjectRepository projectRepository;
+    private final EnvironmentRepository environmentRepository;
     private final AuditService auditService;
 
     public DeploymentService(DeploymentRepository deploymentRepository,
                              DeploymentStageLogRepository stageLogRepository,
                              TaskService taskService,
                              ProjectRepository projectRepository,
+                             EnvironmentRepository environmentRepository,
                              AuditService auditService) {
         this.deploymentRepository = deploymentRepository;
         this.stageLogRepository = stageLogRepository;
         this.taskService = taskService;
         this.projectRepository = projectRepository;
+        this.environmentRepository = environmentRepository;
         this.auditService = auditService;
     }
 
     @Transactional
     public DeploymentResponse create(CreateDeploymentRequest request, String userId) {
+        // Validate environment
+        Environment env = environmentRepository.findById(request.environmentId())
+                .orElseThrow(() -> new IllegalArgumentException("环境不存在: " + request.environmentId()));
+        if (!Boolean.TRUE.equals(env.getEnabled())) {
+            throw new IllegalStateException("该环境已禁用，无法部署");
+        }
+        if (!env.getProjectId().equals(request.projectId())) {
+            throw new IllegalArgumentException("环境不属于指定项目");
+        }
+        if ("remote".equals(env.getDeployMode())) {
+            throw new IllegalStateException("远程部署功能开发中，请使用本地模式（local）部署");
+        }
+
+        // Validate project belongs to current workspace
+        Project project = projectRepository.findById(request.projectId())
+                .orElseThrow(() -> new IllegalArgumentException("项目不存在: " + request.projectId()));
+        if (!project.getWorkspaceId().equals(AuthContext.workspaceId())) {
+            throw new SecurityException("无权在该项目中创建部署");
+        }
+
         Deployment deployment = new Deployment();
         deployment.setProjectId(request.projectId());
         deployment.setEnvironmentId(request.environmentId());

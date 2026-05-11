@@ -7,7 +7,7 @@
       </div>
       <div>
         <a-tag>{{ project.projectType }}</a-tag>
-        <a-button type="primary" style="margin-left: 8px;" @click="showDeploy = true" :disabled="!project.repositoryUrl">部署到 Test</a-button>
+        <a-button type="primary" style="margin-left: 8px;" @click="showDeploy = true" :disabled="!project.repositoryUrl">部署</a-button>
       </div>
     </div>
 
@@ -30,15 +30,29 @@
           </a-descriptions>
         </a-card>
 
+        <!-- Workflow Steps -->
+        <a-card title="工作流" style="margin-bottom: 16px;">
+          <a-steps :current="workflowCurrent" size="small" direction="vertical">
+            <a-step title="项目配置" description="配置仓库地址、构建命令、启动命令等基本信息" />
+            <a-step title="环境配置" description="配置测试/预发/生产环境的端口、数据策略、环境变量" />
+            <a-step title="测试部署" description="选择分支部署到测试环境，自动构建与健康检查" />
+            <a-step title="测试任务" description="部署成功后创建测试任务，执行用例并记录结果" />
+            <a-step title="Issue 修复" description="对失败用例创建 Issue，指派修复并复测验证" />
+            <a-step title="预发发布" description="测试通过后创建 Release，部署到预发环境验证" />
+            <a-step title="发布门禁" description="检查预发健康状态、P0 测试通过率等门禁条件" />
+            <a-step title="生产发布" description="门禁全部通过后发布到生产环境" />
+          </a-steps>
+        </a-card>
+
         <a-card title="环境状态" style="margin-bottom: 16px;">
           <a-row :gutter="16">
             <a-col :span="8" v-for="env in environments" :key="env.id">
               <a-card size="small" :title="env.name" :style="{ borderTop: `3px solid ${envColor(env.type)}` }">
-                <p style="margin: 0; color: #8c8c8c;">类型：{{ env.type }}</p>
-                <a-tag :color="env.status === 'active' ? 'green' : 'default'" style="margin-top: 4px;">{{ env.status }}</a-tag>
+                <p style="margin: 0; color: #8c8c8c;">类型：{{ envTypeMap[env.type] || env.type }}</p>
+                <a-tag :color="env.status === 'active' ? 'green' : 'default'" style="margin-top: 4px;">{{ env.status === 'active' ? '活跃' : '未激活' }}</a-tag>
                 <div style="margin-top: 8px;">
-                  <a-button v-if="env.type === 'TEST'" size="small" type="primary" @click="showDeploy = true">发布到 Test</a-button>
-                  <a-button v-else size="small" disabled>{{ env.type === 'STAGING' ? '预发（后续开放）' : '生产（后续开放）' }}</a-button>
+                  <a-button v-if="env.type === 'TEST' || env.type === 'STAGING'" size="small" type="primary" @click="openDeploy(env)">部署到此环境</a-button>
+                  <a-button v-else size="small" disabled>生产（需走 Release）</a-button>
                 </div>
               </a-card>
             </a-col>
@@ -49,12 +63,12 @@
 
       <a-col :span="8">
         <a-card title="环境变量" size="small" style="margin-bottom: 16px;">
-          <p style="color: #8c8c8c; margin: 0;">选择左侧环境卡片进入变量管理</p>
+          <p style="color: #8c8c8c; margin: 0;">前往 <a @click="$router.push('/environments')">环境管理</a> 页面管理变量</p>
         </a-card>
         <a-card title="最近部署" size="small">
           <div v-if="recentDeployments.length === 0" style="color: #8c8c8c;">暂无部署记录</div>
           <div v-for="d in recentDeployments" :key="d.id" style="margin-bottom: 8px; cursor: pointer;" @click="$router.push(`/deployments/${d.id}`)">
-            <a-tag :color="d.status === 'SUCCEEDED' ? 'green' : d.status === 'FAILED' ? 'red' : d.status === 'RUNNING' ? 'processing' : 'default'" size="small" style="margin-right: 6px;">{{ d.status }}</a-tag>
+            <a-tag :color="d.status === 'SUCCEEDED' ? 'green' : d.status === 'FAILED' ? 'red' : d.status === 'RUNNING' ? 'processing' : 'default'" size="small" style="margin-right: 6px;">{{ deployStatusMap[d.status] || d.status }}</a-tag>
             <span style="font-size: 13px;">{{ d.branch || d.commitSha || '-' }}</span>
             <span style="font-size: 11px; color: #999; float: right;">{{ d.createdAt?.slice(0, 10) }}</span>
           </div>
@@ -63,8 +77,15 @@
     </a-row>
 
     <!-- Deploy dialog -->
-    <a-modal v-model:open="showDeploy" title="发布到 Test 环境" @ok="doDeploy" :confirm-loading="deployLoading">
+    <a-modal v-model:open="showDeploy" title="部署" @ok="doDeploy" :confirm-loading="deployLoading">
       <a-form layout="vertical">
+        <a-form-item label="目标环境">
+          <a-select v-model:value="deployForm.environmentId" placeholder="选择环境">
+            <a-select-option v-for="env in deployableEnvs" :key="env.id" :value="env.id">
+              {{ env.name }} ({{ envTypeMap[env.type] || env.type }})
+            </a-select-option>
+          </a-select>
+        </a-form-item>
         <a-form-item label="分支或 Commit">
           <a-input v-model:value="deployForm.branch" placeholder="main 或 commit sha" />
         </a-form-item>
@@ -78,36 +99,76 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { fetchProject, fetchEnvironments, fetchDeployments, createDeployment } from '../api/client'
+import { fetchProject, fetchEnvironments, fetchDeployments, fetchTestRuns, fetchIssues, fetchReleases, createDeployment } from '../api/client'
+import { deployStatusMap, envTypeMap } from '../utils/display'
 
 const route = useRoute()
 const router = useRouter()
 const project = ref<any>(null)
 const environments = ref<any[]>([])
 const recentDeployments = ref<any[]>([])
+const testRuns = ref<any[]>([])
+const issues = ref<any[]>([])
+const releases = ref<any[]>([])
 const showDeploy = ref(false)
 const deployLoading = ref(false)
 const deployError = ref('')
-const deployForm = ref({ branch: '', notes: '' })
+const deployForm = ref({ environmentId: '', branch: '', notes: '' })
+
+const deployableEnvs = computed(() =>
+  environments.value.filter((e: any) => e.type === 'TEST' || e.type === 'STAGING')
+)
+
+const workflowCurrent = computed(() => {
+  if (!project.value) return 0
+  if (environments.value.length === 0) return 1
+  if (recentDeployments.value.length === 0) return 2
+  const hasSuccess = recentDeployments.value.some((d: any) => d.status === 'SUCCEEDED')
+  if (!hasSuccess) return 2
+  if (testRuns.value.length === 0) return 3
+  const allTestsDone = testRuns.value.every((t: any) => t.status === 'COMPLETED')
+  if (!allTestsDone) return 3
+  if (issues.value.length === 0) return 4
+  if (releases.value.length === 0) return 5
+  const hasReadyRelease = releases.value.some((r: any) => r.status === 'READY')
+  if (!hasReadyRelease) return 6
+  const hasPublished = releases.value.some((r: any) => r.status === 'PUBLISHED')
+  if (!hasPublished) return 6
+  return 7
+})
 
 function envColor(type: string) {
   return type === 'TEST' ? '#1677ff' : type === 'STAGING' ? '#fa8c16' : '#ff4d4f'
 }
 
+function openDeploy(env: any) {
+  deployForm.value.environmentId = env.id
+  deployForm.value.branch = ''
+  deployForm.value.notes = ''
+  deployError.value = ''
+  showDeploy.value = true
+}
+
 onMounted(async () => {
   const id = route.params.id as string
   try {
-    const [pRes, eRes, dRes] = await Promise.all([
+    const [pRes, eRes, dRes, tRes, iRes, rRes] = await Promise.all([
       fetchProject(id),
       fetchEnvironments(id),
       fetchDeployments({ projectId: id }),
+      fetchTestRuns(id),
+      fetchIssues(id),
+      fetchReleases(id),
     ])
     project.value = pRes.data
     environments.value = eRes.data
     recentDeployments.value = (dRes.data || []).slice(0, 5)
+    testRuns.value = tRes.data || []
+    issues.value = iRes.data || []
+    releases.value = rRes.data || []
   } catch {}
 })
 
@@ -115,20 +176,21 @@ async function doDeploy() {
   deployLoading.value = true
   deployError.value = ''
   try {
-    const testEnv = environments.value.find((e: any) => e.type === 'TEST')
-    if (!testEnv) {
-      deployError.value = '未找到 Test 环境'
+    const envId = deployForm.value.environmentId
+    const targetEnv = environments.value.find((e: any) => e.id === envId)
+    if (!targetEnv) {
+      deployError.value = '请选择目标环境'
       deployLoading.value = false
       return
     }
     const res = await createDeployment({
       projectId: project.value.id,
-      environmentId: testEnv.id,
+      environmentId: envId,
       branch: deployForm.value.branch || project.value.defaultBranch,
       notes: deployForm.value.notes,
     })
     showDeploy.value = false
-    deployForm.value = { branch: '', notes: '' }
+    deployForm.value = { environmentId: '', branch: '', notes: '' }
     message.success('部署已创建')
     router.push(`/deployments/${res.data.id}`)
   } catch (e: any) {

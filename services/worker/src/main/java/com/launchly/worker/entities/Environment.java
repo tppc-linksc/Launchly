@@ -21,6 +21,30 @@ public class Environment {
     @Column
     private String url;
 
+    @Column(name = "current_deployment_id")
+    private String currentDeploymentId;
+
+    @Column(name = "deploy_mode")
+    private String deployMode = "local";
+
+    @Column
+    private String host;
+
+    @Column(name = "ssh_user")
+    private String sshUser;
+
+    @Column(name = "deploy_dir")
+    private String deployDir;
+
+    @Column(name = "external_port")
+    private Integer externalPort;
+
+    @Column(name = "data_strategy")
+    private String dataStrategy = "isolated";
+
+    @Column
+    private Boolean enabled = true;
+
     @Column
     private String status = "inactive";
 
@@ -38,4 +62,20 @@ public class Environment {
     public void setUrl(String url) { this.url = url; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public String getCurrentDeploymentId() { return currentDeploymentId; }
+    public void setCurrentDeploymentId(String currentDeploymentId) { this.currentDeploymentId = currentDeploymentId; }
+    public String getDeployMode() { return deployMode; }
+    public void setDeployMode(String deployMode) { this.deployMode = deployMode; }
+    public String getHost() { return host; }
+    public void setHost(String host) { this.host = host; }
+    public String getSshUser() { return sshUser; }
+    public void setSshUser(String sshUser) { this.sshUser = sshUser; }
+    public String getDeployDir() { return deployDir; }
+    public void setDeployDir(String deployDir) { this.deployDir = deployDir; }
+    public Integer getExternalPort() { return externalPort; }
+    public void setExternalPort(Integer externalPort) { this.externalPort = externalPort; }
+    public String getDataStrategy() { return dataStrategy; }
+    public void setDataStrategy(String dataStrategy) { this.dataStrategy = dataStrategy; }
+    public Boolean getEnabled() { return enabled; }
+    public void setEnabled(Boolean enabled) { this.enabled = enabled; }
 }

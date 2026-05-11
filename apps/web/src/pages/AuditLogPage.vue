@@ -5,7 +5,7 @@
       <a-table :columns="columns" :data-source="logs" :loading="loading" row-key="id" size="small">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'action'">
-            <a-tag>{{ record.action }}</a-tag>
+            <a-tag>{{ auditActionMap[record.action] || record.action }}</a-tag>
           </template>
           <template v-if="column.key === 'detail'">
             <span style="font-family: monospace; font-size: 12px;">{{ record.detail || '-' }}</span>
@@ -22,6 +22,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { fetchAuditLogs } from '../api/client'
+import { auditActionMap } from '../utils/display'
 
 const logs = ref<any[]>([])
 const loading = ref(false)

@@ -2,8 +2,8 @@
   <div>
     <a-page-header :title="issue?.title" @back="() => $router.back()">
       <template #tags>
-        <a-tag :color="priorityColor(issue?.priority)">{{ issue?.priority }}</a-tag>
-        <a-tag :color="statusColor(issue?.status)">{{ issue?.status }}</a-tag>
+        <a-tag :color="priorityColor(issue?.priority)">{{ priorityMap[issue?.priority] || issue?.priority }}</a-tag>
+        <a-tag :color="statusColor(issue?.status)">{{ issueStatusMap[issue?.status] || issue?.status }}</a-tag>
       </template>
     </a-page-header>
 
@@ -55,6 +55,7 @@
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { fetchIssue, updateIssue, transitionIssue, fetchProjects } from '../api/client'
+import { issueStatusMap, priorityMap } from '../utils/display'
 
 const route = useRoute()
 const issue = ref<any>(null)
@@ -123,7 +124,6 @@ onMounted(async () => {
   try {
     const [projRes] = await Promise.all([fetchProjects()])
     projects.value = projRes.data
-    // Find first project or use route
     const pid = projects.value.length > 0 ? projects.value[0].id : ''
     if (pid) {
       const res = await fetchIssue(pid, route.params.id as string)

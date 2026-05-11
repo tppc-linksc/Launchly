@@ -1,13 +1,14 @@
 package com.launchly.worker.runner;
 
+import com.launchly.worker.entities.Environment;
 import com.launchly.worker.entities.EnvironmentVariable;
 import com.launchly.worker.entities.Project;
+import com.launchly.worker.repositories.EnvironmentRepository;
 import com.launchly.worker.repositories.EnvironmentVariableRepository;
 import com.launchly.worker.repositories.ProjectRepository;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
@@ -19,13 +20,16 @@ public class DockerRunner implements Runner {
     private static final String BUILD_ROOT = "/tmp/launchly-builds";
 
     private final ProjectRepository projectRepository;
+    private final EnvironmentRepository environmentRepository;
     private final EnvironmentVariableRepository envVarRepository;
     private final SecretValueService secretValueService;
 
     public DockerRunner(ProjectRepository projectRepository,
+                        EnvironmentRepository environmentRepository,
                         EnvironmentVariableRepository envVarRepository,
                         SecretValueService secretValueService) {
         this.projectRepository = projectRepository;
+        this.environmentRepository = environmentRepository;
         this.envVarRepository = envVarRepository;
         this.secretValueService = secretValueService;
     }
@@ -41,6 +45,19 @@ public class DockerRunner implements Runner {
             return RunnerResult.failure("Project not found: " + projectId, "", "", -1);
         }
 
+        Environment env = environmentRepository.findById(environmentId).orElse(null);
+        if (env == null) {
+            return RunnerResult.failure("Environment not found: " + environmentId, "", "", -1);
+        }
+
+        // Block remote deployment
+        if ("remote".equals(env.getDeployMode())) {
+            return RunnerResult.failure("远程部署功能开发中，暂不支持。请使用本地模式（local）部署。", "", "", -1);
+        }
+
+        int externalPort = getEffectivePort(env, project);
+        int internalPort = project.getDefaultPort() != null ? project.getDefaultPort() : 3000;
+
         File workDir = new File(BUILD_ROOT, projectId + "/" + refId);
         if (!workDir.exists()) {
             workDir.mkdirs();
@@ -54,7 +71,7 @@ public class DockerRunner implements Runner {
         try {
             List<EnvironmentVariable> envVars = envVarRepository.findByEnvironmentId(environmentId);
             generateEnvFile(envFile, envVars);
-            generateComposeFile(composeFile, project, projectName, envVars);
+            generateComposeFile(composeFile, projectName, externalPort, internalPort, envVars);
 
             // Run docker compose up
             String[] upCmd = {
@@ -74,12 +91,27 @@ public class DockerRunner implements Runner {
             }
 
             return RunnerResult.success(
-                "Docker Compose started (project: " + projectName + ")\n" + upResult.getStdout(),
+                "Docker Compose started (project: " + projectName + ", port: " + externalPort + ":" + internalPort + ")\n" + upResult.getStdout(),
                 upResult.getStderr());
 
         } catch (IOException e) {
             return RunnerResult.failure("Failed to generate compose/env files: " + e.getMessage(), "", "", -1);
         }
+    }
+
+    /**
+     * Determine the effective external port for deployment.
+     * Priority: environment.externalPort → per-type default → project.defaultPort → 3000.
+     */
+    static int getEffectivePort(Environment env, Project project) {
+        if (env.getExternalPort() != null && env.getExternalPort() > 0) {
+            return env.getExternalPort();
+        }
+        String type = env.getType();
+        if ("TEST".equals(type)) return 3001;
+        if ("STAGING".equals(type)) return 3002;
+        if ("PRODUCTION".equals(type)) return 3003;
+        return project.getDefaultPort() != null ? project.getDefaultPort() : 3000;
     }
 
     public RunnerResult down(String projectId, String environmentId, String refId) {
@@ -106,10 +138,8 @@ public class DockerRunner implements Runner {
             workDir, 30);
     }
 
-    private void generateComposeFile(File file, Project project, String projectName,
+    private void generateComposeFile(File file, String projectName, int externalPort, int internalPort,
                                      List<EnvironmentVariable> envVars) throws IOException {
-        int port = project.getDefaultPort() != null ? project.getDefaultPort() : 3000;
-
         StringBuilder yml = new StringBuilder();
         yml.append("services:\n");
         yml.append("  app:\n");
@@ -118,11 +148,10 @@ public class DockerRunner implements Runner {
         yml.append("    build:\n");
         yml.append("      context: .\n");
         yml.append("    ports:\n");
-        yml.append("      - \"").append(port).append(":").append(port).append("\"\n");
+        yml.append("      - \"").append(externalPort).append(":").append(internalPort).append("\"\n");
         yml.append("    env_file:\n");
         yml.append("      - .env.project\n");
 
-        // Add named volumes if needed
         if (!envVars.isEmpty()) {
             yml.append("    environment:\n");
             for (EnvironmentVariable ev : envVars) {
@@ -145,7 +174,6 @@ public class DockerRunner implements Runner {
     private void generateEnvFile(File file, List<EnvironmentVariable> envVars) throws IOException {
         StringBuilder env = new StringBuilder();
         for (EnvironmentVariable ev : envVars) {
-            // For sensitive vars, use encrypted value; for non-sensitive, use plain text
             String value = ev.isSensitive()
                 ? secretValueService.decrypt(ev.getEncryptedValue())
                 : (ev.getMaskedValue() != null ? ev.getMaskedValue() : "");
