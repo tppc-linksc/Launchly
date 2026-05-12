@@ -3,6 +3,7 @@ package com.launchly.target.controllers;
 import com.launchly.target.dto.DeployTargetCreateRequest;
 import com.launchly.target.dto.DeployTargetDto;
 import com.launchly.target.dto.DeployTargetUpdateRequest;
+import com.launchly.target.dto.VerifyTargetResponse;
 import com.launchly.target.services.DeployTargetService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -53,5 +54,10 @@ public class DeployTargetController {
     public ResponseEntity<Void> delete(@PathVariable String id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/api/deploy-targets/{id}/verify")
+    public ResponseEntity<VerifyTargetResponse> verify(@PathVariable String id) {
+        return ResponseEntity.ok(service.verify(id));
     }
 }
