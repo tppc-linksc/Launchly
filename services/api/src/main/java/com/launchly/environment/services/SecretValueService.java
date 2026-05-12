@@ -44,6 +44,28 @@ public class SecretValueService {
         }
     }
 
+    public String decrypt(String encrypted) {
+        if (encrypted == null) {
+            return null;
+        }
+        if (!encrypted.startsWith(PREFIX)) {
+            throw new IllegalArgumentException("Invalid encrypted value format");
+        }
+        try {
+            byte[] payload = Base64.getDecoder().decode(encrypted.substring(PREFIX.length()));
+            ByteBuffer buffer = ByteBuffer.wrap(payload);
+            byte[] iv = new byte[IV_LENGTH];
+            buffer.get(iv);
+            byte[] ciphertext = new byte[buffer.remaining()];
+            buffer.get(ciphertext);
+            Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
+            cipher.init(Cipher.DECRYPT_MODE, keySpec, new GCMParameterSpec(TAG_LENGTH_BITS, iv));
+            return new String(cipher.doFinal(ciphertext), StandardCharsets.UTF_8);
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to decrypt secret value", e);
+        }
+    }
+
     private byte[] sha256(String key) {
         try {
             return MessageDigest.getInstance("SHA-256").digest(key.getBytes(StandardCharsets.UTF_8));
