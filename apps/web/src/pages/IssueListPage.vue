@@ -30,7 +30,7 @@
       </a-select>
     </div>
 
-    <a-table :columns="columns" :data-source="issues" row-key="id" :loading="loading" @row-click="(r: any) => $router.push(`/issues/${r.id}`)" style="cursor: pointer;">
+    <a-table :columns="columns" :data-source="issues" row-key="id" :loading="loading" @row-click="(r: any) => $router.push(`/issues/${selectedProjectId}/${r.id}`)" style="cursor: pointer;">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'priority'">
           <a-tag :color="priorityColor(record.priority)">{{ priorityMap[record.priority] || record.priority }}</a-tag>
@@ -39,7 +39,7 @@
           <a-tag :color="statusColor(record.status)">{{ issueStatusMap[record.status] || record.status }}</a-tag>
         </template>
         <template v-if="column.key === 'action'">
-          <a-button type="link" @click.stop="$router.push(`/issues/${record.id}`)">详情</a-button>
+          <a-button type="link" @click.stop="$router.push(`/issues/${selectedProjectId}/${record.id}`)">详情</a-button>
         </template>
       </template>
     </a-table>

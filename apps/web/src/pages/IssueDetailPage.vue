@@ -54,7 +54,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { fetchIssue, updateIssue, transitionIssue, fetchProjects } from '../api/client'
+import { fetchIssue, updateIssue, transitionIssue } from '../api/client'
 import { issueStatusMap, priorityMap } from '../utils/display'
 
 const route = useRoute()
@@ -63,8 +63,6 @@ const showAssignModal = ref(false)
 const showFixedModal = ref(false)
 const assignForm = ref({ assigneeId: '' })
 const fixedForm = ref({ commitSha: '' })
-const projects = ref<any[]>([])
-
 const TRANSITIONS: Record<string, string[]> = {
   OPEN: ['ASSIGNED', 'CLOSED'],
   ASSIGNED: ['FIXING', 'CLOSED'],
@@ -122,13 +120,9 @@ async function handleFixed() {
 
 onMounted(async () => {
   try {
-    const [projRes] = await Promise.all([fetchProjects()])
-    projects.value = projRes.data
-    const pid = projects.value.length > 0 ? projects.value[0].id : ''
-    if (pid) {
-      const res = await fetchIssue(pid, route.params.id as string)
-      issue.value = res.data
-    }
+    const projectId = route.params.projectId as string
+    const res = await fetchIssue(projectId, route.params.id as string)
+    issue.value = res.data
   } catch {}
 })
 </script>

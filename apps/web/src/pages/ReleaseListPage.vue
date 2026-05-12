@@ -13,7 +13,7 @@
       </div>
     </div>
 
-    <a-table :columns="columns" :data-source="releases" row-key="id" :loading="loading" @row-click="(r: any) => $router.push(`/releases/${r.id}`)" style="cursor: pointer;">
+    <a-table :columns="columns" :data-source="releases" row-key="id" :loading="loading" @row-click="(r: any) => $router.push(`/releases/${selectedProjectId}/${r.id}`)" style="cursor: pointer;">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'status'">
           <a-tag :color="statusColor(record.status)">{{ releaseStatusMap[record.status] || record.status }}</a-tag>
@@ -22,7 +22,7 @@
           <a-tag :color="record.gateStatus === 'PASSED' ? 'green' : 'red'">{{ record.gateStatus === 'PASSED' ? '通过' : record.gateStatus === 'FAILED' ? '失败' : record.gateStatus || '-' }}</a-tag>
         </template>
         <template v-if="column.key === 'action'">
-          <a-button type="link" @click.stop="$router.push(`/releases/${record.id}`)">详情</a-button>
+          <a-button type="link" @click.stop="$router.push(`/releases/${selectedProjectId}/${record.id}`)">详情</a-button>
         </template>
       </template>
     </a-table>

@@ -55,7 +55,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { fetchProjects, fetchRelease, fetchReleaseGates, publishRelease, exemptGate } from '../api/client'
+import { fetchRelease, fetchReleaseGates, publishRelease, exemptGate } from '../api/client'
 import { releaseStatusMap, gateNameMap } from '../utils/display'
 
 const route = useRoute()
@@ -65,8 +65,6 @@ const publishing = ref(false)
 const showExemptModal = ref(false)
 const exemptGateName = ref('')
 const exemptReason = ref('')
-const projects = ref<any[]>([])
-
 const gateColumns = [
   { title: '检查项', dataIndex: 'gateName', key: 'gateName' },
   { title: '结果', dataIndex: 'passed', key: 'passed' },
@@ -82,8 +80,8 @@ function statusColor(s: string) {
 async function handlePublish() {
   publishing.value = true
   try {
-    const pid = projects.value.length > 0 ? projects.value[0].id : ''
-    const res = await publishRelease(pid, route.params.id as string)
+    const projectId = route.params.projectId as string
+    const res = await publishRelease(projectId, route.params.id as string)
     release.value = res.data
   } catch (e: any) { console.error(e) }
   publishing.value = false
@@ -97,27 +95,23 @@ function handleExempt(record: any) {
 
 async function handleExemptConfirm() {
   try {
-    const pid = projects.value.length > 0 ? projects.value[0].id : ''
-    await exemptGate(pid, route.params.id as string, exemptGateName.value, { reason: exemptReason.value })
+    const projectId = route.params.projectId as string
+    await exemptGate(projectId, route.params.id as string, exemptGateName.value, { reason: exemptReason.value })
     showExemptModal.value = false
-    const gatesRes = await fetchReleaseGates(pid, route.params.id as string)
+    const gatesRes = await fetchReleaseGates(projectId, route.params.id as string)
     gateResults.value = gatesRes.data.results || []
   } catch (e) { console.error(e) }
 }
 
 onMounted(async () => {
   try {
-    const [projRes] = await Promise.all([fetchProjects()])
-    projects.value = projRes.data
-    const pid = projects.value.length > 0 ? projects.value[0].id : ''
-    if (pid) {
-      const [relRes, gatesRes] = await Promise.all([
-        fetchRelease(pid, route.params.id as string),
-        fetchReleaseGates(pid, route.params.id as string),
-      ])
-      release.value = relRes.data
-      gateResults.value = gatesRes.data.results || []
-    }
+    const projectId = route.params.projectId as string
+    const [relRes, gatesRes] = await Promise.all([
+      fetchRelease(projectId, route.params.id as string),
+      fetchReleaseGates(projectId, route.params.id as string),
+    ])
+    release.value = relRes.data
+    gateResults.value = gatesRes.data.results || []
   } catch {}
 })
 </script>

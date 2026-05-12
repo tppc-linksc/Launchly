@@ -13,14 +13,88 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// Token refresh state
+let isRefreshing = false
+let refreshPromise: Promise<any> | null = null
+let failedQueue: Array<{
+  resolve: (value?: unknown) => void
+  reject: (reason?: any) => void
+}> = []
+
+function processQueue(error: any, token: string | null = null) {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token)
+    }
+  })
+  failedQueue = []
+}
+
+async function refreshAccessToken(): Promise<string> {
+  const refreshToken = localStorage.getItem('refreshToken')
+  if (!refreshToken) {
+    throw new Error('No refresh token available')
+  }
+
+  const response = await axios.post('/api/auth/refresh', { refreshToken })
+  const newAccessToken = response.data.accessToken
+  const newRefreshToken = response.data.refreshToken
+
+  localStorage.setItem('accessToken', newAccessToken)
+  localStorage.setItem('refreshToken', newRefreshToken)
+
+  return newAccessToken
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('refreshToken')
-      window.location.hash = '#/login'
+  async (error) => {
+    const originalRequest = error.config
+
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      // Don't try to refresh if we're already refreshing or this is the refresh endpoint itself
+      if (originalRequest.url === '/auth/refresh') {
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        window.location.hash = '#/login'
+        return Promise.reject(error)
+      }
+
+      if (isRefreshing) {
+        // Queue requests while token is being refreshed
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`
+            return api(originalRequest)
+          })
+          .catch((err) => {
+            return Promise.reject(err)
+          })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      try {
+        const newToken = await refreshAccessToken()
+        processQueue(null, newToken)
+        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        return api(originalRequest)
+      } catch (refreshError) {
+        processQueue(refreshError, null)
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        window.location.hash = '#/login'
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
+      }
     }
+
     return Promise.reject(error)
   }
 )
