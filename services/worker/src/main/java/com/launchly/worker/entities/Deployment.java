@@ -36,6 +36,9 @@ public class Deployment {
     @Column(name = "error_message")
     private String errorMessage;
 
+    @Column(name = "deploy_target_id")
+    private String deployTargetId;
+
     @Column(name = "rollback_from_deployment_id")
     private String rollbackFromDeploymentId;
 
@@ -64,6 +67,8 @@ public class Deployment {
     public void setFinishedAt(Instant finishedAt) { this.finishedAt = finishedAt; }
     public String getErrorMessage() { return errorMessage; }
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
+    public String getDeployTargetId() { return deployTargetId; }
+    public void setDeployTargetId(String deployTargetId) { this.deployTargetId = deployTargetId; }
     public String getRollbackFromDeploymentId() { return rollbackFromDeploymentId; }
     public void setRollbackFromDeploymentId(String rollbackFromDeploymentId) { this.rollbackFromDeploymentId = rollbackFromDeploymentId; }
     public Instant getCreatedAt() { return createdAt; }

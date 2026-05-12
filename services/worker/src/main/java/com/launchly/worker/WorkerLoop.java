@@ -34,6 +34,7 @@ public class WorkerLoop {
     private final GitRunner gitRunner;
     private final ShellRunner shellRunner;
     private final DockerRunner dockerRunner;
+    private final RunnerFactory runnerFactory;
     private final ObjectMapper objectMapper;
 
     public WorkerLoop(TaskRepository taskRepository,
@@ -43,6 +44,7 @@ public class WorkerLoop {
                       GitRunner gitRunner,
                       ShellRunner shellRunner,
                       DockerRunner dockerRunner,
+                      RunnerFactory runnerFactory,
                       ObjectMapper objectMapper) {
         this.taskRepository = taskRepository;
         this.deploymentRepository = deploymentRepository;
@@ -51,6 +53,7 @@ public class WorkerLoop {
         this.gitRunner = gitRunner;
         this.shellRunner = shellRunner;
         this.dockerRunner = dockerRunner;
+        this.runnerFactory = runnerFactory;
         this.objectMapper = objectMapper;
     }
 
@@ -138,13 +141,11 @@ public class WorkerLoop {
     }
 
     private RunnerResult dispatchRunner(String taskType, RunnerContext context) {
-        return switch (taskType) {
-            case "REPO_CLONE" -> gitRunner.execute(context);
-            case "PROJECT_BUILD" -> shellRunner.execute(context);
-            case "PROJECT_DEPLOY" -> dockerRunner.execute(context);
-            case "HEALTH_CHECK" -> shellRunner.execute(context);
-            default -> RunnerResult.failure("Unknown task type: " + taskType, "", "", -1);
-        };
+        Runner runner = runnerFactory.getRunner(taskType, context);
+        if (runner == null) {
+            return RunnerResult.failure("Unknown task type: " + taskType, "", "", -1);
+        }
+        return runner.execute(context);
     }
 
     private void enqueueNextStage(Task completedTask) {

@@ -106,6 +106,7 @@ public class DeploymentService {
                 Map.of(
                         "projectId", deployment.getProjectId(),
                         "environmentId", deployment.getEnvironmentId(),
+                        "deployTargetId", deployment.getDeployTargetId() == null ? "" : deployment.getDeployTargetId(),
                         "branch", deployment.getBranch() == null ? "" : deployment.getBranch(),
                         "commitSha", deployment.getCommitSha() == null ? "" : deployment.getCommitSha()
                 ));
@@ -125,6 +126,7 @@ public class DeploymentService {
         Deployment rollback = new Deployment();
         rollback.setProjectId(source.getProjectId());
         rollback.setEnvironmentId(source.getEnvironmentId());
+        rollback.setDeployTargetId(source.getDeployTargetId());
         rollback.setBranch(source.getBranch());
         rollback.setCommitSha(source.getCommitSha());
         rollback.setRollbackFromDeploymentId(source.getId());
@@ -144,6 +146,7 @@ public class DeploymentService {
                 Map.of(
                         "projectId", rollback.getProjectId(),
                         "environmentId", rollback.getEnvironmentId(),
+                        "deployTargetId", rollback.getDeployTargetId() == null ? "" : rollback.getDeployTargetId(),
                         "branch", rollback.getBranch() == null ? "" : rollback.getBranch(),
                         "commitSha", rollback.getCommitSha()
                 ));
