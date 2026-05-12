@@ -67,6 +67,12 @@ public class ShellRunner implements Runner {
                 return RunnerResult.success("No health check path configured, skipping", "");
             }
 
+            // Validate healthPath to prevent shell injection
+            if (!healthPath.matches("^/[a-zA-Z0-9/._-]*$")) {
+                return RunnerResult.failure("Invalid health check path: " + healthPath,
+                        "", "Health check path contains invalid characters", -1);
+            }
+
             // Use effective external port for health check
             int port = getEffectiveHealthCheckPort(environmentId, project);
             command = "curl -f -s -o /dev/null -w '%{http_code}' http://localhost:" + port + healthPath

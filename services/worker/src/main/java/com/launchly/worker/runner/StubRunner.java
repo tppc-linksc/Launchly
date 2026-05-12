@@ -1,10 +1,12 @@
 package com.launchly.worker.runner;
 
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
 import java.util.Random;
 
 @Component
+@Profile("dev")
 public class StubRunner implements Runner {
 
     private final Random random = new Random();
