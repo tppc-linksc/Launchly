@@ -11,16 +11,18 @@
 <h1 align="center">Launchly</h1>
 
 <p align="center">
-  <strong>Self-hosted deployment and testing collaboration platform</strong>
+  <strong>Lightweight code auto-deployment platform · Dual delivery (SaaS + open-source self-host, same codebase)</strong>
 </p>
 
 <p align="center">
-  Built for individuals and small teams to manage Git project onboarding, test deployments, staging validation, production releases, test cases, issue assignment, and release records in one lightweight system.
+  Built for 5-20 person teams and individual developers, centered on a single pipeline: "connect repo → build → deploy → health check → rollback". Dual delivery: Launchly Cloud (SaaS, sign up and go) and Launchly Self-Host (open-source, deploy yourself).
 </p>
 
 <p align="center">
   <a href="README.md">中文文档</a>
 </p>
+
+> **2026-05 Direction Pivot**: Launchly has been refocused from a "self-hosted deployment & test collaboration platform" to a **dual-delivery lightweight code auto-deployment platform**. See [项目重塑计划.md](项目重塑计划.md) for full decision record. Main branch remains old skeleton; new direction is developed under `refactor/dual-mode-deploy` branch.
 
 ---
 
@@ -43,35 +45,43 @@
 
 ## Why Launchly
 
-Many personal projects and small-team products already have Git repositories, but still lack a clear, low-cost, traceable release and testing workflow:
+Many personal projects and small-team products already have Git repositories, but still lack a low-cost, repeatable, traceable path from code to production:
 
-- Code is often deployed to test environments manually.
-- Testers may not know which commit is currently running.
-- Test cases, screenshots, fix tasks, and retest results are scattered across tools.
-- Staging and production releases often lack gates, records, and rollback points.
-- Small teams may not need a full enterprise DevOps platform, but they do need a local-first collaboration tool that works out of the box.
+- Code is often deployed to test environments manually, and nobody remembers which commit is running.
+- Every deployment means SSH-ing in and typing `git pull && docker build && docker run` -- tedious and error-prone.
+- Test cases, screenshots, fix tasks, and retest results are scattered across chat logs and docs, with no single entry point.
+- Staging and production releases lack gates and rollback safety nets; one mistake can cause an outage.
+- Small teams don't need a full enterprise DevOps platform, but they do need a lightweight tool that works either as SaaS or self-hosted.
 
-Launchly aims to fill that gap.
+Launchly fills that gap: **connect repo → build → deploy → health check → rollback**, with built-in test integration, issue tracking, release gates, audit logging, and notifications as foundational features.
 
 ## Project Status
 
-Launchly is currently in **pre-alpha / MVP integration-ready stage**.
+Launchly is currently in **pre-alpha / undergoing a direction pivot**. The project is being restructured from its old scaffold into a dual-delivery lightweight code auto-deployment platform.
 
-Completed:
+**Completed**:
 
-- Product design and architecture documentation.
-- Base monorepo layout.
-- Core Web/API/Worker/CLI modules (Weeks 1-13).
-- JWT-authenticated Owner initialization flow.
-- Deployment task pipeline (clone/build/deploy/health check) with stage logs.
-- Test case, issue, release, gate, and rollback baseline flow.
-- Docker Compose local-build deployment template.
+- Product design documentation and architecture docs
+- Base monorepo layout
+- Web / API / Worker / CLI core module scaffolds (Weeks 1-13)
+- JWT-authenticated Owner initialization flow
+- Deployment task pipeline (clone / build / deploy / health check) with stage logs
+- Test case, issue, release, gate, and rollback baseline flow
+- Docker Compose local-build deployment template
 
-Not implemented yet:
+**In Progress**:
 
-- Member management page `/members` (currently placeholder).
-- Fine-grained RBAC policy (currently MVP-level authentication/authorization).
-- Remote image publish pipeline for `launchly install` (local compose build path is available).
+- Worker: replacing local docker.sock with remote SSH execution (BYOS)
+- Data model: introducing DeployTarget and Component entities
+- UI: converging navigation, surfacing deployments / projects / deploy targets
+- README and docs: syncing with new direction
+
+**Not Started**:
+
+- SaaS control plane (registration, billing, multi-tenancy)
+- AI-powered features (reports, anomaly attribution, security monitoring)
+- Third-party notification integrations
+- Self-Host CLI installer (`launchly install`)
 
 ## Design Principles
 
@@ -107,18 +117,58 @@ Core modules:
 
 ## Planned Features
 
-Launchly is planned to support:
+### Core Engine
 
-- One-command local or server installation through `launchly install`.
-- First-run Owner account and default Workspace setup.
-- Workspace invitations and role-based permissions.
-- GitHub, GitLab, and private Git repository binding.
-- Deployments to Test, Staging, and Production environments.
-- Environment variables and sensitive configuration management.
-- Test cases, test execution records, screenshots, and logs.
-- Assignment of failed test items to specific members for fixes and retesting.
-- Production release gate checks.
-- Release records, deployment logs, audit logs, and rollback points.
+| Feature | Cloud Free | Cloud Pro | Self-Host |
+| --- | :---: | :---: | :---: |
+| Create projects | 1-2 | Unlimited | Unlimited |
+| Bind Git repos (GitHub / GitLab / PAT) | ✓ | ✓ | ✓ |
+| Multi-Component (multiple services per project) | ✓ (UI collapsed by default) | ✓ | ✓ |
+| Deploy to BYOS servers (SSH / Docker context) | ✓ | ✓ | ✓ |
+| Build + deploy + health check | ✓ | ✓ | ✓ |
+| Real-time deployment log streaming | ✓ | ✓ | ✓ |
+| Auto-rollback on failure | ✓ | ✓ | ✓ |
+| Manual deploy trigger (click to publish) | ✓ | ✓ | ✓ |
+| Multi-environment | Fixed 2 tiers | Custom N tiers | Custom N tiers |
+| Sequential gate L1 | ✓ | ✓ | ✓ |
+| Advanced gates L2/L3/L4 | ✗ | ✓ | ✓ |
+| L0 testing (shell exit code) | ✓ | ✓ | ✓ |
+| L1 testing (JUnit XML parsing) | ✓ | ✓ | ✓ |
+
+### Collaboration (Baseline)
+
+| Feature | Cloud Free | Cloud Pro | Self-Host |
+| --- | :---: | :---: | :---: |
+| Issue assignment + retest loop | ✓ | ✓ | ✓ |
+| Release records | ✓ | ✓ | ✓ |
+| Roles: Owner / Member / Viewer | ✓ | ✓ | ✓ |
+| Project-level permissions (person x Component x action) | ✗ | ✓ | ✓ |
+| Webhook notifications | ✓ | ✓ | ✓ |
+| Audit logs | ✗ | ✓ | ✓ |
+
+### SaaS Control Plane
+
+| Feature | Cloud Free | Cloud Pro | Self-Host |
+| --- | :---: | :---: | :---: |
+| Email sign-up + invite members | ✓ | ✓ | ✗ |
+| Billing portal + subscription management | – | ✓ | ✗ |
+
+### Self-Host Operations
+
+| Feature | Cloud Free | Cloud Pro | Self-Host |
+| --- | :---: | :---: | :---: |
+| CLI install / up / down / status / logs / doctor | ✗ | ✗ | ✓ |
+| Backup / restore | ✗ | ✗ | ✓ |
+
+### Premium Add-ons (Pro / Future)
+
+| Feature | Cloud Free | Cloud Pro | Self-Host |
+| --- | :---: | :---: | :---: |
+| AI daily / weekly / monthly reports | ✗ | ✓ | ✗ |
+| AI anomaly attribution | ✗ | ✓ | ✗ |
+| Project security monitoring | ✗ | ✓ | ✗ |
+| Third-party notifications (Slack / Lark / Discord) | ✗ | ✓ | ✗ |
+| Launchly managed runtime | ✗ | Future | ✗ |
 
 ## Directory Structure
 
@@ -229,21 +279,43 @@ Development principles:
 
 | Item | Status |
 | --- | --- |
-| Product design document | Done v0.4 |
-| Base directory structure | Done |
-| Web UI scaffold | Done |
-| API Server scaffold | Done |
-| Worker scaffold | Done |
-| CLI scaffold | Done |
-| Docker Compose template | Done |
-| Week 1: Foundation & baseline | Done |
-| Weeks 2-13 core modules | Done (MVP integration can start) |
-| Auth and Workspace | Basic flow implemented |
-| Project onboarding and repository binding | Basic flow implemented |
-| Deployment execution and environment management | Basic flow implemented |
-| Tests, issues, and release gates | Basic flow implemented |
-| Members page `/members` | Placeholder, pending implementation |
-| CLI one-click install via remote images | Pending image publish pipeline |
+| **Completed** | |
+| Product design document | Completed |
+| Base monorepo layout | Completed |
+| Web / API / Worker / CLI core scaffolds | Completed |
+| JWT auth and Owner initialization | Completed |
+| Deployment pipeline (clone / build / deploy / health check) | Completed |
+| Docker Compose local-build template | Completed |
+| LICENSE replaced with AGPL-3.0 | Completed |
+| **In Progress** | |
+| README / docs synced with new direction | In Progress |
+| Worker SSH remote execution (BYOS) | In Progress |
+| Data model (DeployTarget / Component) | In Progress |
+| UI navigation convergence + deploy target pages | In Progress |
+| **Not Started** | |
+| SaaS control plane (registration / billing / multi-tenancy) | Not Started |
+| AI-powered features | Not Started |
+| Self-Host CLI (install / backup / restore) | Not Started |
+| End-to-end integration and release | Not Started |
+
+## Documentation
+
+- [Launchly product requirements, flows, architecture, and technical plan](docs/product/Launchly-design.md)
+- Local development roadmap and weekly plans live under `docs/dev-tasks/`, which is ignored by `.gitignore`.
+
+## Contributing
+
+Launchly is not yet in a formal open-source collaboration phase. At this stage, the project is better suited for focused iteration on product design, architecture boundaries, MVP task planning, and foundational implementation.
+
+Before opening broader contribution, the project should add:
+
+- `CONTRIBUTING.md`
+- `CODE_OF_CONDUCT.md`
+- Issue / PR templates
+
+## License
+
+This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE) for the full text.
 
 ## Documentation
 
