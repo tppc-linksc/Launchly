@@ -34,6 +34,10 @@ public class RemoteSshRunner implements Runner {
     private static final Logger log = LoggerFactory.getLogger(RemoteSshRunner.class);
     private static final int SSH_CONNECT_TIMEOUT = 10000;
     private static final int DEPLOY_TIMEOUT = 300;
+    private static final int IMAGE_BUILD_TIMEOUT = 600;
+    private static final int IMAGE_SAVE_TIMEOUT = 120;
+    private static final int IMAGE_LOAD_TIMEOUT = 120;
+    private static final int SCP_TRANSFER_TIMEOUT = 600;
     private static final String BUILD_ROOT = "/tmp/launchly-builds";
 
     private final DeployTargetRepository deployTargetRepository;
@@ -99,55 +103,107 @@ public class RemoteSshRunner implements Runner {
         String projectName = "launchly-" + projectId.substring(0, 8) + "-" + environmentId.substring(0, 8);
         File composeFile = new File(workDir, "docker-compose.yml");
         File envFile = new File(workDir, ".env.project");
+        String imageTag = projectName + ":latest";
+        File imageTar = new File(workDir, projectName + ".tar");
+
+        String credential = secretValueService.decrypt(target.getEncryptedCredential());
+        String remoteDir = env.getDeployDir() != null && !env.getDeployDir().isBlank()
+                ? env.getDeployDir()
+                : "/opt/launchly/" + projectName;
+
+        StringBuilder deployLog = new StringBuilder();
+        Session session = null;
 
         try {
             List<EnvironmentVariable> envVars = envVarRepository.findByEnvironmentId(environmentId);
-            generateEnvFile(envFile, envVars);
-            generateComposeFile(composeFile, projectName, externalPort, internalPort, envVars);
 
-            String credential = secretValueService.decrypt(target.getEncryptedCredential());
-            String remoteDir = env.getDeployDir() != null && !env.getDeployDir().isBlank()
-                    ? env.getDeployDir()
-                    : "/opt/launchly/" + projectName;
-
-            Session session = createSession(target, credential);
-            try {
-                // Create remote directory
-                execCommand(session, "mkdir -p " + remoteDir, 30);
-
-                // Upload compose and env files
-                uploadFile(session, composeFile.getAbsolutePath(), remoteDir + "/docker-compose.yml");
-                uploadFile(session, envFile.getAbsolutePath(), remoteDir + "/.env.project");
-
-                // Run docker compose up
-                String upCmd = "cd " + remoteDir + " && docker compose -p " + projectName + " up -d";
-                RunnerResult upResult = execCommand(session, upCmd, DEPLOY_TIMEOUT);
-
-                if (!upResult.isSuccess()) {
-                    // Attempt cleanup
-                    execCommand(session, "cd " + remoteDir + " && docker compose -p " + projectName + " down", 60);
-                    return RunnerResult.failure(
-                            "Remote docker compose up failed on " + target.getHost() + ": " + upResult.getErrorMessage(),
-                            upResult.getStdout(), upResult.getStderr(), upResult.getExitCode());
-                }
-
-                return RunnerResult.success(
-                        "Docker Compose started on " + target.getHost() + " (project: " + projectName
-                                + ", port: " + externalPort + ":" + internalPort + ")\n" + upResult.getStdout(),
-                        upResult.getStderr());
-            } finally {
-                session.disconnect();
+            // --- Step 1: Build Docker image locally ---
+            log.info("Building Docker image {} in {}", imageTag, workDir);
+            String[] buildCmd = {"docker", "build", "-t", imageTag, "."};
+            RunnerResult buildResult = CommandExecutor.execute(buildCmd, workDir, IMAGE_BUILD_TIMEOUT);
+            if (!buildResult.isSuccess()) {
+                return RunnerResult.failure(
+                        "Docker image build failed: " + buildResult.getErrorMessage(),
+                        buildResult.getStdout(), buildResult.getStderr(), buildResult.getExitCode());
             }
+            deployLog.append("[1/5] Image built: ").append(imageTag).append("\n");
+
+            // --- Step 2: Export image as tar ---
+            log.info("Exporting image {} to {}", imageTag, imageTar);
+            String[] saveCmd = {"docker", "save", "-o", imageTar.getAbsolutePath(), imageTag};
+            RunnerResult saveResult = CommandExecutor.execute(saveCmd, workDir, IMAGE_SAVE_TIMEOUT);
+            if (!saveResult.isSuccess()) {
+                return RunnerResult.failure(
+                        "Docker image save failed: " + saveResult.getErrorMessage(),
+                        saveResult.getStdout(), saveResult.getStderr(), saveResult.getExitCode());
+            }
+            deployLog.append("[2/5] Image exported: ").append(imageTar.length()).append(" bytes\n");
+
+            // --- Step 3: Establish SSH and transfer image ---
+            session = createSession(target, credential);
+            execCommand(session, "mkdir -p " + remoteDir, 30);
+
+            log.info("Uploading image tar to {}:{}", target.getHost(), remoteDir + "/" + imageTar.getName());
+            uploadFile(session, imageTar.getAbsolutePath(), remoteDir + "/" + imageTar.getName());
+            deployLog.append("[3/5] Image transferred to ").append(target.getHost()).append("\n");
+
+            // --- Step 4: Load image on remote ---
+            String loadCmd = "docker load -i " + remoteDir + "/" + imageTar.getName();
+            RunnerResult loadResult = execCommand(session, loadCmd, IMAGE_LOAD_TIMEOUT);
+            if (!loadResult.isSuccess()) {
+                return RunnerResult.failure(
+                        "Remote docker load failed: " + loadResult.getErrorMessage(),
+                        loadResult.getStdout(), loadResult.getStderr(), loadResult.getExitCode());
+            }
+            deployLog.append("[4/5] Image loaded on remote\n");
+
+            // Clean up tar on remote after load
+            execCommand(session, "rm -f " + remoteDir + "/" + imageTar.getName(), 30);
+
+            // --- Step 5: Upload compose/env and start ---
+            generateComposeFile(composeFile, projectName, externalPort, internalPort, envVars, imageTag);
+            generateEnvFile(envFile, envVars);
+            uploadFile(session, composeFile.getAbsolutePath(), remoteDir + "/docker-compose.yml");
+            uploadFile(session, envFile.getAbsolutePath(), remoteDir + "/.env.project");
+
+            String upCmd = "cd " + remoteDir + " && docker compose -p " + projectName + " up -d";
+            RunnerResult upResult = execCommand(session, upCmd, DEPLOY_TIMEOUT);
+
+            if (!upResult.isSuccess()) {
+                execCommand(session, "cd " + remoteDir + " && docker compose -p " + projectName + " down", 60);
+                return RunnerResult.failure(
+                        "Remote docker compose up failed on " + target.getHost() + ": " + upResult.getErrorMessage(),
+                        upResult.getStdout(), upResult.getStderr(), upResult.getExitCode());
+            }
+
+            deployLog.append("[5/5] Docker Compose started on ")
+                    .append(target.getHost()).append(" (project: ").append(projectName)
+                    .append(", port: ").append(externalPort).append(":").append(internalPort).append(")\n")
+                    .append(upResult.getStdout());
+
+            return RunnerResult.success(deployLog.toString(), upResult.getStderr());
+
         } catch (JSchException e) {
             log.error("SSH connection to {} failed: {}", target.getHost(), e.getMessage());
             return RunnerResult.failure(
-                    "SSH connection to " + target.getHost() + " failed: " + e.getMessage(), "", "", -1);
+                    "SSH connection to " + target.getHost() + " failed: " + e.getMessage(),
+                    deployLog.toString(), "", -1);
         } catch (SftpException e) {
             log.error("SFTP upload to {} failed: {}", target.getHost(), e.getMessage());
             return RunnerResult.failure(
-                    "SFTP upload to " + target.getHost() + " failed: " + e.getMessage(), "", "", -1);
+                    "SFTP upload to " + target.getHost() + " failed: " + e.getMessage(),
+                    deployLog.toString(), "", -1);
         } catch (IOException e) {
-            return RunnerResult.failure("Failed to generate files: " + e.getMessage(), "", "", -1);
+            return RunnerResult.failure("Failed to generate files: " + e.getMessage(),
+                    deployLog.toString(), "", -1);
+        } finally {
+            if (session != null) {
+                session.disconnect();
+            }
+            // Clean up local image tar
+            if (imageTar.exists()) {
+                imageTar.delete();
+            }
         }
     }
 
@@ -256,14 +312,12 @@ public class RemoteSshRunner implements Runner {
     }
 
     private void generateComposeFile(File file, String projectName, int externalPort, int internalPort,
-                                     List<EnvironmentVariable> envVars) throws IOException {
+                                     List<EnvironmentVariable> envVars, String imageTag) throws IOException {
         StringBuilder yml = new StringBuilder();
         yml.append("services:\n");
         yml.append("  app:\n");
-        yml.append("    image: ").append(projectName).append(":latest\n");
+        yml.append("    image: ").append(imageTag).append("\n");
         yml.append("    container_name: ").append(projectName).append("\n");
-        yml.append("    build:\n");
-        yml.append("      context: .\n");
         yml.append("    ports:\n");
         yml.append("      - \"").append(externalPort).append(":").append(internalPort).append("\"\n");
         yml.append("    env_file:\n");
