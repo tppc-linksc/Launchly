@@ -42,6 +42,9 @@ public class Deployment {
     @Column(name = "rollback_from_deployment_id")
     private String rollbackFromDeploymentId;
 
+    @Column(name = "deploy_target_id")
+    private String deployTargetId;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -69,6 +72,8 @@ public class Deployment {
     public void setErrorMessage(String errorMessage) { this.errorMessage = errorMessage; }
     public String getRollbackFromDeploymentId() { return rollbackFromDeploymentId; }
     public void setRollbackFromDeploymentId(String rollbackFromDeploymentId) { this.rollbackFromDeploymentId = rollbackFromDeploymentId; }
+    public String getDeployTargetId() { return deployTargetId; }
+    public void setDeployTargetId(String deployTargetId) { this.deployTargetId = deployTargetId; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

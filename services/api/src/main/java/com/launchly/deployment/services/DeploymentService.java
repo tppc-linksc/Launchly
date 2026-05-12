@@ -15,6 +15,8 @@ import com.launchly.environment.entities.Environment;
 import com.launchly.environment.repositories.EnvironmentRepository;
 import com.launchly.project.entities.Project;
 import com.launchly.project.repositories.ProjectRepository;
+import com.launchly.target.entities.DeployTarget;
+import com.launchly.target.repositories.DeployTargetRepository;
 import com.launchly.worker.enums.TaskType;
 import com.launchly.worker.services.TaskService;
 import org.springframework.stereotype.Service;
@@ -31,6 +33,7 @@ public class DeploymentService {
     private final TaskService taskService;
     private final ProjectRepository projectRepository;
     private final EnvironmentRepository environmentRepository;
+    private final DeployTargetRepository deployTargetRepository;
     private final AuditService auditService;
 
     public DeploymentService(DeploymentRepository deploymentRepository,
@@ -38,12 +41,14 @@ public class DeploymentService {
                              TaskService taskService,
                              ProjectRepository projectRepository,
                              EnvironmentRepository environmentRepository,
+                             DeployTargetRepository deployTargetRepository,
                              AuditService auditService) {
         this.deploymentRepository = deploymentRepository;
         this.stageLogRepository = stageLogRepository;
         this.taskService = taskService;
         this.projectRepository = projectRepository;
         this.environmentRepository = environmentRepository;
+        this.deployTargetRepository = deployTargetRepository;
         this.auditService = auditService;
     }
 
@@ -69,9 +74,17 @@ public class DeploymentService {
             throw new SecurityException("无权在该项目中创建部署");
         }
 
+        // Validate deploy target
+        DeployTarget deployTarget = deployTargetRepository.findById(request.deployTargetId())
+                .orElseThrow(() -> new IllegalArgumentException("部署目标不存在: " + request.deployTargetId()));
+        if (!deployTarget.getProjectId().equals(request.projectId())) {
+            throw new IllegalArgumentException("部署目标不属于指定项目");
+        }
+
         Deployment deployment = new Deployment();
         deployment.setProjectId(request.projectId());
         deployment.setEnvironmentId(request.environmentId());
+        deployment.setDeployTargetId(request.deployTargetId());
         deployment.setBranch(request.branch());
         deployment.setCommitSha(request.commitSha());
         deployment.setStatus(DeploymentStatus.PENDING);
@@ -98,7 +111,7 @@ public class DeploymentService {
                 ));
         recordAudit(userId, AuditAction.TRIGGER_DEPLOY, deployment);
 
-        return DeploymentResponse.from(deployment);
+        return DeploymentResponse.from(deployment, deployTarget);
     }
 
     @Transactional
