@@ -50,7 +50,6 @@ services:
       LAUNCHLY_ENCRYPTION_KEY: ${LAUNCHLY_ENCRYPTION_KEY:-launchly-dev-secret-do-not-use-in-production}
     volumes:
       - launchly-data:/var/lib/launchly
-      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   launchly-postgres-data:
