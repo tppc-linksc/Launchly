@@ -3,6 +3,7 @@ package com.launchly.target.services;
 import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.Session;
 import com.launchly.common.security.AuthContext;
+import com.launchly.deployment.repositories.DeploymentRepository;
 import com.launchly.environment.services.SecretValueService;
 import com.launchly.target.dto.DeployTargetCreateRequest;
 import com.launchly.target.dto.DeployTargetDto;
@@ -15,8 +16,10 @@ import com.launchly.target.enums.TargetType;
 import com.launchly.target.repositories.DeployTargetRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -32,11 +35,14 @@ public class DeployTargetService {
 
     private final DeployTargetRepository repository;
     private final SecretValueService secretValueService;
+    private final DeploymentRepository deploymentRepository;
 
     public DeployTargetService(DeployTargetRepository repository,
-                               SecretValueService secretValueService) {
+                               SecretValueService secretValueService,
+                               DeploymentRepository deploymentRepository) {
         this.repository = repository;
         this.secretValueService = secretValueService;
+        this.deploymentRepository = deploymentRepository;
     }
 
     public List<DeployTargetDto> listByProject(String projectId) {
@@ -94,7 +100,12 @@ public class DeployTargetService {
     public void delete(String id) {
         DeployTarget entity = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Deploy target not found: " + id));
-        // T-W1-04 will add deployment reference check returning 409
+        long refs = deploymentRepository.countByDeployTargetId(id);
+        if (refs > 0) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "无法删除：仍有 " + refs + " 条部署记录引用此部署目标。请先迁移或删除相关部署后再试。");
+        }
         repository.delete(entity);
     }
 

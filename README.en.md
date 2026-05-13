@@ -1,6 +1,6 @@
 <p align="center">
   <img alt="status" src="https://img.shields.io/badge/status-pre--alpha-d9534f">
-  <img alt="license" src="https://img.shields.io/badge/license-TBD-6c757d">
+  <img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0-blue">
   <img alt="web" src="https://img.shields.io/badge/web-Vue%203%20%2B%20TypeScript-42b883">
   <img alt="api" src="https://img.shields.io/badge/api-Spring%20Boot%203-6db33f">
   <img alt="cli" src="https://img.shields.io/badge/cli-Go-00add8">
@@ -288,10 +288,11 @@ Development principles:
 | Docker Compose local-build template | Completed |
 | LICENSE replaced with AGPL-3.0 | Completed |
 | **In Progress** | |
-| README / docs synced with new direction | In Progress |
-| Worker SSH remote execution (BYOS) | In Progress |
-| Data model (DeployTarget / Component) | In Progress |
-| UI navigation convergence + deploy target pages | In Progress |
+| README / dual-mode docs and badges | Completed |
+| DeployTarget API, delete 409 guard, deploy-target UI | Completed |
+| Worker BYOS (local image build + SSH to remote compose) | Completed (worker service mounts host `docker.sock` in `deploy/compose/docker-compose.yml`; see comments there) |
+| Component data model (multi deployable units per project) | Not started |
+| Full navigation convergence (collab under secondary menu) | In Progress |
 | **Not Started** | |
 | SaaS control plane (registration / billing / multi-tenancy) | Not Started |
 | AI-powered features | Not Started |
@@ -316,23 +317,3 @@ Before opening broader contribution, the project should add:
 ## License
 
 This project is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE) for the full text.
-
-## Documentation
-
-- [Launchly product requirements, flows, architecture, and technical plan](docs/product/Launchly-design.md)
-- Local development roadmap and weekly plans live under `docs/dev-tasks/`, which is ignored by `.gitignore`.
-
-## Contributing
-
-Launchly is not yet in a formal open-source collaboration phase. At this stage, the project is better suited for focused iteration on product design, architecture boundaries, MVP task planning, and foundational implementation.
-
-Before opening broader contribution, the project should add:
-
-- `CONTRIBUTING.md`
-- `CODE_OF_CONDUCT.md`
-- Issue / PR templates
-- LICENSE
-
-## License
-
-The license has not been decided yet. A `LICENSE` file should be added before the project is formally open sourced.

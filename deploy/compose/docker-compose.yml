@@ -32,6 +32,9 @@ services:
     volumes:
       - launchly-data:/var/lib/launchly
 
+  # Worker builds Docker images locally, then transfers them to BYOS targets over SSH.
+  # The Docker CLI inside the container needs access to the host daemon — self-host dev only.
+  # For hardened / multi-tenant SaaS, replace this with rootless buildkit or remote-only builds (see 项目重塑计划.md).
   worker:
     image: ${LAUNCHLY_WORKER_IMAGE:-launchly-worker:local}
     build:
@@ -50,6 +53,7 @@ services:
       LAUNCHLY_ENCRYPTION_KEY: ${LAUNCHLY_ENCRYPTION_KEY:-launchly-dev-secret-do-not-use-in-production}
     volumes:
       - launchly-data:/var/lib/launchly
+      - /var/run/docker.sock:/var/run/docker.sock
 
 volumes:
   launchly-postgres-data:

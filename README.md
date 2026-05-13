@@ -1,6 +1,6 @@
 <p align="center">
   <img alt="status" src="https://img.shields.io/badge/status-pre--alpha-d9534f">
-  <img alt="license" src="https://img.shields.io/badge/license-TBD-6c757d">
+  <img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0-blue">
   <img alt="web" src="https://img.shields.io/badge/web-Vue%203%20%2B%20TypeScript-42b883">
   <img alt="api" src="https://img.shields.io/badge/api-Spring%20Boot%203-6db33f">
   <img alt="cli" src="https://img.shields.io/badge/cli-Go-00add8">
@@ -288,10 +288,11 @@ API 开发约定：
 | Docker Compose 本地构建模板 | 已完成 |
 | LICENSE 替换为 AGPL-3.0 | 已完成 |
 | **改造中** | |
-| README / 文档同步新方向 | 改造中 |
-| Worker SSH 远程执行（BYOS） | 改造中 |
-| 数据模型（DeployTarget / Component） | 改造中 |
-| UI 导航收敛 + 部署目标页面 | 改造中 |
+| README / 双模式文档与徽章同步 | 已完成 |
+| DeployTarget API、删除 409 校验、前端部署目标页 | 已完成 |
+| Worker BYOS（本机构建镜像 + SSH 下发远端 compose） | 已完成（Compose 中 worker 需挂载宿主 `docker.sock`，见 `deploy/compose/docker-compose.yml` 注释） |
+| 数据模型 Component（多发布单元） | 未开始 |
+| UI 导航全面收敛（协作入口二级化） | 改造中 |
 | **未开始** | |
 | SaaS 控制面（注册 / 计费 / 多租户） | 未开始 |
 | AI 增值功能 | 未开始 |
@@ -307,13 +308,12 @@ API 开发约定：
 
 项目尚未进入正式开源协作阶段。当前更适合围绕产品设计、架构边界、MVP 任务拆分和基础实现进行小范围迭代。
 
-后续正式开放贡献前，需要补充：
+后续正式开放贡献前，建议补充：
 
 - `CONTRIBUTING.md`
 - `CODE_OF_CONDUCT.md`
 - Issue / PR 模板
-- LICENSE
 
 ## 开源协议
 
-许可证尚未确定。正式开源前需要补充 `LICENSE` 文件。
+本项目以 **GNU Affero General Public License v3.0（AGPL-3.0）** 授权，完整条款见仓库根目录 [LICENSE](LICENSE) 文件。

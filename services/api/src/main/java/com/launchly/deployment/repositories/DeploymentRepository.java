@@ -7,4 +7,6 @@ import java.util.List;
 public interface DeploymentRepository extends JpaRepository<Deployment, String> {
     List<Deployment> findByProjectIdOrderByCreatedAtDesc(String projectId);
     List<Deployment> findByEnvironmentIdOrderByCreatedAtDesc(String environmentId);
+
+    long countByDeployTargetId(String deployTargetId);
 }
