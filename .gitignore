@@ -13,9 +13,9 @@ node_modules/
 dist/
 .vite/
 
-# Java / Maven
-target/
-*.class
+# Java / Maven (only build output dirs — do not use bare "target/" or it ignores com.launchly.target package)
+services/api/target/
+services/worker/target/
 
 # Local binaries
 cli/launchly
