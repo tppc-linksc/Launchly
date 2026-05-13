@@ -7,6 +7,7 @@
       </div>
       <div>
         <a-tag>{{ project.projectType }}</a-tag>
+        <a-button style="margin-left: 8px;" @click="$router.push(`/projects/${project.id}/deploy-targets`)">部署目标</a-button>
         <a-button type="primary" style="margin-left: 8px;" @click="showDeploy = true" :disabled="!project.repositoryUrl">部署</a-button>
       </div>
     </div>
@@ -86,6 +87,13 @@
             </a-select-option>
           </a-select>
         </a-form-item>
+        <a-form-item label="部署目标">
+          <a-select v-model:value="deployForm.deployTargetId" placeholder="选择部署目标（可选）">
+            <a-select-option v-for="t in deployTargets" :key="t.id" :value="t.id">
+              {{ t.name }} ({{ t.host }})
+            </a-select-option>
+          </a-select>
+        </a-form-item>
         <a-form-item label="分支或 Commit">
           <a-input v-model:value="deployForm.branch" placeholder="main 或 commit sha" />
         </a-form-item>
@@ -102,7 +110,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { fetchProject, fetchEnvironments, fetchDeployments, fetchTestRuns, fetchIssues, fetchReleases, createDeployment } from '../api/client'
+import { fetchProject, fetchEnvironments, fetchDeployments, fetchTestRuns, fetchIssues, fetchReleases, createDeployment, fetchDeployTargets } from '../api/client'
 import { deployStatusMap, envTypeMap } from '../utils/display'
 
 const route = useRoute()
@@ -116,7 +124,8 @@ const releases = ref<any[]>([])
 const showDeploy = ref(false)
 const deployLoading = ref(false)
 const deployError = ref('')
-const deployForm = ref({ environmentId: '', branch: '', notes: '' })
+const deployTargets = ref<any[]>([])
+const deployForm = ref({ environmentId: '', deployTargetId: '', branch: '', notes: '' })
 
 const deployableEnvs = computed(() =>
   environments.value.filter((e: any) => e.type === 'TEST' || e.type === 'STAGING')
@@ -146,6 +155,7 @@ function envColor(type: string) {
 
 function openDeploy(env: any) {
   deployForm.value.environmentId = env.id
+  deployForm.value.deployTargetId = ''
   deployForm.value.branch = ''
   deployForm.value.notes = ''
   deployError.value = ''
@@ -155,13 +165,14 @@ function openDeploy(env: any) {
 onMounted(async () => {
   const id = route.params.id as string
   try {
-    const [pRes, eRes, dRes, tRes, iRes, rRes] = await Promise.all([
+    const [pRes, eRes, dRes, tRes, iRes, rRes, dtRes] = await Promise.all([
       fetchProject(id),
       fetchEnvironments(id),
       fetchDeployments({ projectId: id }),
       fetchTestRuns(id),
       fetchIssues(id),
       fetchReleases(id),
+      fetchDeployTargets(id),
     ])
     project.value = pRes.data
     environments.value = eRes.data
@@ -169,6 +180,7 @@ onMounted(async () => {
     testRuns.value = tRes.data || []
     issues.value = iRes.data || []
     releases.value = rRes.data || []
+    deployTargets.value = dtRes.data || []
   } catch {}
 })
 
@@ -186,11 +198,12 @@ async function doDeploy() {
     const res = await createDeployment({
       projectId: project.value.id,
       environmentId: envId,
+      deployTargetId: deployForm.value.deployTargetId || undefined,
       branch: deployForm.value.branch || project.value.defaultBranch,
       notes: deployForm.value.notes,
     })
     showDeploy.value = false
-    deployForm.value = { environmentId: '', branch: '', notes: '' }
+    deployForm.value = { environmentId: '', deployTargetId: '', branch: '', notes: '' }
     message.success('部署已创建')
     router.push(`/deployments/${res.data.id}`)
   } catch (e: any) {

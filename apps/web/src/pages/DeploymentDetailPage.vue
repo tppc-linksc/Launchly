@@ -8,6 +8,7 @@
         <a-descriptions-item label="状态">
           <a-tag :color="statusColor(deployment.status)">{{ deployStatusMap[deployment.status] || deployment.status }}</a-tag>
         </a-descriptions-item>
+        <a-descriptions-item label="部署目标">{{ deployment.deployTarget?.name || '本地' }} <span v-if="deployment.deployTarget" style="color: #8c8c8c;">({{ deployment.deployTarget.host }})</span></a-descriptions-item>
         <a-descriptions-item label="触发人">{{ deployment.triggeredBy }}</a-descriptions-item>
         <a-descriptions-item label="开始时间">{{ deployment.startedAt || '—' }}</a-descriptions-item>
         <a-descriptions-item label="结束时间">{{ deployment.finishedAt || '—' }}</a-descriptions-item>

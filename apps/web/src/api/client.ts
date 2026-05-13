@@ -287,6 +287,31 @@ export function rollbackDeployment(deploymentId: string, data: { reason: string 
   return api.post(`/deployments/${deploymentId}/rollback`, data)
 }
 
+// Deploy Target API
+export function fetchDeployTargets(projectId: string) {
+  return api.get(`/projects/${projectId}/deploy-targets`)
+}
+
+export function fetchDeployTarget(id: string) {
+  return api.get(`/deploy-targets/${id}`)
+}
+
+export function createDeployTarget(projectId: string, data: any) {
+  return api.post(`/projects/${projectId}/deploy-targets`, data)
+}
+
+export function updateDeployTarget(id: string, data: any) {
+  return api.patch(`/deploy-targets/${id}`, data)
+}
+
+export function deleteDeployTarget(id: string) {
+  return api.delete(`/deploy-targets/${id}`)
+}
+
+export function verifyDeployTarget(id: string) {
+  return api.post(`/deploy-targets/${id}/verify`)
+}
+
 // Audit Log API
 export function fetchAuditLogs(workspaceId?: string) {
   return api.get('/audit-logs', { params: { workspaceId } })
