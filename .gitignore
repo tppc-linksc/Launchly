@@ -27,6 +27,8 @@ cli/launchly
 # Local development planning docs, not for upload
 docs/dev-tasks/
 .claude/settings.local.json
+.arts/
+.pnpm-store/
 
 # Docs policy: only keep 3 baseline files in repo
 docs/*
