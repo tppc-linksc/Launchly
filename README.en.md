@@ -22,7 +22,7 @@
   <a href="README.md">中文文档</a>
 </p>
 
-> **2026-05 Direction Pivot**: Launchly has been refocused from a "self-hosted deployment & test collaboration platform" to a **dual-delivery lightweight code auto-deployment platform**. See [项目重塑计划.md](项目重塑计划.md) for full decision record. Main branch remains old skeleton; new direction is developed under `refactor/dual-mode-deploy` branch.
+> **2026-05 Direction Pivot**: Launchly has been refocused to a **dual-delivery lightweight code auto-deployment platform**. **Authoritative product spec**: [Product Handbook 2.0 (ZH)](docs/basic/产品设计规范.md). Historical v1 docs: [docs/archive/v1-2026-05/README.md](docs/archive/v1-2026-05/README.md). New work continues on `refactor/dual-mode-deploy`.
 
 ---
 
@@ -37,7 +37,7 @@
 - [Quick Start](#quick-start)
 - [Development Guide](#development-guide)
 - [Project Progress](#project-progress)
-- [Documentation](#documentation)
+- [Authoritative documentation](#authoritative-documentation)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -89,7 +89,8 @@ Launchly is currently in **pre-alpha / undergoing a direction pivot**. The proje
 - **One-command deployment**: `launchly install` should initialize PostgreSQL, App, Worker, default storage, and the first Owner setup.
 - **Small-team friendly**: focus on project onboarding, deployment, testing, fixing, retesting, and release flow instead of a heavy enterprise platform.
 - **Traceable workflow**: every deployment, test result, issue, release, and rollback should leave a record.
-- **Human-AI collaboration**: tasks should be understandable, executable, and verifiable by both humans and AI agents.
+- **Zero-config first** (summary in [Product Handbook 2.0 §4](docs/basic/产品设计规范.md)); full archived text: `docs/archive/v1-2026-05/product/zero-config-ux-principles.md`.
+- **Deployment-tool shell**: run-first home and horizontal work domains; see [UI Handbook 2.0 §2](docs/basic/UI与交互规范.md) and `docs/prototypes/系统设计mock.html`; implementation tasks **T-IA** in [archived AI task pack §15](docs/archive/v1-2026-05/root/AI开发任务包.md).
 
 ## System Architecture
 
@@ -178,8 +179,11 @@ services/api             Spring Boot API Server scaffold
 services/worker          Spring Boot Worker scaffold
 cli                      launchly CLI scaffold
 deploy/compose           Self-hosted Docker Compose template
-docs/product             Product requirements, flows, architecture, and technical plan
-docs/dev-tasks           Local development task docs, ignored by git
+docs/basic               Three baseline specs (ZH): product / technical / UI
+docs/work                [planning.md](docs/work/planning.md) (16-week map); `phase1|phase2|phase3/weekNN/` each with `week-N-{plan,test,log,review}.md`; [DeepSeek log schema](docs/work/DeepSeek日志结构.md)
+docs/archive             Archived v1 documentation
+docs/prototypes          Static HTML prototypes
+# optional local scratch: create any ignored folder yourself — never substitutes week-*-plan.md
 scripts                  Utility scripts
 ```
 
@@ -269,11 +273,11 @@ API development conventions:
 Development principles:
 
 - Public README files should describe the real project state and avoid presenting planned features as completed.
-- Product decisions live in `docs/product`.
-- Local development plans live in `docs/dev-tasks`, which is ignored by git.
-- Weekly task docs use an AI-primary execution format: goals, prerequisites, human review points, files, inputs, outputs, constraints, and completion criteria.
+- Product decisions live in **docs 2.0 handbooks**; **update docs before code** when behavior changes.
+- Collaborative breakdown lives only in **[planning.md](docs/work/planning.md)** → **`docs/work/phase*/weekNN/week-N-plan.md`** (includes the DeepSeek “contract” section). Feed DeepSeek **one weekday slice per session**; append to that week's **`week-N-log.md`** via **[DeepSeek日志结构.md](docs/work/DeepSeek日志结构.md)**. **Do not** maintain parallel “session” trees or duplicate logs.
+- Optional personal notes: use any local ignored folder you like; it **must not** replace `week-*-plan.md`.
 - Humans mainly review boundaries and key decisions; AI should execute concrete code, documentation, and verification tasks whenever possible.
-- Implementation should stay aligned with the current product design.
+- Implementation should stay aligned with **[Product 2.0](docs/basic/产品设计规范.md) + [Technical 2.0](docs/basic/技术架构规范.md) + [UI 2.0](docs/basic/UI与交互规范.md)**.
 
 ## Project Progress
 
@@ -292,17 +296,27 @@ Development principles:
 | DeployTarget API, delete 409 guard, deploy-target UI | Completed |
 | Worker BYOS (local image build + SSH to remote compose) | Completed (worker service mounts host `docker.sock` in `deploy/compose/docker-compose.yml`; see comments there) |
 | Component data model (multi deployable units per project) | Not started |
-| Full navigation convergence (collab under secondary menu) | In Progress |
+| Full navigation convergence | In Progress; see [UI Handbook 2.0](docs/basic/UI与交互规范.md) and [T-IA in archived task pack](docs/archive/v1-2026-05/root/AI开发任务包.md) |
 | **Not Started** | |
 | SaaS control plane (registration / billing / multi-tenancy) | Not Started |
 | AI-powered features | Not Started |
 | Self-Host CLI (install / backup / restore) | Not Started |
 | End-to-end integration and release | Not Started |
 
-## Documentation
+## Authoritative documentation
 
-- [Launchly product requirements, flows, architecture, and technical plan](docs/product/Launchly-design.md)
-- Local development roadmap and weekly plans live under `docs/dev-tasks/`, which is ignored by `.gitignore`.
+The **Chinese** specs below are authoritative (v1 is under [docs/archive/v1-2026-05](docs/archive/v1-2026-05/README.md)). **Master plan & weekly breakdown**: [docs/work/planning.md](docs/work/planning.md).
+
+| Doc | Path | Notes |
+| --- | --- | --- |
+| Product spec | [docs/basic/产品设计规范.md](docs/basic/产品设计规范.md) | Positioning, models, permissions, flows |
+| Technical spec | [docs/basic/技术架构规范.md](docs/basic/技术架构规范.md) | Stack, architecture, modules, security |
+| UI & interaction spec | [docs/basic/UI与交互规范.md](docs/basic/UI与交互规范.md) | Pages, interactions, prototype index |
+| Master plan | [docs/work/planning.md](docs/work/planning.md) | Global weeks 1–16 ↔ `phase1` (1–5) / `phase2` (6–11) / `phase3` (12–16); weekly **plan / test / log / review** |
+
+**Work logs**: Append **only** to that week's `week-N-log.md` using [DeepSeek日志结构.md](docs/work/DeepSeek日志结构.md); do not fork extra log locations.
+
+**Static prototypes**: [流程示意图](docs/prototypes/流程示意图.html), [系统设计mock](docs/prototypes/系统设计mock.html), [环境页面mock](docs/prototypes/环境页面mock.html).
 
 ## Contributing
 

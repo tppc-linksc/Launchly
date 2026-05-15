@@ -42,6 +42,10 @@ public class Environment {
     @Column(name = "deploy_dir")
     private String deployDir;
 
+    /** Worker-side parent directory for clone/build/compose when deploy_mode is local (optional). */
+    @Column(name = "local_work_root")
+    private String localWorkRoot;
+
     @Column(name = "external_port")
     private Integer externalPort;
 
@@ -92,6 +96,8 @@ public class Environment {
     public void setSshUser(String sshUser) { this.sshUser = sshUser; }
     public String getDeployDir() { return deployDir; }
     public void setDeployDir(String deployDir) { this.deployDir = deployDir; }
+    public String getLocalWorkRoot() { return localWorkRoot; }
+    public void setLocalWorkRoot(String localWorkRoot) { this.localWorkRoot = localWorkRoot; }
     public Integer getExternalPort() { return externalPort; }
     public void setExternalPort(Integer externalPort) { this.externalPort = externalPort; }
     public String getDataStrategy() { return dataStrategy; }

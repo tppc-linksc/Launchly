@@ -22,7 +22,7 @@
   <a href="README.en.md">English Documentation</a>
 </p>
 
-> **2026-05 项目方向重塑**：Launchly 已从「自托管部署测试协作平台」收敛为「**双模式同源的轻量代码自动部署平台**」。详细决策见 [项目重塑计划.md](项目重塑计划.md)。当前主分支仍为旧版本骨架，新方向在 `refactor/dual-mode-deploy` 分支下开发。
+> **2026-05 项目方向重塑**：Launchly 已从「自托管部署测试协作平台」收敛为「**双模式同源的轻量代码自动部署平台**」。决策与历史材料已归档；**当前以 [产品设计规范](docs/basic/产品设计规范.md) 为产品权威**。归档索引：[docs/archive/v1-2026-05/README.md](docs/archive/v1-2026-05/README.md)。新方向在 `refactor/dual-mode-deploy` 分支下开发。
 
 ---
 
@@ -37,7 +37,7 @@
 - [快速开始](#快速开始)
 - [开发指南](#开发指南)
 - [项目进展](#项目进展)
-- [文档](#文档)
+- [权威文档](#权威文档)
 - [参与贡献](#参与贡献)
 - [开源协议](#开源协议)
 
@@ -88,6 +88,8 @@ Launchly 当前处于 **pre-alpha / 方向修正中**。项目正在从旧骨架
 - **本地优先**：最终用户不应手动准备数据库、队列、对象存储等内部依赖。
 - **一键部署**：通过 `launchly install` 初始化内置 PostgreSQL、App、Worker、默认存储和最高权限管理员。
 - **小团队友好**：不做复杂企业平台，优先解决项目接入、部署、测试、修复、复测和上线闭环。
+- **省心默认路径**：少填表、多推断；命令与容器细节默认对用户不可见，高级能力渐进披露（详见 [产品设计规范](docs/basic/产品设计规范.md) 第 4 节与归档 zero-config 全文）。
+- **部署工具型壳层**：默认首屏突出运行中部署与下一步；目标布局见 [系统设计mock.html](docs/prototypes/系统设计mock.html)；信息架构见 [UI与交互规范](docs/basic/UI与交互规范.md) 第 2 节、[产品设计规范](docs/basic/产品设计规范.md) 第 6 节；实现任务见归档 [AI开发任务包 §15](docs/archive/v1-2026-05/root/AI开发任务包.md)（T-IA）。
 - **流程可追踪**：每次部署、测试、Issue、Release、回滚都应留下记录。
 - **人和 AI 协同开发**：开发任务要能被人和 AI 同时理解、拆分、执行和验收。
 
@@ -178,8 +180,11 @@ services/api             Spring Boot API Server 骨架
 services/worker          Spring Boot Worker 骨架
 cli                      launchly CLI 骨架
 deploy/compose           自托管 Docker Compose 模板
-docs/product             产品需求、流程图、架构和技术方案
-docs/dev-tasks           本地开发任务文档，已被 git 忽略
+docs/basic               产品设计规范 / 技术架构规范 / UI与交互规范（权威）
+docs/work                [planning.md](docs/work/planning.md)（全局 16 周）；`phase1|phase2|phase3/weekNN/` 各含 week-N-plan/test/log/review 四件套
+docs/archive             历史文档 v1 归档
+docs/prototypes          静态 HTML 交互原型
+# （可选）本地自建目录名任意；若在仓库根 .gitignore 中配置了忽略规则，则不进远端——不是协作拆解的一部分
 scripts                  工具脚本目录
 ```
 
@@ -190,6 +195,7 @@ scripts                  工具脚本目录
 前置条件（必须）：
 
 - 已安装 Docker，且 Docker 引擎正在运行。
+- **能稳定访问 Docker Hub**（`docker compose --build` 会拉取 `maven`、`node`、`eclipse-temurin`、`postgres` 等镜像）。若构建阶段出现 `failed to do request ... EOF` 或访问 `registry-1.docker.io` 超时，多为网络/代理/镜像站问题：在 Docker Desktop 配置 **Registry mirrors** 或 **HTTP/HTTPS 代理**、稍后重试、或先单独执行 `docker pull maven:3.9-eclipse-temurin-17` 等预热镜像。
 - 本地 `5432` 端口可用（或通过环境变量改用其他端口，例如 `LAUNCHLY_DB_PORT=55432`）。
 - 如果跳过数据库步骤直接启动 API，启动会失败（`Connection refused` / `Failed to configure a DataSource`）。
 
@@ -245,6 +251,38 @@ pnpm install
 pnpm dev:web
 ```
 
+**类型检查 / 生产构建（二选一执行，不要把中文说明粘进同一行命令）**
+
+在仓库根目录：
+
+```bash
+pnpm install
+pnpm --filter @launchly/web exec vue-tsc --noEmit
+```
+
+或（含类型检查 + Vite 打包，与 CI 更接近）：
+
+```bash
+pnpm install
+pnpm --filter @launchly/web build
+```
+
+若已在 `apps/web` 目录下：
+
+```bash
+pnpm install
+pnpm exec vue-tsc --noEmit
+```
+
+或：
+
+```bash
+pnpm install
+pnpm build
+```
+
+说明：`pnpm build` 在 `apps/web` 里等价于 `vue-tsc --noEmit && vite build`（见 `apps/web/package.json`）。若把 `（或 …）` 等说明和 `--noEmit` 写在同一行，会出现 `TS5025: Unknown compiler option '--noEmit（或'`。
+
 ## 开发指南
 
 推荐本地工具：
@@ -269,11 +307,11 @@ API 开发约定：
 开发原则：
 
 - 对外 README 只描述真实状态，不把计划能力写成已完成能力。
-- 产品决策写入 `docs/product`。
-- 本地开发计划写入 `docs/dev-tasks`，该目录不会上传。
-- 周任务文档采用 AI 主执行格式：写清楚目标、前置条件、人工审核点、任务文件、输入、输出、约束和完成标准。
+- 产品决策写入 **`docs/basic/`** 三份规范；**先改文档再改代码**。
+- **协作拆解**：唯一入口为 [`docs/work/planning.md`](docs/work/planning.md) → `docs/work/phase*/weekNN/week-N-plan.md`（含 DeepSeek「命簿」）。DeepSeek **单次会话只推进一个工作日**；收工按 [`DeepSeek日志结构.md`](docs/work/DeepSeek日志结构.md) **追加写入** 当周的 `week-N-log.md`。**禁止**平行会话目录或其它第二份日志。
+- 若个人仍要随手记：可在本地自建任意草稿目录并自行 gitignore；**不得**当作 `week-*-plan.md` 的替代品。
 - 人主要负责审核边界和关键决策，AI 尽量执行可落地的代码、文档和验证任务。
-- 实现应和当前产品设计保持一致。
+- 实现应与 **[产品设计规范](docs/basic/产品设计规范.md) + [技术架构规范](docs/basic/技术架构规范.md) + [UI与交互规范](docs/basic/UI与交互规范.md)** 保持一致。
 
 ## 项目进展
 
@@ -292,17 +330,27 @@ API 开发约定：
 | DeployTarget API、删除 409 校验、前端部署目标页 | 已完成 |
 | Worker BYOS（本机构建镜像 + SSH 下发远端 compose） | 已完成（Compose 中 worker 需挂载宿主 `docker.sock`，见 `deploy/compose/docker-compose.yml` 注释） |
 | 数据模型 Component（多发布单元） | 未开始 |
-| UI 导航全面收敛（协作入口二级化） | 改造中 |
+| UI 导航全面收敛（协作入口二级化） | 改造中；目标见 [UI与交互规范](docs/basic/UI与交互规范.md) 与 [`系统设计mock.html`](docs/prototypes/系统设计mock.html)；任务 T-IA 见 [归档任务包 §15](docs/archive/v1-2026-05/root/AI开发任务包.md) |
 | **未开始** | |
 | SaaS 控制面（注册 / 计费 / 多租户） | 未开始 |
 | AI 增值功能 | 未开始 |
 | Self-Host CLI（install / backup / restore） | 未开始 |
 | 端到端联调与发布 | 未开始 |
 
-## 文档
+## 权威文档
 
-- [Launchly 产品需求、流程图、架构与技术方案](docs/product/Launchly-design.md)
-- 本地开发路线和周计划位于 `docs/dev-tasks/`，该目录已被 `.gitignore` 忽略。
+以下 **三份规范 + 总体规划**（v1 全文已迁入 [docs/archive/v1-2026-05](docs/archive/v1-2026-05/README.md)）；任务拆解见 [docs/work/planning.md](docs/work/planning.md)。
+
+| 文档 | 路径 | 说明 |
+| --- | --- | --- |
+| **产品设计规范** | [docs/basic/产品设计规范.md](docs/basic/产品设计规范.md) | 定位、模型、权限、流程 |
+| **技术架构规范** | [docs/basic/技术架构规范.md](docs/basic/技术架构规范.md) | 技术栈、架构、模块、安全 |
+| **UI 与交互规范** | [docs/basic/UI与交互规范.md](docs/basic/UI与交互规范.md) | 页面、交互、原型索引 |
+| **总体规划** | [docs/work/planning.md](docs/work/planning.md) | 全局 16 周 ↔ `phase1`（第 1–5 周）/ `phase2`（6–11）/ `phase3`（12–16）；每周 **plan / test / log / review** 四件套 |
+
+**工作日志**：仅当周目录下的 `week-N-log.md`。AI 按 [`DeepSeek日志结构.md`](docs/work/DeepSeek日志结构.md) **追加写入**，不要在其它平行路径克隆一份。
+
+**静态原型**：[流程示意图](docs/prototypes/流程示意图.html)、[系统设计mock](docs/prototypes/系统设计mock.html)、[环境页面mock](docs/prototypes/环境页面mock.html)。
 
 ## 参与贡献
 

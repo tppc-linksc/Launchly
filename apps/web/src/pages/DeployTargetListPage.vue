@@ -67,8 +67,20 @@
           </a-radio-group>
         </a-form-item>
         <a-form-item :label="form.authMethod === 'KEY' ? 'SSH 私钥' : '密码'">
-          <a-textarea v-model:value="form.privateKey" :placeholder="form.authMethod === 'KEY' ? '粘贴 SSH 私钥内容（PEM 格式）' : '输入 SSH 密码'"
-                      :rows="form.authMethod === 'KEY' ? 6 : 2" />
+          <a-input-password
+            v-if="form.authMethod === 'PASSWORD'"
+            v-model:value="form.privateKey"
+            placeholder="输入 SSH 密码"
+            autocomplete="new-password"
+          />
+          <a-textarea
+            v-else
+            v-model:value="form.privateKey"
+            placeholder="粘贴 SSH 私钥内容（PEM 格式）"
+            :rows="6"
+            spellcheck="false"
+            autocomplete="off"
+          />
           <span v-if="editingId" style="font-size: 11px; color: #8c8c8c;">留空则不修改已有凭据</span>
         </a-form-item>
       </a-form>
@@ -78,7 +90,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
@@ -90,7 +102,7 @@ import {
 } from '../api/client'
 
 const route = useRoute()
-const projectId = route.params.id as string
+const projectId = computed(() => String(route.params.id ?? ''))
 
 const targets = ref<any[]>([])
 const loading = ref(false)
@@ -142,9 +154,10 @@ const columns = [
 onMounted(() => { loadTargets() })
 
 async function loadTargets() {
+  if (!projectId.value) return
   loading.value = true
   try {
-    const res = await fetchDeployTargets(projectId)
+    const res = await fetchDeployTargets(projectId.value)
     targets.value = res.data || []
   } catch {
     message.error('加载部署目标失败')
@@ -153,6 +166,10 @@ async function loadTargets() {
 }
 
 function openCreate() {
+  if (!projectId.value) {
+    message.error('缺少项目 ID，请从项目详情进入「部署目标」页面')
+    return
+  }
   editingId.value = null
   form.name = ''
   form.type = 'BYOS_SSH'
@@ -180,8 +197,16 @@ function openEdit(record: any) {
 
 async function doSave() {
   errorMsg.value = ''
+  if (!projectId.value) {
+    errorMsg.value = '缺少项目上下文，请从项目详情进入本页面'
+    return
+  }
   if (!form.name || !form.host || !form.username) {
     errorMsg.value = '名称、主机地址、用户名为必填项'
+    return
+  }
+  if (!editingId.value && (!form.privateKey || !String(form.privateKey).trim())) {
+    errorMsg.value = form.authMethod === 'KEY' ? '请粘贴 SSH 私钥' : '请填写 SSH 密码'
     return
   }
 
@@ -203,7 +228,7 @@ async function doSave() {
       await updateDeployTarget(editingId.value, data)
       message.success('部署目标已更新')
     } else {
-      await createDeployTarget(projectId, data)
+      await createDeployTarget(projectId.value, data)
       message.success('部署目标已创建')
     }
     modalOpen.value = false

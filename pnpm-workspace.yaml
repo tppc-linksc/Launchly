@@ -1,3 +1,9 @@
 packages:
   - "apps/*"
 
+# pnpm v11+: lifecycle scripts on dependencies must be explicitly allowed (replaces onlyBuiltDependencies).
+allowBuilds:
+  core-js: true
+  esbuild: true
+  vue-demi: true
+

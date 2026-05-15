@@ -8,7 +8,7 @@
       <div>
         <a-tag>{{ project.projectType }}</a-tag>
         <a-button style="margin-left: 8px;" @click="$router.push(`/projects/${project.id}/deploy-targets`)">部署目标</a-button>
-        <a-button type="primary" style="margin-left: 8px;" @click="showDeploy = true" :disabled="!project.repositoryUrl">部署</a-button>
+        <a-button type="primary" style="margin-left: 8px;" @click="openDeployFromHeader" :disabled="!project.repositoryUrl">部署</a-button>
       </div>
     </div>
 
@@ -78,7 +78,7 @@
     </a-row>
 
     <!-- Deploy dialog -->
-    <a-modal v-model:open="showDeploy" title="部署" @ok="doDeploy" :confirm-loading="deployLoading">
+    <a-modal v-model:open="showDeploy" title="触发部署" @ok="doDeploy" :confirm-loading="deployLoading">
       <a-form layout="vertical">
         <a-form-item label="目标环境">
           <a-select v-model:value="deployForm.environmentId" placeholder="选择环境">
@@ -87,12 +87,15 @@
             </a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="部署目标">
-          <a-select v-model:value="deployForm.deployTargetId" placeholder="选择部署目标（可选）">
+        <a-form-item label="部署目标" required>
+          <a-select v-model:value="deployForm.deployTargetId" placeholder="必选：选择已验证的 SSH 部署目标（BYOS）">
             <a-select-option v-for="t in deployTargets" :key="t.id" :value="t.id">
               {{ t.name }} ({{ t.host }})
             </a-select-option>
           </a-select>
+          <div style="font-size: 12px; color: #8c8c8c; margin-top: 4px;">
+            在云服务器上部署请先在右上角「部署目标」里添加并「测试连接」。环境管理页请保持「本地部署」——表示 Worker 用本机 Docker 构建后再把镜像推到目标机，与「远程」旧选项无关。
+          </div>
         </a-form-item>
         <a-form-item label="分支或 Commit">
           <a-input v-model:value="deployForm.branch" placeholder="main 或 commit sha" />
@@ -162,6 +165,17 @@ function openDeploy(env: any) {
   showDeploy.value = true
 }
 
+/** 顶部「部署」：若只有一个可部署环境则预选，避免只填目标却未选环境 */
+function openDeployFromHeader() {
+  deployForm.value.deployTargetId = ''
+  deployForm.value.branch = ''
+  deployForm.value.notes = ''
+  deployError.value = ''
+  const list = deployableEnvs.value
+  deployForm.value.environmentId = list.length === 1 ? list[0].id : ''
+  showDeploy.value = true
+}
+
 onMounted(async () => {
   const id = route.params.id as string
   try {
@@ -195,10 +209,15 @@ async function doDeploy() {
       deployLoading.value = false
       return
     }
+    if (!deployForm.value.deployTargetId) {
+      deployError.value = '请选择部署目标（BYOS）。请先在「部署目标」页面添加并验证连接。'
+      deployLoading.value = false
+      return
+    }
     const res = await createDeployment({
       projectId: project.value.id,
       environmentId: envId,
-      deployTargetId: deployForm.value.deployTargetId || undefined,
+      deployTargetId: deployForm.value.deployTargetId,
       branch: deployForm.value.branch || project.value.defaultBranch,
       notes: deployForm.value.notes,
     })

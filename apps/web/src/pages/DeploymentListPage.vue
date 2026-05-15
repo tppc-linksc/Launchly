@@ -1,7 +1,7 @@
 <template>
   <div>
     <h2>部署记录</h2>
-    <p style="color: #8c8c8c; margin-bottom: 24px;">查看所有环境的部署记录、构建日志与部署状态。</p>
+    <p style="color: #8c8c8c; margin-bottom: 24px;">当前工作空间内的全部部署记录（不限于单个项目）。从项目详情触发部署后，可在此查看历史与状态。</p>
     <a-table :columns="columns" :data-source="deployments" row-key="id" :loading="loading" @row-click="(r: any) => $router.push(`/deployments/${r.id}`)" style="cursor: pointer;">
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'status'">

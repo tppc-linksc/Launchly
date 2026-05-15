@@ -49,6 +49,7 @@ public class EnvironmentController {
         if (request.host() != null) env.setHost(request.host());
         if (request.sshUser() != null) env.setSshUser(request.sshUser());
         if (request.deployDir() != null) env.setDeployDir(request.deployDir());
+        if (request.localWorkRoot() != null) env.setLocalWorkRoot(request.localWorkRoot());
         if (request.externalPort() != null) env.setExternalPort(request.externalPort());
         if (request.dataStrategy() != null) env.setDataStrategy(request.dataStrategy());
         if (request.enabled() != null) env.setEnabled(request.enabled());

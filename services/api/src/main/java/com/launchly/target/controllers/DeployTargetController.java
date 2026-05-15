@@ -35,8 +35,7 @@ public class DeployTargetController {
     @PostMapping("/api/projects/{projectId}/deploy-targets")
     public ResponseEntity<DeployTargetDto> create(@PathVariable String projectId,
                                                    @Valid @RequestBody DeployTargetCreateRequest request) {
-        request.setProjectId(projectId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(request));
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.create(projectId, request));
     }
 
     @GetMapping("/api/deploy-targets/{id}")

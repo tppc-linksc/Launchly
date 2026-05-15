@@ -1,5 +1,6 @@
 package com.launchly.worker.runner;
 
+import com.launchly.worker.deploy.ImplicitDockerfileGenerator;
 import com.launchly.worker.entities.Environment;
 import com.launchly.worker.entities.EnvironmentVariable;
 import com.launchly.worker.entities.Project;
@@ -58,7 +59,7 @@ public class DockerRunner implements Runner {
         int externalPort = getEffectivePort(env, project);
         int internalPort = project.getDefaultPort() != null ? project.getDefaultPort() : 3000;
 
-        File workDir = new File(BUILD_ROOT, projectId + "/" + refId);
+        File workDir = new File(resolveBuildRoot(env), projectId + "/" + refId);
         if (!workDir.exists()) {
             workDir.mkdirs();
         }
@@ -69,9 +70,10 @@ public class DockerRunner implements Runner {
         File envFile = new File(workDir, ".env.project");
 
         try {
+            String implicitDockerfile = ImplicitDockerfileGenerator.writeIfMissing(workDir, project);
             List<EnvironmentVariable> envVars = envVarRepository.findByEnvironmentId(environmentId);
             generateEnvFile(envFile, envVars);
-            generateComposeFile(composeFile, projectName, externalPort, internalPort, envVars);
+            generateComposeFile(composeFile, projectName, externalPort, internalPort, envVars, implicitDockerfile);
 
             // Run docker compose up
             String[] upCmd = {
@@ -100,6 +102,18 @@ public class DockerRunner implements Runner {
     }
 
     /**
+     * Worker-side parent for git/build/compose dirs ({@code projectId/refId} below this).
+     * Uses {@link Environment#getLocalWorkRoot} when set; otherwise {@link #BUILD_ROOT}.
+     */
+    static File resolveBuildRoot(Environment env) {
+        String custom = env.getLocalWorkRoot();
+        if (custom != null && !custom.isBlank()) {
+            return new File(custom.trim());
+        }
+        return new File(BUILD_ROOT);
+    }
+
+    /**
      * Determine the effective external port for deployment.
      * Priority: environment.externalPort → per-type default → project.defaultPort → 3000.
      */
@@ -115,7 +129,10 @@ public class DockerRunner implements Runner {
     }
 
     public RunnerResult down(String projectId, String environmentId, String refId) {
-        File workDir = new File(BUILD_ROOT, projectId + "/" + refId);
+        File root = environmentRepository.findById(environmentId)
+                .map(DockerRunner::resolveBuildRoot)
+                .orElseGet(() -> new File(BUILD_ROOT));
+        File workDir = new File(root, projectId + "/" + refId);
         File composeFile = new File(workDir, "docker-compose.yml");
         String projectName = "launchly-" + projectId.substring(0, 8) + "-" + environmentId.substring(0, 8);
 
@@ -129,7 +146,10 @@ public class DockerRunner implements Runner {
     }
 
     public RunnerResult logs(String projectId, String environmentId, String refId) {
-        File workDir = new File(BUILD_ROOT, projectId + "/" + refId);
+        File root = environmentRepository.findById(environmentId)
+                .map(DockerRunner::resolveBuildRoot)
+                .orElseGet(() -> new File(BUILD_ROOT));
+        File workDir = new File(root, projectId + "/" + refId);
         File composeFile = new File(workDir, "docker-compose.yml");
         String projectName = "launchly-" + projectId.substring(0, 8) + "-" + environmentId.substring(0, 8);
 
@@ -139,7 +159,7 @@ public class DockerRunner implements Runner {
     }
 
     private void generateComposeFile(File file, String projectName, int externalPort, int internalPort,
-                                     List<EnvironmentVariable> envVars) throws IOException {
+                                     List<EnvironmentVariable> envVars, String implicitDockerfile) throws IOException {
         StringBuilder yml = new StringBuilder();
         yml.append("services:\n");
         yml.append("  app:\n");
@@ -147,6 +167,9 @@ public class DockerRunner implements Runner {
         yml.append("    container_name: ").append(projectName).append("\n");
         yml.append("    build:\n");
         yml.append("      context: .\n");
+        if (implicitDockerfile != null && !implicitDockerfile.isBlank()) {
+            yml.append("      dockerfile: ").append(implicitDockerfile).append("\n");
+        }
         yml.append("    ports:\n");
         yml.append("      - \"").append(externalPort).append(":").append(internalPort).append("\"\n");
         yml.append("    env_file:\n");

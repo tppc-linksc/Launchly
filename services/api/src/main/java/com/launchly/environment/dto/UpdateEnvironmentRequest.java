@@ -7,6 +7,7 @@ public record UpdateEnvironmentRequest(
         String host,
         String sshUser,
         String deployDir,
+        String localWorkRoot,
         Integer externalPort,
         String dataStrategy,
         Boolean enabled

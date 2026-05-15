@@ -11,8 +11,11 @@ services:
     ports:
       - "${LAUNCHLY_DB_PORT:-5432}:5432"
 
+  # app/worker: pin linux/amd64 so Apple Silicon (arm64) can pull Temurin/Maven/Node base
+  # images reliably and match typical Linux VPS. Docker Desktop uses QEMU emulation on Mac ARM.
   app:
     image: ${LAUNCHLY_APP_IMAGE:-launchly-app:local}
+    platform: linux/amd64
     build:
       context: ../..
       dockerfile: services/api/Dockerfile
@@ -25,32 +28,43 @@ services:
       LAUNCHLY_DB_NAME: ${LAUNCHLY_DB_NAME:-launchly}
       LAUNCHLY_DB_USER: ${LAUNCHLY_DB_USER:-launchly}
       LAUNCHLY_DB_PASSWORD: ${LAUNCHLY_DB_PASSWORD:-launchly_dev_password}
-      LAUNCHLY_JWT_SECRET: ${LAUNCHLY_JWT_SECRET:-launchly-dev-secret-do-not-use-in-production}
-      LAUNCHLY_ENCRYPTION_KEY: ${LAUNCHLY_ENCRYPTION_KEY:-launchly-dev-secret-do-not-use-in-production}
+      # Must not equal SecurityConfigValidator blocked default; override in prod.
+      LAUNCHLY_JWT_SECRET: ${LAUNCHLY_JWT_SECRET:-compose-local-only-jwt-hmac-key-min-48-chars-please-override}
+      LAUNCHLY_ENCRYPTION_KEY: ${LAUNCHLY_ENCRYPTION_KEY:-compose-local-only-enc-seed-min-48-chars-override-for-prod}
     ports:
       - "${LAUNCHLY_APP_PORT:-8080}:8080"
     volumes:
       - launchly-data:/var/lib/launchly
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/actuator/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 18
+      start_period: 90s
 
   # Worker builds Docker images locally, then transfers them to BYOS targets over SSH.
   # The Docker CLI inside the container needs access to the host daemon — self-host dev only.
   # For hardened / multi-tenant SaaS, replace this with rootless buildkit or remote-only builds (see 项目重塑计划.md).
   worker:
     image: ${LAUNCHLY_WORKER_IMAGE:-launchly-worker:local}
+    platform: linux/amd64
     build:
       context: ../..
       dockerfile: services/worker/Dockerfile
     container_name: launchly-worker
     depends_on:
-      - postgres
+      postgres:
+        condition: service_started
+      app:
+        condition: service_healthy
     environment:
       LAUNCHLY_DB_HOST: postgres
       LAUNCHLY_DB_PORT: 5432
       LAUNCHLY_DB_NAME: ${LAUNCHLY_DB_NAME:-launchly}
       LAUNCHLY_DB_USER: ${LAUNCHLY_DB_USER:-launchly}
       LAUNCHLY_DB_PASSWORD: ${LAUNCHLY_DB_PASSWORD:-launchly_dev_password}
-      LAUNCHLY_JWT_SECRET: ${LAUNCHLY_JWT_SECRET:-launchly-dev-secret-do-not-use-in-production}
-      LAUNCHLY_ENCRYPTION_KEY: ${LAUNCHLY_ENCRYPTION_KEY:-launchly-dev-secret-do-not-use-in-production}
+      LAUNCHLY_JWT_SECRET: ${LAUNCHLY_JWT_SECRET:-compose-local-only-jwt-hmac-key-min-48-chars-please-override}
+      LAUNCHLY_ENCRYPTION_KEY: ${LAUNCHLY_ENCRYPTION_KEY:-compose-local-only-enc-seed-min-48-chars-override-for-prod}
     volumes:
       - launchly-data:/var/lib/launchly
       - /var/run/docker.sock:/var/run/docker.sock

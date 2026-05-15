@@ -6,6 +6,7 @@ import com.jcraft.jsch.JSch;
 import com.jcraft.jsch.JSchException;
 import com.jcraft.jsch.Session;
 import com.jcraft.jsch.SftpException;
+import com.launchly.worker.deploy.ImplicitDockerfileGenerator;
 import com.launchly.worker.entities.DeployTarget;
 import com.launchly.worker.entities.Deployment;
 import com.launchly.worker.entities.Environment;
@@ -38,7 +39,6 @@ public class RemoteSshRunner implements Runner {
     private static final int IMAGE_SAVE_TIMEOUT = 120;
     private static final int IMAGE_LOAD_TIMEOUT = 120;
     private static final int SCP_TRANSFER_TIMEOUT = 600;
-    private static final String BUILD_ROOT = "/tmp/launchly-builds";
 
     private final DeployTargetRepository deployTargetRepository;
     private final DeploymentRepository deploymentRepository;
@@ -95,7 +95,8 @@ public class RemoteSshRunner implements Runner {
         int externalPort = DockerRunner.getEffectivePort(env, project);
         int internalPort = project.getDefaultPort() != null ? project.getDefaultPort() : 3000;
 
-        File workDir = new File(BUILD_ROOT, projectId + "/" + refId);
+        File workRoot = DockerRunner.resolveBuildRoot(env);
+        File workDir = new File(workRoot, projectId + "/" + refId);
         if (!workDir.exists()) {
             workDir.mkdirs();
         }
@@ -117,9 +118,13 @@ public class RemoteSshRunner implements Runner {
         try {
             List<EnvironmentVariable> envVars = envVarRepository.findByEnvironmentId(environmentId);
 
+            String implicitDockerfile = ImplicitDockerfileGenerator.writeIfMissing(workDir, project);
+
             // --- Step 1: Build Docker image locally ---
             log.info("Building Docker image {} in {}", imageTag, workDir);
-            String[] buildCmd = {"docker", "build", "-t", imageTag, "."};
+            String[] buildCmd = implicitDockerfile != null
+                    ? new String[]{"docker", "build", "-f", implicitDockerfile, "-t", imageTag, "."}
+                    : new String[]{"docker", "build", "-t", imageTag, "."};
             RunnerResult buildResult = CommandExecutor.execute(buildCmd, workDir, IMAGE_BUILD_TIMEOUT);
             if (!buildResult.isSuccess()) {
                 return RunnerResult.failure(

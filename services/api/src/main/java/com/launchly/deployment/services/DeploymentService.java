@@ -63,9 +63,8 @@ public class DeploymentService {
         if (!env.getProjectId().equals(request.projectId())) {
             throw new IllegalArgumentException("环境不属于指定项目");
         }
-        if ("remote".equals(env.getDeployMode())) {
-            throw new IllegalStateException("远程部署功能开发中，请使用本地模式（local）部署");
-        }
+        // 注意：云上 BYOS 通过「部署目标」+ deployTargetId 走 RemoteSshRunner，不再依赖 environment.deployMode=remote。
+        // 环境页的「本地部署」表示 Worker 使用本机 Docker 构建镜像；请勿再因 remote 拦截合法 BYOS 流程。
 
         // Validate project belongs to current workspace
         Project project = projectRepository.findById(request.projectId())
@@ -170,6 +169,16 @@ public class DeploymentService {
     public List<DeploymentResponse> listByEnvironment(String environmentId) {
         return deploymentRepository.findByEnvironmentIdOrderByCreatedAtDesc(environmentId)
                 .stream().map(DeploymentResponse::from).collect(Collectors.toList());
+    }
+
+    /**
+     * 部署列表页未带 projectId 时：返回当前工作区内所有项目的部署记录（按创建时间倒序）。
+     */
+    public List<DeploymentResponse> listForCurrentWorkspace() {
+        String workspaceId = AuthContext.workspaceId();
+        return deploymentRepository.findByWorkspaceId(workspaceId).stream()
+                .map(DeploymentResponse::from)
+                .collect(Collectors.toList());
     }
 
     public DeploymentResponse getById(String id) {

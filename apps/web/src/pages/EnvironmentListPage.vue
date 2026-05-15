@@ -1,9 +1,13 @@
 <template>
   <div>
     <h2>环境管理</h2>
-    <p style="color: #8c8c8c; margin-bottom: 24px;">管理测试、预发、生产环境配置与环境变量。</p>
+    <p style="color: #8c8c8c; margin-bottom: 24px;">管理测试、预发、生产环境的端口、访问 URL、数据策略与环境变量。云上机器通过项目页的「部署目标」连接，不在此页配置 SSH。</p>
     <a-table :columns="columns" :data-source="envs" row-key="id" :loading="loading">
       <template #bodyCell="{ column, record }">
+        <template v-if="column.key === 'localWorkRoot'">
+          <span v-if="record.localWorkRoot" :title="record.localWorkRoot">{{ record.localWorkRoot }}</span>
+          <span v-else style="color: #bfbfbf;">默认</span>
+        </template>
         <template v-if="column.key === 'type'">
           <a-tag :color="record.type === 'TEST' ? 'blue' : record.type === 'STAGING' ? 'orange' : 'red'">{{ envTypeMap[record.type] || record.type }}</a-tag>
         </template>
@@ -55,20 +59,44 @@
         </a-form-item>
         <a-form-item label="部署模式">
           <a-radio-group v-model:value="editForm.deployMode">
-            <a-radio value="local">本地部署</a-radio>
-            <a-radio value="remote">远程部署（开发中）</a-radio>
+            <a-radio value="local">本地部署（推荐）</a-radio>
+            <a-radio value="remote" disabled>环境内「远程直连」（已弃用）</a-radio>
           </a-radio-group>
+          <div style="font-size: 12px; color: #8c8c8c; margin-top: 6px;">
+            云上服务器请使用项目详情里的「部署目标」+ SSH，不要选此项。此处「本地部署」仅表示：Worker 在本机用 Docker 构建后，再把镜像推到您填的部署目标。
+          </div>
         </a-form-item>
+        <template v-if="editForm.deployMode === 'local'">
+          <a-alert
+            type="info"
+            show-icon
+            style="margin-bottom: 12px;"
+            message="端口、访问 URL、本地构建目录在此配置；SSH 主机与密钥请在项目页「部署目标」添加并验证。"
+          />
+          <a-form-item label="本地构建目录（可选）">
+            <a-input
+              v-model:value="editForm.localWorkRoot"
+              placeholder="留空则使用 Worker 默认：/tmp/launchly-builds"
+            />
+            <div style="font-size: 12px; color: #8c8c8c; margin-top: 4px;">
+              指定后，源码与 compose 会写在「该目录 / 项目ID / 部署ID」下；需 Worker 进程可读写。与下方「远程部署目录」不同：后者仅在选择 BYOS 远程分发时使用。
+            </div>
+          </a-form-item>
+        </template>
         <template v-if="editForm.deployMode === 'remote'">
-          <a-alert type="warning" message="远程部署功能开发中，配置可保存但暂不支持实际远程部署" show-icon style="margin-bottom: 12px;" />
+          <a-alert type="warning" show-icon style="margin-bottom: 12px;">
+            <template #message>
+              <span>该环境仍为旧版「remote」标记。请改选上方「本地部署」并保存，然后在项目内使用「部署目标」部署到云服务器。</span>
+            </template>
+          </a-alert>
           <a-form-item label="主机地址">
             <a-input v-model:value="editForm.host" placeholder="例如 192.168.1.100" :disabled="true" />
           </a-form-item>
           <a-form-item label="SSH 用户">
             <a-input v-model:value="editForm.sshUser" placeholder="例如 root" :disabled="true" />
           </a-form-item>
-          <a-form-item label="部署目录">
-            <a-input v-model:value="editForm.deployDir" placeholder="例如 /opt/launchly" :disabled="true" />
+          <a-form-item label="远程部署目录（BYOS）">
+            <a-input v-model:value="editForm.deployDir" placeholder="例如远程机上的 /opt/launchly/..." :disabled="true" />
           </a-form-item>
         </template>
         <a-form-item label="外部端口">
@@ -76,6 +104,9 @@
         </a-form-item>
         <a-form-item label="访问地址 URL">
           <a-input v-model:value="editForm.url" placeholder="例如 http://localhost:3001" />
+          <div v-if="editForm.deployMode === 'local'" style="font-size: 12px; color: #8c8c8c; margin-top: 4px;">
+            测试、验收时请填团队能打开的地址；与「外部端口」一致时通常为本机 http://localhost:端口。
+          </div>
         </a-form-item>
         <a-form-item label="数据策略">
           <a-select v-model:value="editForm.dataStrategy">
@@ -103,6 +134,7 @@ const columns = [
   { title: '类型', dataIndex: 'type', key: 'type', width: 100 },
   { title: '部署模式', dataIndex: 'deployMode', key: 'deployMode', width: 120 },
   { title: '外部端口', dataIndex: 'externalPort', width: 90 },
+  { title: '本地构建根', dataIndex: 'localWorkRoot', key: 'localWorkRoot', ellipsis: true, width: 160 },
   { title: 'URL', dataIndex: 'url', ellipsis: true },
   { title: '状态', dataIndex: 'status', key: 'status', width: 80 },
   { title: '启用', dataIndex: 'enabled', key: 'enabled', width: 70 },
@@ -130,7 +162,7 @@ const editModalOpen = ref(false)
 const editing = ref(false)
 const editForm = reactive({
   name: '', url: '', deployMode: 'local', host: '', sshUser: '',
-  deployDir: '', externalPort: null as number | null, dataStrategy: 'isolated', enabled: true,
+  deployDir: '', localWorkRoot: '', externalPort: null as number | null, dataStrategy: 'isolated', enabled: true,
 })
 
 async function openVarModal(env: any) {
@@ -164,10 +196,17 @@ function openEditModal(env: any) {
   selectedEnv.value = env
   editForm.name = env.name || ''
   editForm.url = env.url || ''
-  editForm.deployMode = env.deployMode || 'local'
+  const mode = env.deployMode || 'local'
+  if (mode === 'remote') {
+    editForm.deployMode = 'local'
+    message.warning('该环境曾为「远程」模式，已自动切换为「本地部署」以配合部署目标（BYOS）。请核对端口与 URL 后保存。')
+  } else {
+    editForm.deployMode = mode
+  }
   editForm.host = env.host || ''
   editForm.sshUser = env.sshUser || ''
   editForm.deployDir = env.deployDir || ''
+  editForm.localWorkRoot = env.localWorkRoot || ''
   editForm.externalPort = env.externalPort || null
   editForm.dataStrategy = env.dataStrategy || 'isolated'
   editForm.enabled = env.enabled !== false
@@ -178,7 +217,11 @@ async function handleEditSave() {
   if (!selectedEnv.value) return
   editing.value = true
   try {
-    await updateEnvironment(selectedEnv.value.id, { ...editForm })
+    const payload = { ...editForm }
+    if (payload.deployMode === 'remote') {
+      payload.deployMode = 'local'
+    }
+    await updateEnvironment(selectedEnv.value.id, payload)
     editModalOpen.value = false
     message.success('环境配置已更新')
     loadEnvs()

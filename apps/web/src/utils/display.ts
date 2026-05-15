@@ -76,7 +76,7 @@ export const gateNameMap: Record<string, string> = {
 // 部署模式
 export const deployModeMap: Record<string, string> = {
   local: '本地部署',
-  remote: '远程部署（开发中）',
+  remote: '旧版 remote（勿用）',
 }
 
 // 数据策略

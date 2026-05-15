@@ -39,7 +39,8 @@ public class ShellRunner implements Runner {
             return RunnerResult.failure("Project not found: " + projectId, "", "", -1);
         }
 
-        File workDir = new File(BUILD_ROOT, projectId + "/" + refId);
+        File workRoot = resolveWorkRoot(environmentId);
+        File workDir = new File(workRoot, projectId + "/" + refId);
         if (!workDir.exists()) {
             workDir.mkdirs();
         }
@@ -83,6 +84,15 @@ public class ShellRunner implements Runner {
         }
 
         return CommandExecutor.execute(command, workDir, timeout);
+    }
+
+    private File resolveWorkRoot(String environmentId) {
+        if (environmentId != null && !environmentId.isBlank()) {
+            return environmentRepository.findById(environmentId)
+                    .map(DockerRunner::resolveBuildRoot)
+                    .orElseGet(() -> new File(BUILD_ROOT));
+        }
+        return new File(BUILD_ROOT);
     }
 
     /**

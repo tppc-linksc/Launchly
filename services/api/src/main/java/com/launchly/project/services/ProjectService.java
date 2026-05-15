@@ -9,6 +9,7 @@ import com.launchly.project.dto.CreateProjectRequest;
 import com.launchly.project.dto.ProjectResponse;
 import com.launchly.project.entities.Project;
 import com.launchly.project.enums.GitProvider;
+import com.launchly.project.enums.ProjectType;
 import com.launchly.project.repositories.ProjectRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,13 +23,16 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final EnvironmentRepository environmentRepository;
     private final AuditService auditService;
+    private final RepositoryHintsService repositoryHintsService;
 
     public ProjectService(ProjectRepository projectRepository,
                           EnvironmentRepository environmentRepository,
-                          AuditService auditService) {
+                          AuditService auditService,
+                          RepositoryHintsService repositoryHintsService) {
         this.projectRepository = projectRepository;
         this.environmentRepository = environmentRepository;
         this.auditService = auditService;
+        this.repositoryHintsService = repositoryHintsService;
     }
 
     @Transactional
@@ -37,7 +41,7 @@ public class ProjectService {
         project.setWorkspaceId(workspaceId);
         project.setName(request.name());
         project.setDescription(request.description());
-        project.setProjectType(request.projectType());
+        project.setProjectType(request.projectType() != null ? request.projectType() : ProjectType.CUSTOM);
         project.setRepositoryUrl(request.repositoryUrl());
         project.setDefaultBranch(request.defaultBranch() != null ? request.defaultBranch() : "main");
         if (request.gitProvider() != null) {
@@ -50,6 +54,8 @@ public class ProjectService {
         project.setHealthCheckPath(request.healthCheckPath());
         project.setDefaultPort(request.defaultPort());
         project.setCreatedBy(userId);
+
+        repositoryHintsService.fillBlanksFromRepository(project);
 
         project = projectRepository.save(project);
 

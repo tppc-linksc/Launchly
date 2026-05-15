@@ -57,10 +57,10 @@ public class DeployTargetService {
     }
 
     @Transactional
-    public DeployTargetDto create(DeployTargetCreateRequest request) {
+    public DeployTargetDto create(String projectId, DeployTargetCreateRequest request) {
         DeployTarget entity = new DeployTarget();
         entity.setOrganizationId(AuthContext.current().workspaceId());
-        entity.setProjectId(request.getProjectId());
+        entity.setProjectId(projectId);
         entity.setName(request.getName());
         entity.setHost(request.getHost());
         entity.setPort(request.getPort() != null ? request.getPort() : 22);
@@ -121,19 +121,26 @@ public class DeployTargetService {
             return VerifyTargetResponse.failed("No credential configured");
         }
 
-        String privateKey = secretValueService.decrypt(entity.getEncryptedCredential());
+        String credential = secretValueService.decrypt(entity.getEncryptedCredential());
         Session session = null;
 
         try {
             JSch jsch = new JSch();
-            jsch.addIdentity("launchly-key",
-                    privateKey.getBytes(StandardCharsets.UTF_8),
-                    null, null);
-            privateKey = null;
+            if (entity.getAuthMethod() != AuthMethod.PASSWORD) {
+                jsch.addIdentity("launchly-key",
+                        credential.getBytes(StandardCharsets.UTF_8),
+                        null, null);
+            }
 
             session = jsch.getSession(entity.getUsername(), entity.getHost(), entity.getPort());
             session.setConfig("StrictHostKeyChecking", "no");
             session.setTimeout(10_000);
+
+            if (entity.getAuthMethod() == AuthMethod.PASSWORD) {
+                session.setPassword(credential);
+            }
+            credential = null;
+
             session.connect(10_000);
 
             String dockerVersion = execCommand(session, "docker version --format '{{.Server.Version}}'");

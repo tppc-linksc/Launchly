@@ -1,6 +1,7 @@
 package com.launchly.worker.runner;
 
 import com.launchly.worker.entities.Project;
+import com.launchly.worker.repositories.EnvironmentRepository;
 import com.launchly.worker.repositories.ProjectRepository;
 import org.springframework.stereotype.Component;
 
@@ -14,15 +15,18 @@ public class GitRunner implements Runner {
     private static final String BUILD_ROOT = "/tmp/launchly-builds";
 
     private final ProjectRepository projectRepository;
+    private final EnvironmentRepository environmentRepository;
 
-    public GitRunner(ProjectRepository projectRepository) {
+    public GitRunner(ProjectRepository projectRepository, EnvironmentRepository environmentRepository) {
         this.projectRepository = projectRepository;
+        this.environmentRepository = environmentRepository;
     }
 
     @Override
     public RunnerResult execute(RunnerContext context) {
         String refId = context.getRefId();
         String projectId = (String) context.getPayload().getOrDefault("projectId", "");
+        String environmentId = (String) context.getPayload().getOrDefault("environmentId", "");
         String branch = (String) context.getPayload().getOrDefault("branch", "main");
         String commitSha = (String) context.getPayload().getOrDefault("commitSha", "");
 
@@ -32,7 +36,8 @@ public class GitRunner implements Runner {
             return RunnerResult.failure("No repository URL configured for project", "", "", -1);
         }
 
-        File workDir = new File(BUILD_ROOT, projectId + "/" + refId);
+        File workRoot = resolveWorkRoot(environmentId);
+        File workDir = new File(workRoot, projectId + "/" + refId);
         workDir.mkdirs();
 
         // Check if already cloned
@@ -105,6 +110,15 @@ public class GitRunner implements Runner {
         return RunnerResult.success(
             "Pulled branch " + branch + "\n" + fetchResult.getStdout() + pullResult.getStdout(),
             fetchResult.getStderr() + pullResult.getStderr());
+    }
+
+    private File resolveWorkRoot(String environmentId) {
+        if (environmentId != null && !environmentId.isBlank()) {
+            return environmentRepository.findById(environmentId)
+                    .map(DockerRunner::resolveBuildRoot)
+                    .orElseGet(() -> new File(BUILD_ROOT));
+        }
+        return new File(BUILD_ROOT);
     }
 
     private String sanitizeUrl(String url) {

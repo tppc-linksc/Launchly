@@ -26,5 +26,12 @@ cli/launchly
 
 # Local development planning docs, not for upload
 docs/dev-tasks/
-docs/product/Launchly-mvp-flow-simulator.html
 .claude/settings.local.json
+
+# Docs policy: only keep 3 baseline files in repo
+docs/*
+!docs/basic/
+docs/basic/*
+!docs/basic/UI与交互规范.md
+!docs/basic/技术架构规范.md
+!docs/basic/产品设计规范.md

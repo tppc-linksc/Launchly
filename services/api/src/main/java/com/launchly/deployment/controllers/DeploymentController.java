@@ -59,7 +59,7 @@ public class DeploymentController {
         if (projectId != null) {
             return ResponseEntity.ok(deploymentService.listByProject(projectId));
         }
-        return ResponseEntity.ok(List.of());
+        return ResponseEntity.ok(deploymentService.listForCurrentWorkspace());
     }
 
     @GetMapping("/{id}")
