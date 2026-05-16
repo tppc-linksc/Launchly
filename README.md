@@ -23,6 +23,8 @@
 </p>
 
 > **2026-05 项目方向重塑**：Launchly 已从「自托管部署测试协作平台」收敛为「**双模式同源的轻量代码自动部署平台**」。决策与历史材料已归档；**当前以 [产品设计规范](docs/basic/产品设计规范.md) 为产品权威**。归档索引：[docs/archive/v1-2026-05/README.md](docs/archive/v1-2026-05/README.md)。新方向在 `refactor/dual-mode-deploy` 分支下开发。
+>
+> **文档上传说明**：仓库只上传 `docs/basic/` 下三份基线规范；`docs/work/`、`docs/archive/`、`docs/prototypes/` 属于本地协作文档和原型资料，已加入 `.gitignore`，README 中相关链接仅在维护者本地工作区可用。
 
 ---
 
@@ -339,18 +341,18 @@ API 开发约定：
 
 ## 权威文档
 
-以下 **三份规范 + 总体规划**（v1 全文已迁入 [docs/archive/v1-2026-05](docs/archive/v1-2026-05/README.md)）；任务拆解见 [docs/work/planning.md](docs/work/planning.md)。
+公开仓库只保留以下 **三份基线规范**。总体规划、工作日志、历史归档和静态原型为本地协作文档，README 保留链接是为了维护者本地跳转；这些目录默认不上传远端。
 
 | 文档 | 路径 | 说明 |
 | --- | --- | --- |
 | **产品设计规范** | [docs/basic/产品设计规范.md](docs/basic/产品设计规范.md) | 定位、模型、权限、流程 |
 | **技术架构规范** | [docs/basic/技术架构规范.md](docs/basic/技术架构规范.md) | 技术栈、架构、模块、安全 |
 | **UI 与交互规范** | [docs/basic/UI与交互规范.md](docs/basic/UI与交互规范.md) | 页面、交互、原型索引 |
-| **总体规划** | [docs/work/planning.md](docs/work/planning.md) | 全局 16 周 ↔ `phase1`（第 1–5 周）/ `phase2`（6–11）/ `phase3`（12–16）；每周 **plan / test / log / review** 四件套 |
+| **总体规划（本地）** | [docs/work/planning.md](docs/work/planning.md) | 本地协作入口；不随仓库上传 |
 
-**工作日志**：仅当周目录下的 `week-N-log.md`。AI 按 [`DeepSeek日志结构.md`](docs/work/DeepSeek日志结构.md) **追加写入**，不要在其它平行路径克隆一份。
+**工作日志（本地）**：仅当周目录下的 `week-N-log.md`。AI 按 [`DeepSeek日志结构.md`](docs/work/DeepSeek日志结构.md) **追加写入**，不要在其它平行路径克隆一份。
 
-**静态原型**：[流程示意图](docs/prototypes/流程示意图.html)、[系统设计mock](docs/prototypes/系统设计mock.html)、[环境页面mock](docs/prototypes/环境页面mock.html)。
+**静态原型（本地）**：[流程示意图](docs/prototypes/流程示意图.html)、[系统设计mock](docs/prototypes/系统设计mock.html)、[环境页面mock](docs/prototypes/环境页面mock.html)。
 
 ## 参与贡献
 

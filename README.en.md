@@ -23,6 +23,8 @@
 </p>
 
 > **2026-05 Direction Pivot**: Launchly has been refocused to a **dual-delivery lightweight code auto-deployment platform**. **Authoritative product spec**: [Product Handbook 2.0 (ZH)](docs/basic/产品设计规范.md). Historical v1 docs: [docs/archive/v1-2026-05/README.md](docs/archive/v1-2026-05/README.md). New work continues on `refactor/dual-mode-deploy`.
+>
+> **Documentation upload note**: only the three baseline files under `docs/basic/` are tracked for upload. `docs/work/`, `docs/archive/`, and `docs/prototypes/` are local collaboration notes and prototypes ignored by `.gitignore`; links to those paths are kept for maintainer-local navigation and may not resolve on GitHub.
 
 ---
 
@@ -305,18 +307,18 @@ Development principles:
 
 ## Authoritative documentation
 
-The **Chinese** specs below are authoritative (v1 is under [docs/archive/v1-2026-05](docs/archive/v1-2026-05/README.md)). **Master plan & weekly breakdown**: [docs/work/planning.md](docs/work/planning.md).
+Only the three **Chinese baseline specs** below are tracked in the public repository. The master plan, work logs, archived notes, and static prototypes are local collaboration documents; README links are kept for maintainer-local navigation and are not guaranteed to resolve on GitHub.
 
 | Doc | Path | Notes |
 | --- | --- | --- |
 | Product spec | [docs/basic/产品设计规范.md](docs/basic/产品设计规范.md) | Positioning, models, permissions, flows |
 | Technical spec | [docs/basic/技术架构规范.md](docs/basic/技术架构规范.md) | Stack, architecture, modules, security |
 | UI & interaction spec | [docs/basic/UI与交互规范.md](docs/basic/UI与交互规范.md) | Pages, interactions, prototype index |
-| Master plan | [docs/work/planning.md](docs/work/planning.md) | Global weeks 1–16 ↔ `phase1` (1–5) / `phase2` (6–11) / `phase3` (12–16); weekly **plan / test / log / review** |
+| Master plan (local) | [docs/work/planning.md](docs/work/planning.md) | Local collaboration entry; not uploaded to the public repository |
 
-**Work logs**: Append **only** to that week's `week-N-log.md` using [DeepSeek日志结构.md](docs/work/DeepSeek日志结构.md); do not fork extra log locations.
+**Work logs (local)**: Append **only** to that week's `week-N-log.md` using [DeepSeek日志结构.md](docs/work/DeepSeek日志结构.md); do not fork extra log locations.
 
-**Static prototypes**: [流程示意图](docs/prototypes/流程示意图.html), [系统设计mock](docs/prototypes/系统设计mock.html), [环境页面mock](docs/prototypes/环境页面mock.html).
+**Static prototypes (local)**: [流程示意图](docs/prototypes/流程示意图.html), [系统设计mock](docs/prototypes/系统设计mock.html), [环境页面mock](docs/prototypes/环境页面mock.html).
 
 ## Contributing
 
