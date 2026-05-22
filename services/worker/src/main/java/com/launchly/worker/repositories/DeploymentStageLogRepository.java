@@ -6,5 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.List;
 
 public interface DeploymentStageLogRepository extends JpaRepository<DeploymentStageLog, String> {
-    List<DeploymentStageLog> findByDeploymentIdOrderByStageAsc(String deploymentId);
+    List<DeploymentStageLog> findByDeploymentIdOrderByStepOrderAsc(String deploymentId);
 }

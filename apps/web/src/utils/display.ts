@@ -5,6 +5,7 @@ export const deployStatusMap: Record<string, string> = {
   SUCCEEDED: '成功',
   FAILED: '失败',
   CANCELED: '已取消',
+  SKIPPED: '已跳过',
 }
 
 // Issue 状态
@@ -97,7 +98,18 @@ export const auditActionMap: Record<string, string> = {
   PUBLISH_PRODUCTION: '生产发布',
   ROLLBACK: '回滚',
   CREATE_INVITATION: '创建邀请',
-  UPDATE_MEMBER_ROLE: '修改成员角色',
-  GATE_EXEMPT: '门禁豁免',
-  DELETE_RECORD: '删除记录',
+}
+
+// 格式化 ISO 时间为本地可读字符串
+export function formatTime(iso: string | null | undefined): string {
+  if (!iso) return '—'
+  try {
+    const d = new Date(iso)
+    return d.toLocaleString('zh-CN', {
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+    })
+  } catch {
+    return iso
+  }
 }

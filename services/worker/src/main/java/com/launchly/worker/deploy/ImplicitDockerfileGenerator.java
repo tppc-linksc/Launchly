@@ -33,7 +33,7 @@ public final class ImplicitDockerfileGenerator {
         }
         String install = nonBlank(project.getInstallCommand())
                 ? project.getInstallCommand().trim()
-                : "npm ci --omit=dev || npm install --omit=dev";
+                : "npm ci";
         String build = nonBlank(project.getBuildCommand())
                 ? project.getBuildCommand().trim()
                 : "echo \"no build_command configured\"";

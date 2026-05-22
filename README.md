@@ -192,16 +192,23 @@ scripts                  工具脚本目录
 
 ## 快速开始
 
-当前还不是可用产品，以下命令仅用于验证开发骨架。
+当前还不是可用产品，以下命令仅用于验证开发骨架。  
+**本项目有两种启动模式，请先选一种，不要混用。**
 
 前置条件（必须）：
 
 - 已安装 Docker，且 Docker 引擎正在运行。
-- **能稳定访问 Docker Hub**（`docker compose --build` 会拉取 `maven`、`node`、`eclipse-temurin`、`postgres` 等镜像）。若构建阶段出现 `failed to do request ... EOF` 或访问 `registry-1.docker.io` 超时，多为网络/代理/镜像站问题：在 Docker Desktop 配置 **Registry mirrors** 或 **HTTP/HTTPS 代理**、稍后重试、或先单独执行 `docker pull maven:3.9-eclipse-temurin-17` 等预热镜像。
-- 本地 `5432` 端口可用（或通过环境变量改用其他端口，例如 `LAUNCHLY_DB_PORT=55432`）。
-- 如果跳过数据库步骤直接启动 API，启动会失败（`Connection refused` / `Failed to configure a DataSource`）。
+- 本地 `5432`、`8080` 端口可用（或自行改环境变量端口）。
+- 已配置根目录 `.env`（至少包含 `LAUNCHLY_JWT_SECRET` 与 `LAUNCHLY_ENCRYPTION_KEY`）。
 
-### 1. CLI 骨架
+> 重要：`LAUNCHLY_ENCRYPTION_KEY` 变化后，数据库里已保存的密文（如部署目标密码/私钥）将无法正确解密。  
+> 如果沿用旧数据库数据，必须沿用同一套 `.env` 密钥。
+
+### 模式 A：本地开发最小模式（1 个容器 + 本机 API）
+
+适合日常改代码调试；数据库在 Docker，API 在本机 `mvn`。
+
+#### 1. CLI 骨架
 
 ```bash
 cd cli
@@ -209,7 +216,7 @@ go test ./...
 go run ./cmd/launchly doctor
 ```
 
-### 2. 启动 PostgreSQL（API 依赖）
+#### 2. 启动 PostgreSQL（API 依赖）
 
 API 需要 PostgreSQL 才能启动。本地开发时用 Docker 快速起一个：
 
@@ -222,22 +229,15 @@ docker run -d --name launchly-postgres-dev \
   postgres:16-alpine
 ```
 
-> 一键部署（`launchly install`）会通过 docker-compose 自动启动 PostgreSQL，不需要手动执行这一步。这个手动启动仅用于本地开发。
-
-### 3. API 骨架
+#### 3. 启动 API（本机）
 
 ```bash
+cd /Users/chenshaolin/Desktop/Linksc/code/Launchly
+set -a
+source ./.env
+set +a
 cd services/api
 mvn spring-boot:run
-```
-
-启动后 API 会自动执行 Flyway 数据库迁移。
-
-如果你本地 PostgreSQL 不在 `5432`，启动时显式指定端口：
-
-```bash
-cd services/api
-LAUNCHLY_DB_PORT=55432 mvn spring-boot:run
 ```
 
 健康检查：
@@ -246,7 +246,44 @@ LAUNCHLY_DB_PORT=55432 mvn spring-boot:run
 curl http://localhost:8080/api/health
 ```
 
-### 4. Web 骨架
+---
+
+### 模式 B：Compose 全栈模式（3 个容器：postgres + app + worker）
+
+适合联调与“部署目标验证”等接近真实流程的测试。  
+这也是你之前验证通过的运行形态。
+
+#### 1. 全新起一套（保留现有数据库卷）
+
+```bash
+cd /Users/chenshaolin/Desktop/Linksc/code/Launchly
+set -a
+source ./.env
+set +a
+docker compose -f deploy/compose/docker-compose.yml up -d --build
+```
+
+#### 2. 重建一套干净环境（会删除旧数据）
+
+```bash
+cd /Users/chenshaolin/Desktop/Linksc/code/Launchly
+set -a
+source ./.env
+set +a
+docker compose -f deploy/compose/docker-compose.yml down -v
+docker compose -f deploy/compose/docker-compose.yml up -d --build
+```
+
+#### 3. 查看服务状态与日志
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml ps
+docker compose -f deploy/compose/docker-compose.yml logs -f app
+```
+
+---
+
+### Web 骨架
 
 ```bash
 pnpm install
@@ -284,6 +321,14 @@ pnpm build
 ```
 
 说明：`pnpm build` 在 `apps/web` 里等价于 `vue-tsc --noEmit && vite build`（见 `apps/web/package.json`）。若把 `（或 …）` 等说明和 `--noEmit` 写在同一行，会出现 `TS5025: Unknown compiler option '--noEmit（或'`。
+
+---
+
+### 关于最终成品是否还会踩这个坑
+
+- 正式的一键安装目标是 `launchly install` 自动生成并持久化密钥，不需要手填数据库配置。
+- 密钥会与数据目录绑定并持续复用，升级/重启不会变更，避免“旧数据无法解密”。
+- 你现在遇到的问题属于开发阶段的“模式切换 + 手工环境”问题，成品交付会通过安装器收敛掉。
 
 ## 开发指南
 
@@ -332,7 +377,7 @@ API 开发约定：
 | DeployTarget API、删除 409 校验、前端部署目标页 | 已完成 |
 | Worker BYOS（本机构建镜像 + SSH 下发远端 compose） | 已完成（Compose 中 worker 需挂载宿主 `docker.sock`，见 `deploy/compose/docker-compose.yml` 注释） |
 | 数据模型 Component（多发布单元） | 未开始 |
-| UI 导航全面收敛（协作入口二级化） | 改造中；目标见 [UI与交互规范](docs/basic/UI与交互规范.md) 与 [`系统设计mock.html`](docs/prototypes/系统设计mock.html)；任务 T-IA 见 [归档任务包 §15](docs/archive/v1-2026-05/root/AI开发任务包.md) |
+| UI 导航全面收敛（顶栏 + 横向工作域，配置入口二级化） | 目标已锁定；代码仍待按 [UI与交互规范](docs/basic/UI与交互规范.md) 与 [`系统设计mock.html`](docs/prototypes/系统设计mock.html) 重构；任务 T-IA 见 [归档任务包 §15](docs/archive/v1-2026-05/root/AI开发任务包.md) |
 | **未开始** | |
 | SaaS 控制面（注册 / 计费 / 多租户） | 未开始 |
 | AI 增值功能 | 未开始 |

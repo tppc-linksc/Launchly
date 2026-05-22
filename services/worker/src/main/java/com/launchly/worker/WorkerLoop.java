@@ -107,6 +107,11 @@ public class WorkerLoop {
             }
         });
 
+        // When deploying via Docker Compose, skip the BUILD stage (build is handled by compose)
+        if ("PROJECT_DEPLOY".equals(task.getTaskType())) {
+            markBuildStageSkipped(deploymentId);
+        }
+
         // Write stage log RUNNING
         writeStageLog(deploymentId, stage, "RUNNING", "Starting " + task.getTaskType() + "...");
 
@@ -150,8 +155,7 @@ public class WorkerLoop {
 
     private void enqueueNextStage(Task completedTask) {
         String nextType = switch (completedTask.getTaskType()) {
-            case "REPO_CLONE" -> "PROJECT_BUILD";
-            case "PROJECT_BUILD" -> "PROJECT_DEPLOY";
+            case "REPO_CLONE" -> "PROJECT_DEPLOY";
             case "PROJECT_DEPLOY" -> "HEALTH_CHECK";
             default -> null;
         };
@@ -171,6 +175,24 @@ public class WorkerLoop {
         taskRepository.save(next);
     }
 
+    /**
+     * Mark the BUILD stage as SKIPPED when the pipeline bypasses PROJECT_BUILD
+     * (e.g., for Docker Compose deployments where the Dockerfile handles the build).
+     */
+    private void markBuildStageSkipped(String deploymentId) {
+        List<DeploymentStageLog> logs = stageLogRepository.findByDeploymentIdOrderByStepOrderAsc(deploymentId);
+        for (DeploymentStageLog sl : logs) {
+            if ("BUILD".equals(sl.getStage()) && "PENDING".equals(sl.getStatus())) {
+                sl.setStatus("SKIPPED");
+                sl.setLog("Skipped: Docker Compose handles the build");
+                sl.setStartedAt(Instant.now());
+                sl.setFinishedAt(Instant.now());
+                stageLogRepository.save(sl);
+                break;
+            }
+        }
+    }
+
     private String mapTaskTypeToStage(String taskType) {
         return switch (taskType) {
             case "REPO_CLONE" -> "CLONE";
@@ -182,7 +204,7 @@ public class WorkerLoop {
     }
 
     private void writeStageLog(String deploymentId, String stage, String status, String logText) {
-        List<DeploymentStageLog> logs = stageLogRepository.findByDeploymentIdOrderByStageAsc(deploymentId);
+        List<DeploymentStageLog> logs = stageLogRepository.findByDeploymentIdOrderByStepOrderAsc(deploymentId);
         for (DeploymentStageLog sl : logs) {
             if (sl.getStage().equals(stage)) {
                 sl.setStatus(status);
@@ -199,7 +221,7 @@ public class WorkerLoop {
     }
 
     private void writeStageLogFinal(String deploymentId, String stage, String status, String logText) {
-        List<DeploymentStageLog> logs = stageLogRepository.findByDeploymentIdOrderByStageAsc(deploymentId);
+        List<DeploymentStageLog> logs = stageLogRepository.findByDeploymentIdOrderByStepOrderAsc(deploymentId);
         for (DeploymentStageLog sl : logs) {
             if (sl.getStage().equals(stage)) {
                 sl.setStatus(status);
@@ -212,8 +234,9 @@ public class WorkerLoop {
     }
 
     private void checkAndUpdateDeployment(String deploymentId) {
-        List<DeploymentStageLog> logs = stageLogRepository.findByDeploymentIdOrderByStageAsc(deploymentId);
-        boolean allSucceeded = logs.stream().allMatch(l -> "SUCCEEDED".equals(l.getStatus()));
+        List<DeploymentStageLog> logs = stageLogRepository.findByDeploymentIdOrderByStepOrderAsc(deploymentId);
+        boolean allSucceeded = logs.stream().allMatch(l ->
+                "SUCCEEDED".equals(l.getStatus()) || "SKIPPED".equals(l.getStatus()));
         if (allSucceeded) {
             deploymentRepository.findById(deploymentId).ifPresent(deployment -> {
                 deployment.setStatus("SUCCEEDED");

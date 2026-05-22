@@ -96,6 +96,7 @@ public class DeploymentService {
             DeploymentStageLog log = new DeploymentStageLog();
             log.setDeploymentId(deployment.getId());
             log.setStage(stage);
+            log.setStepOrder(stage.getStepOrder());
             log.setStatus("PENDING");
             stageLogRepository.save(log);
         }
@@ -137,6 +138,7 @@ public class DeploymentService {
             DeploymentStageLog log = new DeploymentStageLog();
             log.setDeploymentId(rollback.getId());
             log.setStage(stage);
+            log.setStepOrder(stage.getStepOrder());
             log.setStatus("PENDING");
             stageLogRepository.save(log);
         }

@@ -69,7 +69,7 @@ public class DeploymentController {
 
     @GetMapping("/{id}/logs")
     public ResponseEntity<List<DeploymentStageLog>> logs(@PathVariable String id) {
-        return ResponseEntity.ok(stageLogRepository.findByDeploymentIdOrderByStageAsc(id));
+        return ResponseEntity.ok(stageLogRepository.findByDeploymentIdOrderByStepOrderAsc(id));
     }
 
     @GetMapping(value = "/{id}/logs/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
@@ -91,7 +91,7 @@ public class DeploymentController {
                         return;
                     }
 
-                    List<DeploymentStageLog> logs = stageLogRepository.findByDeploymentIdOrderByStageAsc(id);
+                    List<DeploymentStageLog> logs = stageLogRepository.findByDeploymentIdOrderByStepOrderAsc(id);
                     String currentSnapshot = objectMapper.writeValueAsString(logs);
 
                     if (!currentSnapshot.equals(lastLogSnapshot)) {

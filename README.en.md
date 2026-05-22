@@ -192,14 +192,20 @@ scripts                  Utility scripts
 ## Quick Start
 
 Launchly is not usable as a product yet. The commands below only validate the current development scaffold.
+There are two run modes in this repository. Pick one mode and avoid mixing them.
 
 Mandatory prerequisites:
 
 - Docker is installed and the Docker engine is running.
-- Local port `5432` is available (or set another port via env, for example `LAUNCHLY_DB_PORT=55432`).
-- If you skip the database step and start the API directly, startup will fail (`Connection refused` / `Failed to configure a DataSource`).
+- Local `5432` and `8080` ports are available (or override via env).
+- Root `.env` is configured, especially `LAUNCHLY_JWT_SECRET` and `LAUNCHLY_ENCRYPTION_KEY`.
 
-### 1. CLI Scaffold
+> Important: if `LAUNCHLY_ENCRYPTION_KEY` changes, previously encrypted records in DB (for example deploy target credentials) can no longer be decrypted.
+> Reusing existing DB data requires the same key pair.
+
+### Mode A: Local minimal dev mode (1 container + local API)
+
+#### 1. CLI Scaffold
 
 ```bash
 cd cli
@@ -207,7 +213,7 @@ go test ./...
 go run ./cmd/launchly doctor
 ```
 
-### 2. Start PostgreSQL (API dependency)
+#### 2. Start PostgreSQL (API dependency)
 
 The API requires a running PostgreSQL instance. For local development, start one with Docker:
 
@@ -222,20 +228,15 @@ docker run -d --name launchly-postgres-dev \
 
 > One-click deployment (`launchly install`) starts PostgreSQL automatically via docker-compose. This manual step is only needed for local development.
 
-### 3. API Scaffold
+#### 3. Start API locally
 
 ```bash
+cd /Users/chenshaolin/Desktop/Linksc/code/Launchly
+set -a
+source ./.env
+set +a
 cd services/api
 mvn spring-boot:run
-```
-
-Flyway migrations run automatically on startup.
-
-If your PostgreSQL does not use `5432`, set the port explicitly:
-
-```bash
-cd services/api
-LAUNCHLY_DB_PORT=55432 mvn spring-boot:run
 ```
 
 Health check:
@@ -244,7 +245,43 @@ Health check:
 curl http://localhost:8080/api/health
 ```
 
-### 4. Web Scaffold
+---
+
+### Mode B: Full compose stack (3 containers: postgres + app + worker)
+
+Recommended for integration tests and deploy-target verification.
+
+#### 1. Start stack (keep existing DB volume)
+
+```bash
+cd /Users/chenshaolin/Desktop/Linksc/code/Launchly
+set -a
+source ./.env
+set +a
+docker compose -f deploy/compose/docker-compose.yml up -d --build
+```
+
+#### 2. Recreate clean stack (delete old data)
+
+```bash
+cd /Users/chenshaolin/Desktop/Linksc/code/Launchly
+set -a
+source ./.env
+set +a
+docker compose -f deploy/compose/docker-compose.yml down -v
+docker compose -f deploy/compose/docker-compose.yml up -d --build
+```
+
+#### 3. Check services
+
+```bash
+docker compose -f deploy/compose/docker-compose.yml ps
+docker compose -f deploy/compose/docker-compose.yml logs -f app
+```
+
+---
+
+### Web Scaffold
 
 ```bash
 pnpm install
@@ -298,7 +335,7 @@ Development principles:
 | DeployTarget API, delete 409 guard, deploy-target UI | Completed |
 | Worker BYOS (local image build + SSH to remote compose) | Completed (worker service mounts host `docker.sock` in `deploy/compose/docker-compose.yml`; see comments there) |
 | Component data model (multi deployable units per project) | Not started |
-| Full navigation convergence | In Progress; see [UI Handbook 2.0](docs/basic/UI与交互规范.md) and [T-IA in archived task pack](docs/archive/v1-2026-05/root/AI开发任务包.md) |
+| Full navigation convergence: top bar + horizontal work domains, secondary config entries | Target locked; implementation still needs to follow [UI Handbook 2.0](docs/basic/UI与交互规范.md), `docs/prototypes/系统设计mock.html`, and [T-IA in archived task pack](docs/archive/v1-2026-05/root/AI开发任务包.md) |
 | **Not Started** | |
 | SaaS control plane (registration / billing / multi-tenancy) | Not Started |
 | AI-powered features | Not Started |

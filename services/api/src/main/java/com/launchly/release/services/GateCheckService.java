@@ -76,7 +76,7 @@ public class GateCheckService {
     }
 
     private GateCheckResult.GateResult checkStagingHealthCheck(String deploymentId) {
-        List<DeploymentStageLog> logs = stageLogRepository.findByDeploymentIdOrderByStageAsc(deploymentId);
+        List<DeploymentStageLog> logs = stageLogRepository.findByDeploymentIdOrderByStepOrderAsc(deploymentId);
         boolean passed = logs.stream()
             .anyMatch(l -> "HEALTH_CHECK".equals(l.getStage().name()) && "SUCCEEDED".equals(l.getStatus()));
         return new GateCheckResult.GateResult("staging_health_check", passed,

@@ -4,26 +4,35 @@
     <a-card style="margin-bottom: 16px;">
       <a-descriptions :column="2" size="small">
         <a-descriptions-item label="分支">{{ deployment.branch }}</a-descriptions-item>
-        <a-descriptions-item label="Commit">{{ deployment.commitSha || '-' }}</a-descriptions-item>
+        <a-descriptions-item label="Commit">{{ commitShort(deployment.commitSha) }}</a-descriptions-item>
         <a-descriptions-item label="状态">
           <a-tag :color="statusColor(deployment.status)">{{ deployStatusMap[deployment.status] || deployment.status }}</a-tag>
         </a-descriptions-item>
-        <a-descriptions-item label="部署目标">{{ deployment.deployTarget?.name || '本地' }} <span v-if="deployment.deployTarget" style="color: #8c8c8c;">({{ deployment.deployTarget.host }})</span></a-descriptions-item>
-        <a-descriptions-item label="触发人">{{ deployment.triggeredBy }}</a-descriptions-item>
-        <a-descriptions-item label="开始时间">{{ deployment.startedAt || '—' }}</a-descriptions-item>
-        <a-descriptions-item label="结束时间">{{ deployment.finishedAt || '—' }}</a-descriptions-item>
+        <a-descriptions-item label="部署目标">{{ deployment.deployTarget?.name || '本地' }} <span v-if="deployment.deployTarget && deployment.deployTarget.host" style="color: #8c8c8c;">({{ deployment.deployTarget.host }})</span></a-descriptions-item>
+        <a-descriptions-item label="触发人">{{ deployment.triggeredBy || '—' }}</a-descriptions-item>
+        <a-descriptions-item label="开始时间">{{ formatTime(deployment.startedAt) }}</a-descriptions-item>
+        <a-descriptions-item label="结束时间">{{ formatTime(deployment.finishedAt) }}</a-descriptions-item>
+        <a-descriptions-item label="创建时间">{{ formatTime(deployment.createdAt) }}</a-descriptions-item>
       </a-descriptions>
       <a-alert v-if="deployment.errorMessage" type="error" :message="deployment.errorMessage" show-icon style="margin-top: 12px;" />
-      <div v-if="deployment.status === 'SUCCEEDED'" style="margin-top: 12px;">
-        <a-button type="primary" @click="createTestRun">创建测试任务</a-button>
+      <div style="margin-top: 12px;">
+        <a-button v-if="deployment.status === 'FAILED'" type="primary" danger style="margin-right: 8px;" :loading="redeploying" @click="handleRedeploy">
+          重新部署
+        </a-button>
+        <a-button v-if="deployment.status === 'SUCCEEDED'" type="primary" style="margin-right: 8px;" @click="handleCreateTestRun">
+          创建测试任务
+        </a-button>
+        <a-button v-if="deployment.status === 'SUCCEEDED' && deployment.commitSha" style="margin-right: 8px;" :loading="rollingBack" @click="handleRollback">
+          回滚到此版本
+        </a-button>
       </div>
     </a-card>
 
     <a-card title="阶段日志">
       <a-timeline>
-        <a-timeline-item v-for="log in logs" :key="log.id" :color="log.status === 'SUCCEEDED' ? 'green' : log.status === 'FAILED' ? 'red' : log.status === 'RUNNING' ? 'blue' : 'gray'">
+        <a-timeline-item v-for="log in logs" :key="log.id" :color="dotColor(log.status)">
           <strong>{{ deployStageMap[log.stage] || log.stage }}</strong>
-          <a-tag :color="log.status === 'SUCCEEDED' ? 'green' : log.status === 'FAILED' ? 'red' : 'default'" style="margin-left: 8px;">{{ deployStatusMap[log.status] || log.status }}</a-tag>
+          <a-tag :color="tagColor(log.status)" style="margin-left: 8px;">{{ deployStatusMap[log.status] || log.status }}</a-tag>
           <pre v-if="log.log" style="background: #f6f8fa; padding: 8px; margin-top: 8px; font-size: 12px; max-height: 200px; overflow: auto;">{{ log.log }}</pre>
         </a-timeline-item>
       </a-timeline>
@@ -32,16 +41,23 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
-import { fetchDeployment, fetchDeploymentLogs, createTestRun } from '../api/client'
-import { deployStatusMap, deployStageMap } from '../utils/display'
+import { message, Modal } from 'ant-design-vue'
+import { fetchDeployment, fetchDeploymentLogs, createTestRun, createDeployment, rollbackDeployment } from '../api/client'
+import { deployStatusMap, deployStageMap, formatTime } from '../utils/display'
 
 const route = useRoute()
 const router = useRouter()
 const deployment = ref<any>(null)
 const logs = ref<any[]>([])
+const redeploying = ref(false)
+const rollingBack = ref(false)
+let abortController: AbortController | null = null
+
+function commitShort(sha: string) {
+  return sha ? sha.substring(0, 7) : '-'
+}
 
 function statusColor(s: string) {
   const map: Record<string, string> = {
@@ -49,6 +65,72 @@ function statusColor(s: string) {
     FAILED: 'error', CANCELED: 'warning',
   }
   return map[s] || 'default'
+}
+
+function dotColor(s: string) {
+  const map: Record<string, string> = {
+    RUNNING: 'blue', SUCCEEDED: 'green', FAILED: 'red',
+    SKIPPED: 'gray', PENDING: 'gray',
+  }
+  return map[s] || 'gray'
+}
+
+function tagColor(s: string) {
+  const map: Record<string, string> = {
+    SUCCEEDED: 'green', FAILED: 'red', RUNNING: 'processing',
+    SKIPPED: 'default', PENDING: 'default',
+  }
+  return map[s] || 'default'
+}
+
+async function connectSSE(id: string) {
+  const token = localStorage.getItem('accessToken')
+  abortController = new AbortController()
+
+  try {
+    const response = await fetch(`/api/deployments/${id}/logs/stream`, {
+      headers: { Authorization: `Bearer ${token}` },
+      signal: abortController.signal,
+    })
+    if (!response.ok || !response.body) return
+
+    const reader = response.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let currentEvent = ''
+
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+
+      for (const line of lines) {
+        if (line.startsWith('event:')) {
+          currentEvent = line.slice(6).trim()
+        } else if (line.startsWith('data:')) {
+          const data = line.slice(5).trim()
+          if (!data) continue
+          try {
+            if (currentEvent === 'logs') {
+              logs.value = JSON.parse(data)
+            } else if (currentEvent === 'status') {
+              const statusData = JSON.parse(data)
+              if (deployment.value) {
+                deployment.value.status = statusData.status
+                deployment.value.errorMessage = statusData.errorMessage || ''
+              }
+              if (statusData.status === 'SUCCEEDED' || statusData.status === 'FAILED') {
+                fetchDeployment(id).then(res => { deployment.value = res.data }).catch(() => {})
+              }
+            }
+          } catch { /* skip unparseable SSE data */ }
+        }
+      }
+    }
+  } catch { /* SSE connection closed */ }
 }
 
 async function handleCreateTestRun() {
@@ -61,12 +143,75 @@ async function handleCreateTestRun() {
   }
 }
 
+async function handleRedeploy() {
+  redeploying.value = true
+  try {
+    const payload = {
+      projectId: deployment.value.projectId,
+      environmentId: deployment.value.environmentId,
+      deployTargetId: deployment.value.deployTargetId || undefined,
+      branch: deployment.value.branch,
+      commitSha: deployment.value.commitSha || undefined,
+    }
+    const res = await createDeployment(payload)
+    message.success('已触发重新部署')
+    router.push(`/deployments/${res.data.id}`)
+  } catch (e: any) {
+    message.error(e.response?.data?.message || '重新部署失败')
+    redeploying.value = false
+  }
+}
+
+async function handleRollback() {
+  Modal.confirm({
+    title: '回滚确认',
+    content: `确定要回滚到 commit ${commitShort(deployment.value.commitSha)} 的版本吗？将创建新的部署。`,
+    onOk: async () => {
+      rollingBack.value = true
+      try {
+        const res = await rollbackDeployment(deployment.value.id, { reason: '手动回滚' })
+        message.success('回滚部署已触发')
+        router.push(`/deployments/${res.data.id}`)
+      } catch (e: any) {
+        message.error(e.response?.data?.message || '回滚失败')
+        rollingBack.value = false
+      }
+    },
+  })
+}
+
 onMounted(async () => {
   const id = route.params.id as string
   try {
     const [dRes, lRes] = await Promise.all([fetchDeployment(id), fetchDeploymentLogs(id)])
     deployment.value = dRes.data
     logs.value = lRes.data
-  } catch {}
+  } catch {
+    return
+  }
+  // Connect SSE for real-time updates if deployment is still running
+  if (deployment.value.status === 'PENDING' || deployment.value.status === 'RUNNING') {
+    connectSSE(id)
+  }
+})
+
+onUnmounted(() => {
+  abortController?.abort()
 })
 </script>
+
+<style scoped>
+/* Timeline dot pulse animation for RUNNING status */
+:deep(.ant-timeline-item-tail) {
+  border-left: 2px solid #e8e8e8;
+}
+:deep(.ant-timeline-item-head-blue) {
+  animation: dotPulse 1.5s ease-in-out infinite;
+  box-shadow: 0 0 0 0 rgba(24, 144, 255, 0.4);
+}
+@keyframes dotPulse {
+  0% { box-shadow: 0 0 0 0 rgba(24, 144, 255, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(24, 144, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(24, 144, 255, 0); }
+}
+</style>

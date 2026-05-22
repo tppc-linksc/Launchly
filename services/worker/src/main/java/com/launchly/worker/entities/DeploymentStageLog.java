@@ -15,6 +15,9 @@ public class DeploymentStageLog {
     @Column(nullable = false)
     private String stage;
 
+    @Column(name = "step_order", nullable = false)
+    private Integer stepOrder;
+
     @Column(nullable = false)
     private String status = "PENDING";
 
@@ -35,6 +38,8 @@ public class DeploymentStageLog {
     public void setDeploymentId(String deploymentId) { this.deploymentId = deploymentId; }
     public String getStage() { return stage; }
     public void setStage(String stage) { this.stage = stage; }
+    public Integer getStepOrder() { return stepOrder; }
+    public void setStepOrder(Integer stepOrder) { this.stepOrder = stepOrder; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public String getLog() { return log; }

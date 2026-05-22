@@ -20,7 +20,7 @@
             <a-badge :status="statusBadge(record.status)" :text="statusMap[record.status] || record.status" />
           </template>
           <template v-if="column.key === 'lastVerifiedAt'">
-            <span v-if="record.lastVerifiedAt">{{ record.lastVerifiedAt?.slice(0, 19).replace('T', ' ') }}</span>
+            <span v-if="record.lastVerifiedAt">{{ formatDateTime(record.lastVerifiedAt) }}</span>
             <span v-else style="color: #999;">未验证</span>
           </template>
           <template v-if="column.key === 'actions'">
@@ -137,6 +137,13 @@ function statusBadge(status: string): 'success' | 'processing' | 'warning' | 'er
   if (status === 'CONNECTED') return 'success'
   if (status === 'FAILED') return 'error'
   return 'warning'
+}
+
+function formatDateTime(value?: string | null): string {
+  if (!value) return '-'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('zh-CN', { hour12: false })
 }
 
 const columns = [

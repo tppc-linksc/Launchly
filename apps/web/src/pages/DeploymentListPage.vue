@@ -9,6 +9,8 @@
         </template>
         <template v-if="column.key === 'action'">
           <a-button type="link" @click.stop="$router.push(`/deployments/${record.id}`)">详情</a-button>
+          <a-button v-if="record.status === 'FAILED'" type="link" danger @click.stop="handleRedeploy(record)">重新部署</a-button>
+          <a-button v-if="record.status === 'SUCCEEDED' && record.commitSha" type="link" @click.stop="handleRollback(record)">回滚</a-button>
         </template>
       </template>
     </a-table>
@@ -18,16 +20,19 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { fetchDeployments } from '../api/client'
-import { deployStatusMap } from '../utils/display'
+import { useRouter } from 'vue-router'
+import { message, Modal } from 'ant-design-vue'
+import { fetchDeployments, createDeployment, rollbackDeployment } from '../api/client'
+import { deployStatusMap, formatTime } from '../utils/display'
+
+const router = useRouter()
 
 const columns = [
-  { title: '分支', dataIndex: 'branch' },
-  { title: 'Commit', dataIndex: 'commitSha', ellipsis: true },
+  { title: '分支', dataIndex: 'branch', ellipsis: true },
   { title: '状态', dataIndex: 'status', key: 'status' },
-  { title: '触发人', dataIndex: 'triggeredBy' },
-  { title: '创建时间', dataIndex: 'createdAt' },
-  { title: '操作', key: 'action' },
+  { title: '触发人', dataIndex: 'triggeredBy', ellipsis: true },
+  { title: '创建时间', dataIndex: 'createdAt', customRender: ({ text }: any) => formatTime(text) },
+  { title: '操作', key: 'action', width: 180 },
 ]
 
 const deployments = ref<any[]>([])
@@ -39,6 +44,39 @@ function statusColor(s: string) {
     FAILED: 'error', CANCELED: 'warning',
   }
   return map[s] || 'default'
+}
+
+async function handleRedeploy(record: any) {
+  try {
+    const payload = {
+      projectId: record.projectId,
+      environmentId: record.environmentId,
+      deployTargetId: record.deployTargetId || undefined,
+      branch: record.branch,
+      commitSha: record.commitSha || undefined,
+    }
+    const res = await createDeployment(payload)
+    message.success('已触发重新部署')
+    router.push(`/deployments/${res.data.id}`)
+  } catch (e: any) {
+    message.error(e.response?.data?.message || '重新部署失败')
+  }
+}
+
+async function handleRollback(record: any) {
+  Modal.confirm({
+    title: '回滚确认',
+    content: `确定要回滚到 commit ${record.commitSha?.substring(0, 7)} 的版本吗？`,
+    onOk: async () => {
+      try {
+        const res = await rollbackDeployment(record.id, { reason: '手动回滚' })
+        message.success('回滚部署已触发')
+        router.push(`/deployments/${res.data.id}`)
+      } catch (e: any) {
+        message.error(e.response?.data?.message || '回滚失败')
+      }
+    },
+  })
 }
 
 onMounted(async () => {
