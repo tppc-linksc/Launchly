@@ -191,143 +191,97 @@ scripts                  工具脚本目录
 
 ## 快速开始
 
-当前还不是可用产品，以下命令仅用于验证开发骨架。  
-**本项目有两种启动模式，请先选一种，不要混用。**
+**前置条件**：
 
-前置条件（必须）：
+- Docker 已安装且正在运行
+- 本地 `8080`、`5432` 端口可用（或通过环境变量自定义）
 
-- 已安装 Docker，且 Docker 引擎正在运行。
-- 本地 `5432`、`8080` 端口可用（或自行改环境变量端口）。
-- 已配置根目录 `.env`（至少包含 `LAUNCHLY_JWT_SECRET` 与 `LAUNCHLY_ENCRYPTION_KEY`）。
-
-> 重要：`LAUNCHLY_ENCRYPTION_KEY` 变化后，数据库里已保存的密文（如部署目标密码/私钥）将无法正确解密。  
-> 如果沿用旧数据库数据，必须沿用同一套 `.env` 密钥。
-
-### 模式 A：本地开发最小模式（1 个容器 + 本机 API）
-
-适合日常改代码调试；数据库在 Docker，API 在本机 `mvn`。
-
-#### 1. CLI 骨架
+### 一键安装（推荐）
 
 ```bash
-cd cli
-go test ./...
-go run ./cmd/launchly doctor
+# 编译 CLI
+cd cli && go build -o launchly ./cmd/launchly/
+
+# 预览安装（不实际执行）
+./launchly install --dry-run
+
+# 正式安装
+./launchly install
 ```
 
-#### 2. 启动 PostgreSQL（API 依赖）
+安装完成后：
 
-API 需要 PostgreSQL 才能启动。本地开发时用 Docker 快速起一个：
+1. 打开 `http://localhost:8080/setup`
+2. 创建管理员账号和默认 Workspace
+3. 登录后即可开始使用
+
+### 常用命令
 
 ```bash
+launchly doctor      # 检查系统环境（Docker、端口、磁盘）
+launchly status      # 查看服务状态
+launchly logs -f     # 实时查看日志
+launchly up          # 启动服务
+launchly down        # 停止服务
+launchly backup      # 备份数据库和数据
+launchly restore <file>  # 从备份恢复
+```
+
+### 验证部署
+
+安装完成后，可以用 `examples/node-hello` 示例项目验证部署流程：
+
+1. 将 `examples/node-hello` 推送到 Git 仓库
+2. 在 Launchly 中创建项目，连接该仓库
+3. 添加部署目标（SSH 服务器地址、端口、用户名、认证方式）
+4. 配置环境变量（可选）
+5. 触发部署，观察阶段管线（克隆 → 构建 → 部署 → 健康检查）
+
+### 开发模式
+
+如果需要本地开发调试，有两种模式：
+
+**模式 A：本地开发最小模式**
+
+```bash
+# 启动 PostgreSQL
 docker run -d --name launchly-postgres-dev \
   -e POSTGRES_USER=launchly \
   -e POSTGRES_PASSWORD=launchly_dev_password \
   -e POSTGRES_DB=launchly \
   -p 5432:5432 \
   postgres:16-alpine
-```
 
-#### 3. 启动 API（本机）
-
-```bash
-cd /Users/chenshaolin/Desktop/Linksc/code/Launchly
-set -a
-source ./.env
-set +a
+# 启动 API
 cd services/api
+set -a && source ../../.env && set +a
 mvn spring-boot:run
 ```
 
-健康检查：
+**模式 B：Compose 全栈模式**
 
 ```bash
-curl http://localhost:8080/api/health
-```
-
----
-
-### 模式 B：Compose 全栈模式（3 个容器：postgres + app + worker）
-
-适合联调与“部署目标验证”等接近真实流程的测试。  
-这也是你之前验证通过的运行形态。
-
-#### 1. 全新起一套（保留现有数据库卷）
-
-```bash
-cd /Users/chenshaolin/Desktop/Linksc/code/Launchly
-set -a
-source ./.env
-set +a
+set -a && source ./.env && set +a
 docker compose -f deploy/compose/docker-compose.yml up -d --build
 ```
 
-#### 2. 重建一套干净环境（会删除旧数据）
-
-```bash
-cd /Users/chenshaolin/Desktop/Linksc/code/Launchly
-set -a
-source ./.env
-set +a
-docker compose -f deploy/compose/docker-compose.yml down -v
-docker compose -f deploy/compose/docker-compose.yml up -d --build
-```
-
-#### 3. 查看服务状态与日志
-
-```bash
-docker compose -f deploy/compose/docker-compose.yml ps
-docker compose -f deploy/compose/docker-compose.yml logs -f app
-```
-
----
-
-### Web 骨架
+**Web 开发**
 
 ```bash
 pnpm install
 pnpm dev:web
 ```
 
-**类型检查 / 生产构建（二选一执行，不要把中文说明粘进同一行命令）**
+### 故障排查
 
-在仓库根目录：
-
-```bash
-pnpm install
-pnpm --filter @launchly/web exec vue-tsc --noEmit
-```
-
-或（含类型检查 + Vite 打包，与 CI 更接近）：
-
-```bash
-pnpm install
-pnpm --filter @launchly/web build
-```
-
-若已在 `apps/web` 目录下：
-
-```bash
-pnpm install
-pnpm exec vue-tsc --noEmit
-```
-
-或：
-
-```bash
-pnpm install
-pnpm build
-```
-
-说明：`pnpm build` 在 `apps/web` 里等价于 `vue-tsc --noEmit && vite build`（见 `apps/web/package.json`）。若把 `（或 …）` 等说明和 `--noEmit` 写在同一行，会出现 `TS5025: Unknown compiler option '--noEmit（或'`。
-
----
-
-### 关于最终成品是否还会踩这个坑
-
-- 正式的一键安装目标是 `launchly install` 自动生成并持久化密钥，不需要手填数据库配置。
-- 密钥会与数据目录绑定并持续复用，升级/重启不会变更，避免“旧数据无法解密”。
-- 你现在遇到的问题属于开发阶段的“模式切换 + 手工环境”问题，成品交付会通过安装器收敛掉。
+| 问题 | 排查方式 |
+| --- | --- |
+| 端口被占用 | `launchly doctor` 会检测 8080/5173/5432 端口 |
+| Docker 未运行 | `launchly doctor` 会提示 Docker 状态 |
+| 安装后无法访问 | 检查 `launchly status` 确认服务是否启动 |
+| 部署失败 | 查看 `launchly logs -f app` 或 `launchly logs -f worker` |
+| 数据库连接失败 | 确认 PostgreSQL 容器运行中：`docker ps` |
+| 密钥变更后数据异常 | `LAUNCHLY_ENCRYPTION_KEY` 变化会导致已加密数据无法解密，需保持一致 |
 
 ## 开发指南
 
