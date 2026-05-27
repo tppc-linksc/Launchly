@@ -1,101 +1,220 @@
 <template>
-  <a-layout class="app-shell">
-    <a-layout-sider width="220" theme="light">
-      <div class="brand">
-        <img src="/Launchly-icon.png" alt="Launchly" class="brand-icon" />
-        <span>Launchly</span>
+  <div class="app-shell">
+    <!-- Topbar -->
+    <header class="topbar">
+      <div class="topbar-inner">
+        <div class="brand">Launch<span class="teal">ly</span></div>
+        <div class="global-search-wrap">
+          <a-input
+            v-model:value="searchQuery"
+            placeholder="搜索部署、项目、分支…"
+            allow-clear
+            class="global-search"
+          >
+            <template #prefix><span style="color: #9ca3af;">&#9906;</span></template>
+          </a-input>
+        </div>
+        <div class="top-actions">
+          <a-button type="primary" class="btn-pill" @click="$router.push('/deployments')">触发部署</a-button>
+          <a-button class="btn-pill-ghost" @click="$router.push('/projects/create')">连接仓库</a-button>
+          <a-dropdown>
+            <div class="avatar-wrap">
+              <div class="avatar">{{ avatarLetter }}</div>
+            </div>
+            <template #overlay>
+              <a-menu>
+                <a-menu-item disabled>{{ auth.user?.displayName || auth.user?.account }}</a-menu-item>
+                <a-menu-divider />
+                <a-menu-item @click="$router.push('/settings')">设置</a-menu-item>
+                <a-menu-item @click="$router.push('/members')">成员管理</a-menu-item>
+                <a-menu-item @click="$router.push('/audit-logs')">审计日志</a-menu-item>
+                <a-menu-item @click="$router.push('/notifications')">通知</a-menu-item>
+                <a-menu-divider />
+                <a-menu-item @click="auth.logout()">退出登录</a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
+        </div>
       </div>
-      <a-menu mode="inline" :selected-keys="[activeKey]" @click="onMenuClick">
-        <a-menu-item key="dashboard">仪表盘</a-menu-item>
-        <a-menu-item key="projects">项目</a-menu-item>
-        <a-menu-item key="deployments">部署</a-menu-item>
-        <a-menu-item key="environments">环境</a-menu-item>
-        <a-menu-item key="tests">测试</a-menu-item>
-        <a-menu-item key="issues">Issue</a-menu-item>
-        <a-menu-item key="releases">发布</a-menu-item>
-        <a-menu-item key="members">成员</a-menu-item>
-        <a-menu-item key="settings">设置</a-menu-item>
-      </a-menu>
-    </a-layout-sider>
-    <a-layout>
-      <a-layout-header class="topbar">
-        <div class="topbar-left">
-          <span class="workspace-label">{{ auth.workspace?.name || '默认工作空间' }}</span>
-        </div>
-        <div class="topbar-right">
-          <a-tag color="processing">pre-alpha</a-tag>
-          <a-button v-if="auth.user" type="link" @click="auth.logout()">退出</a-button>
-        </div>
-      </a-layout-header>
-      <a-layout-content class="content">
-        <router-view />
-      </a-layout-content>
-    </a-layout>
-  </a-layout>
+      <nav class="nav-row">
+        <button
+          v-for="item in navItems"
+          :key="item.key"
+          :class="['nav-pill', { active: activeKey === item.key }]"
+          @click="onNavClick(item.key)"
+        >{{ item.label }}</button>
+      </nav>
+    </header>
+
+    <!-- Page content -->
+    <main class="content">
+      <router-view />
+    </main>
+  </div>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const searchQuery = ref('')
+
+const navItems = [
+  { key: 'overview', label: '概览', path: '/' },
+  { key: 'deployments', label: '部署与运行', path: '/deployments' },
+  { key: 'projects', label: '项目', path: '/projects' },
+  { key: 'releases', label: '发布', path: '/releases' },
+  { key: 'quality', label: '测试与 Issue', path: '/tests' },
+  { key: 'targets', label: '部署目标', path: '/projects' },
+]
 
 const activeKey = computed(() => {
   const path = route.path
-  if (path.startsWith('/projects')) return 'projects'
+  if (path === '/' || path === '') return 'overview'
   if (path.startsWith('/deployments')) return 'deployments'
-  if (path.startsWith('/environments')) return 'environments'
-  if (path.startsWith('/tests')) return 'tests'
-  if (path.startsWith('/issues')) return 'issues'
+  if (path.startsWith('/projects')) return 'projects'
   if (path.startsWith('/releases')) return 'releases'
-  if (path.startsWith('/members')) return 'members'
-  if (path.startsWith('/settings')) return 'settings'
-  return 'dashboard'
+  if (path.startsWith('/tests') || path.startsWith('/issues')) return 'quality'
+  return 'overview'
 })
 
-function onMenuClick({ key }: { key: string }) {
-  router.push(`/${key === 'dashboard' ? '' : key}`)
+const avatarLetter = computed(() => {
+  const name = auth.user?.displayName || auth.user?.account || '?'
+  return name.charAt(0).toUpperCase()
+})
+
+function onNavClick(key: string) {
+  const item = navItems.find(i => i.key === key)
+  if (item) router.push(item.path)
 }
 </script>
 
 <style scoped>
 .app-shell {
   min-height: 100vh;
+  background: #f8f9fb;
+}
+
+/* Topbar */
+.topbar {
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+.topbar-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 14px 20px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
 }
 .brand {
-  height: 56px;
+  font-weight: 700;
+  font-size: 20px;
+  letter-spacing: -0.02em;
+  color: #111827;
+  white-space: nowrap;
+}
+.brand .teal { color: #0d9488; }
+
+.global-search-wrap {
+  flex: 1;
+  min-width: 200px;
+  max-width: 420px;
+}
+.global-search :deep(.ant-input) {
+  border-radius: 999px;
+  background: #f9fafb;
+  border-color: #e5e7eb;
+  padding: 6px 14px;
+}
+.global-search :deep(.ant-input:focus),
+.global-search :deep(.ant-input-focused) {
+  border-color: #0d9488;
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.1);
+}
+
+.top-actions {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 20px;
-  font-weight: 700;
-  font-size: 26px;
-  border-bottom: 1px solid #f0f0f0;
 }
-.brand-icon {
-  width: 44px;
-  height: 44px;
-  display: block;
-  object-fit: contain;
+.btn-pill {
+  border-radius: 999px;
+  font-weight: 600;
+  background: #0d9488;
+  border-color: #0d9488;
 }
-.topbar {
-  height: 56px;
-  line-height: 56px;
-  background: #fff;
-  border-bottom: 1px solid #f0f0f0;
-  padding: 0 24px;
+.btn-pill:hover {
+  background: #0f766e;
+  border-color: #0f766e;
+}
+.btn-pill-ghost {
+  border-radius: 999px;
+  font-weight: 500;
+  color: #6b7280;
+  border-color: #e5e7eb;
+}
+.btn-pill-ghost:hover {
+  color: #0d9488;
+  border-color: #0d9488;
+}
+
+.avatar-wrap { cursor: pointer; }
+.avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #99f6e4, #5eead4);
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px #e5e7eb;
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 14px;
+  color: #0d9488;
+}
+
+/* Navigation pills */
+.nav-row {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 20px 12px;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
   align-items: center;
 }
-.workspace-label {
+.nav-pill {
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 14px;
   font-weight: 500;
+  color: #6b7280;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s;
 }
+.nav-pill:hover { color: #111827; background: #f3f4f6; }
+.nav-pill.active {
+  color: #0d9488;
+  background: #ccfbf1;
+}
+
+/* Content */
 .content {
-  padding: 24px;
-  background: #f5f5f5;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
 }
 </style>
