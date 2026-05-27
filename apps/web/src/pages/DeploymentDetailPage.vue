@@ -9,7 +9,7 @@
           <a-tag :color="statusColor(deployment.status)">{{ deployStatusMap[deployment.status] || deployment.status }}</a-tag>
         </a-descriptions-item>
         <a-descriptions-item label="部署目标">{{ deployment.deployTarget?.name || '本地' }} <span v-if="deployment.deployTarget && deployment.deployTarget.host" style="color: #8c8c8c;">({{ deployment.deployTarget.host }})</span></a-descriptions-item>
-        <a-descriptions-item label="触发人">{{ deployment.triggeredBy || '—' }}</a-descriptions-item>
+        <a-descriptions-item label="触发人">{{ deployment.triggeredByName || deployment.triggeredBy || '—' }}</a-descriptions-item>
         <a-descriptions-item label="开始时间">{{ formatTime(deployment.startedAt) }}</a-descriptions-item>
         <a-descriptions-item label="结束时间">{{ formatTime(deployment.finishedAt) }}</a-descriptions-item>
         <a-descriptions-item label="创建时间">{{ formatTime(deployment.createdAt) }}</a-descriptions-item>

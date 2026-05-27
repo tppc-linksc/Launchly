@@ -1,5 +1,10 @@
 <template>
   <div>
+    <a-breadcrumb style="margin-bottom: 12px;">
+      <a-breadcrumb-item><router-link to="/projects">项目</router-link></a-breadcrumb-item>
+      <a-breadcrumb-item><router-link :to="`/projects/${projectId}`">项目详情</router-link></a-breadcrumb-item>
+      <a-breadcrumb-item>部署目标</a-breadcrumb-item>
+    </a-breadcrumb>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
       <h2 style="margin: 0;">部署目标管理</h2>
       <a-button type="primary" @click="openCreate">添加部署目标</a-button>

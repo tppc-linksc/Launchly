@@ -217,4 +217,18 @@ function onNavClick(key: string) {
   margin: 0 auto;
   padding: 24px 20px 48px;
 }
+
+/* Responsive */
+@media (max-width: 768px) {
+  .topbar-inner {
+    padding: 10px 16px;
+    gap: 12px;
+  }
+  .brand { font-size: 18px; }
+  .global-search-wrap { min-width: 140px; max-width: none; }
+  .btn-pill, .btn-pill-ghost { padding: 6px 12px; font-size: 13px; }
+  .nav-row { padding: 0 16px 10px; gap: 4px; }
+  .nav-pill { padding: 6px 12px; font-size: 13px; }
+  .content { padding: 16px; }
+}
 </style>

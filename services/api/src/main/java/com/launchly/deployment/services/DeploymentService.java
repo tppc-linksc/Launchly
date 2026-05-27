@@ -2,6 +2,8 @@ package com.launchly.deployment.services;
 
 import com.launchly.audit.enums.AuditAction;
 import com.launchly.audit.services.AuditService;
+import com.launchly.auth.entities.User;
+import com.launchly.auth.repositories.UserRepository;
 import com.launchly.common.security.AuthContext;
 import com.launchly.deployment.dto.CreateDeploymentRequest;
 import com.launchly.deployment.dto.DeploymentResponse;
@@ -24,6 +26,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
@@ -35,6 +38,7 @@ public class DeploymentService {
     private final EnvironmentRepository environmentRepository;
     private final DeployTargetRepository deployTargetRepository;
     private final AuditService auditService;
+    private final UserRepository userRepository;
 
     public DeploymentService(DeploymentRepository deploymentRepository,
                              DeploymentStageLogRepository stageLogRepository,
@@ -42,7 +46,8 @@ public class DeploymentService {
                              ProjectRepository projectRepository,
                              EnvironmentRepository environmentRepository,
                              DeployTargetRepository deployTargetRepository,
-                             AuditService auditService) {
+                             AuditService auditService,
+                             UserRepository userRepository) {
         this.deploymentRepository = deploymentRepository;
         this.stageLogRepository = stageLogRepository;
         this.taskService = taskService;
@@ -50,6 +55,7 @@ public class DeploymentService {
         this.environmentRepository = environmentRepository;
         this.deployTargetRepository = deployTargetRepository;
         this.auditService = auditService;
+        this.userRepository = userRepository;
     }
 
     @Transactional
@@ -164,13 +170,13 @@ public class DeploymentService {
     }
 
     public List<DeploymentResponse> listByProject(String projectId) {
-        return deploymentRepository.findByProjectIdOrderByCreatedAtDesc(projectId)
-                .stream().map(DeploymentResponse::from).collect(Collectors.toList());
+        return enrichNames(deploymentRepository.findByProjectIdOrderByCreatedAtDesc(projectId)
+                .stream().map(DeploymentResponse::from).collect(Collectors.toList()));
     }
 
     public List<DeploymentResponse> listByEnvironment(String environmentId) {
-        return deploymentRepository.findByEnvironmentIdOrderByCreatedAtDesc(environmentId)
-                .stream().map(DeploymentResponse::from).collect(Collectors.toList());
+        return enrichNames(deploymentRepository.findByEnvironmentIdOrderByCreatedAtDesc(environmentId)
+                .stream().map(DeploymentResponse::from).collect(Collectors.toList()));
     }
 
     /**
@@ -178,14 +184,35 @@ public class DeploymentService {
      */
     public List<DeploymentResponse> listForCurrentWorkspace() {
         String workspaceId = AuthContext.workspaceId();
-        return deploymentRepository.findByWorkspaceId(workspaceId).stream()
+        return enrichNames(deploymentRepository.findByWorkspaceId(workspaceId).stream()
                 .map(DeploymentResponse::from)
-                .collect(Collectors.toList());
+                .collect(Collectors.toList()));
     }
 
     public DeploymentResponse getById(String id) {
         Deployment d = deploymentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Deployment not found: " + id));
-        return DeploymentResponse.from(d);
+        return enrichName(DeploymentResponse.from(d));
+    }
+
+    private List<DeploymentResponse> enrichNames(List<DeploymentResponse> responses) {
+        Set<String> userIds = responses.stream()
+                .map(DeploymentResponse::triggeredBy)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+        if (userIds.isEmpty()) return responses;
+        Map<String, String> nameMap = userRepository.findAllById(userIds).stream()
+                .collect(Collectors.toMap(User::getId, User::getDisplayName));
+        return responses.stream()
+                .map(r -> r.triggeredBy() != null && nameMap.containsKey(r.triggeredBy())
+                        ? r.withTriggeredByName(nameMap.get(r.triggeredBy())) : r)
+                .collect(Collectors.toList());
+    }
+
+    private DeploymentResponse enrichName(DeploymentResponse response) {
+        if (response.triggeredBy() == null || response.triggeredBy().isBlank()) return response;
+        return userRepository.findById(response.triggeredBy())
+                .map(u -> response.withTriggeredByName(u.getDisplayName()))
+                .orElse(response);
     }
 }

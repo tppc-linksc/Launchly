@@ -17,7 +17,7 @@
               <div class="run-title">{{ projectNameMap[d.projectId] || '未知项目' }} → {{ envName(d.environmentId) }}</div>
               <div class="run-meta">
                 分支 {{ d.branch || '—' }}
-                <span v-if="d.triggeredBy"> · 触发人 {{ d.triggeredBy }}</span>
+                <span v-if="d.triggeredByName || d.triggeredBy"> · 触发人 {{ d.triggeredByName || d.triggeredBy }}</span>
                 <span v-if="d.createdAt"> · {{ formatTime(d.createdAt) }}</span>
               </div>
               <div class="pipeline" v-if="stageLogs[d.id]">

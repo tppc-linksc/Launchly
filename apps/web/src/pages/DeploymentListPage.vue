@@ -14,7 +14,9 @@
         </template>
       </template>
     </a-table>
-    <a-empty v-if="!loading && deployments.length === 0" description="暂无部署记录" />
+    <a-empty v-if="!loading && deployments.length === 0" description="暂无部署记录，从项目详情触发第一次部署">
+      <a-button type="primary" @click="$router.push('/projects')">前往项目</a-button>
+    </a-empty>
   </div>
 </template>
 
@@ -30,7 +32,7 @@ const router = useRouter()
 const columns = [
   { title: '分支', dataIndex: 'branch', ellipsis: true },
   { title: '状态', dataIndex: 'status', key: 'status' },
-  { title: '触发人', dataIndex: 'triggeredBy', ellipsis: true },
+  { title: '触发人', dataIndex: 'triggeredByName', customRender: ({ text, record }: any) => text || record.triggeredBy || '—' },
   { title: '创建时间', dataIndex: 'createdAt', customRender: ({ text }: any) => formatTime(text) },
   { title: '操作', key: 'action', width: 180 },
 ]

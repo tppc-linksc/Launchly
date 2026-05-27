@@ -15,6 +15,7 @@ public record DeploymentResponse(
         String commitSha,
         String status,
         String triggeredBy,
+        String triggeredByName,
         Instant startedAt,
         Instant finishedAt,
         String errorMessage,
@@ -33,7 +34,7 @@ public record DeploymentResponse(
                 d.getDeployTargetId(),
                 null,
                 d.getBranch(), d.getCommitSha(), d.getStatus().name(),
-                d.getTriggeredBy(), d.getStartedAt(), d.getFinishedAt(),
+                d.getTriggeredBy(), null, d.getStartedAt(), d.getFinishedAt(),
                 d.getErrorMessage(), d.getCreatedAt()
         );
     }
@@ -48,8 +49,16 @@ public record DeploymentResponse(
                 d.getDeployTargetId(),
                 info,
                 d.getBranch(), d.getCommitSha(), d.getStatus().name(),
-                d.getTriggeredBy(), d.getStartedAt(), d.getFinishedAt(),
+                d.getTriggeredBy(), null, d.getStartedAt(), d.getFinishedAt(),
                 d.getErrorMessage(), d.getCreatedAt()
+        );
+    }
+
+    public DeploymentResponse withTriggeredByName(String name) {
+        return new DeploymentResponse(
+                id, projectId, environmentId, deployTargetId, deployTarget,
+                branch, commitSha, status, triggeredBy, name,
+                startedAt, finishedAt, errorMessage, createdAt
         );
     }
 }
