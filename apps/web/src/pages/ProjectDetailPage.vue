@@ -8,7 +8,7 @@
       <div>
         <a-tag>{{ project.projectType }}</a-tag>
         <a-button style="margin-left: 8px;" @click="$router.push(`/projects/${project.id}/deploy-targets`)">部署目标</a-button>
-        <a-button type="primary" style="margin-left: 8px;" @click="openDeployFromHeader" :disabled="!project.repositoryUrl">部署</a-button>
+        <a-button v-if="canDeploy" type="primary" style="margin-left: 8px;" @click="openDeployFromHeader" :disabled="!project.repositoryUrl">部署</a-button>
       </div>
     </div>
 
@@ -52,7 +52,8 @@
                 <p style="margin: 0; color: #8c8c8c;">类型：{{ envTypeMap[env.type] || env.type }}</p>
                 <a-tag :color="env.status === 'active' ? 'green' : 'default'" style="margin-top: 4px;">{{ env.status === 'active' ? '活跃' : '未激活' }}</a-tag>
                 <div style="margin-top: 8px;">
-                  <a-button v-if="env.type === 'TEST' || env.type === 'STAGING'" size="small" type="primary" @click="openDeploy(env)">部署到此环境</a-button>
+                  <a-button v-if="canDeploy && (env.type === 'TEST' || env.type === 'STAGING')" size="small" type="primary" @click="openDeploy(env)">部署到此环境</a-button>
+                  <a-button v-else-if="!canDeploy && (env.type === 'TEST' || env.type === 'STAGING')" size="small" disabled>无部署权限</a-button>
                   <a-button v-else size="small" disabled>生产（需走 Release）</a-button>
                 </div>
               </a-card>
@@ -115,6 +116,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { fetchProject, fetchEnvironments, fetchDeployments, fetchTestRuns, fetchIssues, fetchReleases, createDeployment, fetchDeployTargets } from '../api/client'
 import { deployStatusMap, envTypeMap } from '../utils/display'
+import { usePermission } from '../composables/usePermission'
+
+const { canDeploy, canWrite } = usePermission()
 
 const route = useRoute()
 const router = useRouter()

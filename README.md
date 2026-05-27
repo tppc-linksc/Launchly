@@ -76,13 +76,20 @@ Launchly 当前处于 **Beta 阶段**。核心部署链路、CLI 安装器、Web
 - UI 导航收敛（顶栏 + 水平胶囊导航，运行态 Dashboard）
 - 全局错误提示、空状态 CTA、响应式适配
 - `triggeredByName` 触发人展示
+- Viewer 权限控制（隐藏写操作按钮）
+- 项目列表卡片化（卡片+最近部署状态）
+- 成员管理页面（列表、角色变更、移除）
+- Component 多发布单元数据模型
+- 审计日志 CSV 导出
+- 设计系统 token 落地（Ant Design 主色 #0D9488）
+- EDITION 开关（cloud/selfhost 模式）
+- Zero-Config Node 推断（自动检测 package.json）
 
 **未开始**：
 
 - SaaS 控制面（注册、计费、多租户）
 - AI 增值功能（报告、异常归因、安全监控）
 - 第三方通知绑定
-- 数据模型 Component（多发布单元）
 
 ## 设计理念
 
@@ -330,8 +337,15 @@ API 开发约定：
 | Self-Host CLI（install / up / down / status / logs / doctor / backup / restore） | 已完成 |
 | UI 导航收敛（顶栏 + 水平胶囊导航，运行态 Dashboard） | 已完成 |
 | 全局错误提示、空状态 CTA、响应式适配 | 已完成 |
+| Viewer 权限控制（隐藏写操作按钮） | 已完成 |
+| 项目列表卡片化 | 已完成 |
+| 成员管理页面 | 已完成 |
+| 数据模型 Component（多发布单元） | 已完成 |
+| 审计日志 CSV 导出 | 已完成 |
+| 设计系统 token 落地 | 已完成 |
+| EDITION 开关（cloud/selfhost） | 已完成 |
+| Zero-Config Node 推断 | 已完成 |
 | **未开始** | |
-| 数据模型 Component（多发布单元） | 未开始 |
 | SaaS 控制面（注册 / 计费 / 多租户） | 未开始 |
 | AI 增值功能 | 未开始 |
 | 端到端联调与发布 | 未开始 |

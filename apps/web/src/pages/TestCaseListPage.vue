@@ -9,7 +9,7 @@
         <a-select v-model:value="selectedProjectId" placeholder="选择项目" style="width: 200px;" @change="loadTestCases">
           <a-select-option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</a-select-option>
         </a-select>
-        <a-button type="primary" @click="showCreate = true" :disabled="!selectedProjectId">新建用例</a-button>
+        <a-button v-if="canWrite" type="primary" @click="showCreate = true" :disabled="!selectedProjectId">新建用例</a-button>
       </div>
     </div>
 
@@ -22,8 +22,8 @@
           <a-tag :color="record.status === 'ACTIVE' ? 'green' : 'default'">{{ record.status === 'ACTIVE' ? '启用' : '停用' }}</a-tag>
         </template>
         <template v-if="column.key === 'action'">
-          <a-button type="link" size="small" @click="editCase(record)">编辑</a-button>
-          <a-popconfirm title="确定删除此测试用例？" @confirm="handleDelete(record.id)">
+          <a-button v-if="canWrite" type="link" size="small" @click="editCase(record)">编辑</a-button>
+          <a-popconfirm v-if="canWrite" title="确定删除此测试用例？" @confirm="handleDelete(record.id)">
             <a-button type="link" size="small" danger>删除</a-button>
           </a-popconfirm>
         </template>
@@ -67,6 +67,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { fetchProjects, fetchTestCases, createTestCase, updateTestCase, deleteTestCase } from '../api/client'
+import { usePermission } from '../composables/usePermission'
+
+const { canWrite } = usePermission()
 import { priorityMap } from '../utils/display'
 
 const columns = [

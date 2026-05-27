@@ -40,10 +40,12 @@ public class AuthService {
 
         String workspaceId = null;
         String workspaceName = null;
+        String role = null;
 
         var members = workspaceMemberRepository.findByUserId(user.getId());
         if (!members.isEmpty()) {
             workspaceId = members.get(0).getWorkspaceId();
+            role = members.get(0).getRole().name();
             Workspace ws = workspaceRepository.findById(workspaceId).orElse(null);
             if (ws != null) {
                 workspaceName = ws.getName();
@@ -53,7 +55,7 @@ public class AuthService {
         String accessToken = tokenService.generateAccessToken(user.getId(), workspaceId);
         String refreshToken = tokenService.generateRefreshToken(user.getId());
 
-        var userInfo = new LoginResponse.UserInfo(user.getId(), user.getAccount(), user.getDisplayName());
+        var userInfo = new LoginResponse.UserInfo(user.getId(), user.getAccount(), user.getDisplayName(), role);
         var workspaceInfo = workspaceId != null
                 ? new LoginResponse.WorkspaceInfo(workspaceId, workspaceName)
                 : null;
@@ -70,10 +72,12 @@ public class AuthService {
 
         String workspaceId = null;
         String workspaceName = null;
+        String role = null;
 
         var members = workspaceMemberRepository.findByUserId(user.getId());
         if (!members.isEmpty()) {
             workspaceId = members.get(0).getWorkspaceId();
+            role = members.get(0).getRole().name();
             Workspace ws = workspaceRepository.findById(workspaceId).orElse(null);
             if (ws != null) {
                 workspaceName = ws.getName();
@@ -83,7 +87,7 @@ public class AuthService {
         String newAccessToken = tokenService.generateAccessToken(user.getId(), workspaceId);
         String newRefreshToken = tokenService.generateRefreshToken(user.getId());
 
-        var userInfo = new LoginResponse.UserInfo(user.getId(), user.getAccount(), user.getDisplayName());
+        var userInfo = new LoginResponse.UserInfo(user.getId(), user.getAccount(), user.getDisplayName(), role);
         var workspaceInfo = workspaceId != null
                 ? new LoginResponse.WorkspaceInfo(workspaceId, workspaceName)
                 : null;

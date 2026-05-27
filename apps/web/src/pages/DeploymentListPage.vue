@@ -9,8 +9,8 @@
         </template>
         <template v-if="column.key === 'action'">
           <a-button type="link" @click.stop="$router.push(`/deployments/${record.id}`)">详情</a-button>
-          <a-button v-if="record.status === 'FAILED'" type="link" danger @click.stop="handleRedeploy(record)">重新部署</a-button>
-          <a-button v-if="record.status === 'SUCCEEDED' && record.commitSha" type="link" @click.stop="handleRollback(record)">回滚</a-button>
+          <a-button v-if="canDeploy && record.status === 'FAILED'" type="link" danger @click.stop="handleRedeploy(record)">重新部署</a-button>
+          <a-button v-if="canDeploy && record.status === 'SUCCEEDED' && record.commitSha" type="link" @click.stop="handleRollback(record)">回滚</a-button>
         </template>
       </template>
     </a-table>
@@ -26,6 +26,9 @@ import { useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import { fetchDeployments, createDeployment, rollbackDeployment } from '../api/client'
 import { deployStatusMap, formatTime } from '../utils/display'
+import { usePermission } from '../composables/usePermission'
+
+const { canDeploy } = usePermission()
 
 const router = useRouter()
 

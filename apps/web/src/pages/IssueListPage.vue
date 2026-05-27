@@ -9,7 +9,7 @@
         <a-select v-model:value="selectedProjectId" placeholder="选择项目" style="width: 200px;" @change="loadIssues">
           <a-select-option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</a-select-option>
         </a-select>
-        <a-button type="primary" @click="showCreate = true" :disabled="!selectedProjectId">新建 Issue</a-button>
+        <a-button v-if="canWrite" type="primary" @click="showCreate = true" :disabled="!selectedProjectId">新建 Issue</a-button>
       </div>
     </div>
 
@@ -70,6 +70,9 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { fetchProjects, fetchIssues, createIssue } from '../api/client'
+import { usePermission } from '../composables/usePermission'
+
+const { canWrite } = usePermission()
 import { issueStatusMap, priorityMap } from '../utils/display'
 
 const columns = [

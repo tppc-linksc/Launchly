@@ -17,6 +17,7 @@ spring:
     locations: classpath:db/migration
 
 launchly:
+  edition: ${LAUNCHLY_EDITION:selfhost}
   encryption:
     key: ${LAUNCHLY_ENCRYPTION_KEY:${LAUNCHLY_JWT_SECRET:launchly-dev-secret-do-not-use-in-production}}
   jwt:

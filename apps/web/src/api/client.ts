@@ -330,3 +330,16 @@ export function verifyDeployTarget(id: string) {
 export function fetchAuditLogs(workspaceId?: string) {
   return api.get('/audit-logs', { params: { workspaceId } })
 }
+
+// Member API
+export function fetchMembers() {
+  return api.get('/members')
+}
+
+export function updateMemberRole(id: string, role: string) {
+  return api.put(`/members/${id}/role`, { role })
+}
+
+export function removeMember(id: string) {
+  return api.delete(`/members/${id}`)
+}

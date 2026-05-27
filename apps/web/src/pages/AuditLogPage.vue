@@ -1,7 +1,10 @@
 <template>
   <div>
-    <h2>审计日志</h2>
-    <a-card style="margin-top: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+      <h2 style="margin: 0;">审计日志</h2>
+      <a-button @click="handleExport">导出 CSV</a-button>
+    </div>
+    <a-card>
       <a-table :columns="columns" :data-source="logs" :loading="loading" row-key="id" size="small">
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'action'">
@@ -40,6 +43,17 @@ const columns = [
 function formatTime(t: string) {
   if (!t) return '-'
   return new Date(t).toLocaleString()
+}
+
+function handleExport() {
+  const token = localStorage.getItem('accessToken')
+  const url = '/api/audit-logs/export'
+  const a = document.createElement('a')
+  a.href = url
+  a.download = 'audit-logs.csv'
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
 }
 
 onMounted(async () => {

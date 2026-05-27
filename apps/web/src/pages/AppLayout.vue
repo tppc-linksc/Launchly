@@ -15,7 +15,7 @@
           </a-input>
         </div>
         <div class="top-actions">
-          <a-button type="primary" class="btn-pill" @click="$router.push('/deployments')">触发部署</a-button>
+          <a-button v-if="canDeploy" type="primary" class="btn-pill" @click="$router.push('/deployments')">触发部署</a-button>
           <a-button class="btn-pill-ghost" @click="$router.push('/projects/create')">连接仓库</a-button>
           <a-dropdown>
             <div class="avatar-wrap">
@@ -57,10 +57,12 @@
 import { computed, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { usePermission } from '../composables/usePermission'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const { canDeploy } = usePermission()
 const searchQuery = ref('')
 
 const navItems = [

@@ -6,6 +6,6 @@ public record LoginResponse(
         UserInfo user,
         WorkspaceInfo workspace
 ) {
-    public record UserInfo(String id, String account, String displayName) {}
+    public record UserInfo(String id, String account, String displayName, String role) {}
     public record WorkspaceInfo(String id, String name) {}
 }

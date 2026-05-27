@@ -7,7 +7,7 @@
     </a-breadcrumb>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
       <h2 style="margin: 0;">部署目标管理</h2>
-      <a-button type="primary" @click="openCreate">添加部署目标</a-button>
+      <a-button v-if="canWrite" type="primary" @click="openCreate">添加部署目标</a-button>
     </div>
 
     <a-card>
@@ -30,9 +30,9 @@
           </template>
           <template v-if="column.key === 'actions'">
             <a-space>
-              <a-button size="small" @click="verify(record)">验证</a-button>
-              <a-button size="small" @click="openEdit(record)">编辑</a-button>
-              <a-popconfirm title="确定删除此部署目标？" @confirm="doDelete(record.id)">
+              <a-button v-if="canWrite" size="small" @click="verify(record)">验证</a-button>
+              <a-button v-if="canWrite" size="small" @click="openEdit(record)">编辑</a-button>
+              <a-popconfirm v-if="canWrite" title="确定删除此部署目标？" @confirm="doDelete(record.id)">
                 <a-button size="small" danger>删除</a-button>
               </a-popconfirm>
             </a-space>
@@ -105,6 +105,9 @@ import {
   deleteDeployTarget,
   verifyDeployTarget,
 } from '../api/client'
+import { usePermission } from '../composables/usePermission'
+
+const { canWrite } = usePermission()
 
 const route = useRoute()
 const projectId = computed(() => String(route.params.id ?? ''))

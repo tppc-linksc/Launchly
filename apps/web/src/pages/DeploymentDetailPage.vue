@@ -16,13 +16,13 @@
       </a-descriptions>
       <a-alert v-if="deployment.errorMessage" type="error" :message="deployment.errorMessage" show-icon style="margin-top: 12px;" />
       <div style="margin-top: 12px;">
-        <a-button v-if="deployment.status === 'FAILED'" type="primary" danger style="margin-right: 8px;" :loading="redeploying" @click="handleRedeploy">
+        <a-button v-if="canDeploy && deployment.status === 'FAILED'" type="primary" danger style="margin-right: 8px;" :loading="redeploying" @click="handleRedeploy">
           重新部署
         </a-button>
-        <a-button v-if="deployment.status === 'SUCCEEDED'" type="primary" style="margin-right: 8px;" @click="handleCreateTestRun">
+        <a-button v-if="canWrite && deployment.status === 'SUCCEEDED'" type="primary" style="margin-right: 8px;" @click="handleCreateTestRun">
           创建测试任务
         </a-button>
-        <a-button v-if="deployment.status === 'SUCCEEDED' && deployment.commitSha" style="margin-right: 8px;" :loading="rollingBack" @click="handleRollback">
+        <a-button v-if="canDeploy && deployment.status === 'SUCCEEDED' && deployment.commitSha" style="margin-right: 8px;" :loading="rollingBack" @click="handleRollback">
           回滚到此版本
         </a-button>
       </div>
@@ -46,6 +46,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
 import { fetchDeployment, fetchDeploymentLogs, createTestRun, createDeployment, rollbackDeployment } from '../api/client'
 import { deployStatusMap, deployStageMap, formatTime } from '../utils/display'
+import { usePermission } from '../composables/usePermission'
+
+const { canDeploy, canWrite } = usePermission()
 
 const route = useRoute()
 const router = useRouter()

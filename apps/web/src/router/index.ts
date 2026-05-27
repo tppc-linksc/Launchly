@@ -25,7 +25,7 @@ const router = createRouter({
         { path: 'releases/:projectId/:id', name: 'release-detail', component: () => import('../pages/ReleaseDetailPage.vue') },
         { path: 'audit-logs', name: 'audit-logs', component: () => import('../pages/AuditLogPage.vue') },
         { path: 'notifications', name: 'notifications', component: () => import('../pages/NotificationCenterPage.vue') },
-        { path: 'members', name: 'members', component: () => import('../pages/PlaceholderPage.vue') },
+        { path: 'members', name: 'members', component: () => import('../pages/MemberListPage.vue') },
         { path: 'settings', name: 'settings', component: () => import('../pages/SettingsPage.vue') },
       ],
     },
