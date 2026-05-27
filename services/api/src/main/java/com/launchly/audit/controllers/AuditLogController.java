@@ -34,10 +34,10 @@ public class AuditLogController {
         for (AuditLog log : logs) {
             csv.append(escapeCsv(log.getId())).append(",");
             csv.append(escapeCsv(log.getUserId())).append(",");
-            csv.append(escapeCsv(log.getAction())).append(",");
-            csv.append(escapeCsv(log.getResourceType())).append(",");
-            csv.append(escapeCsv(log.getResourceId())).append(",");
-            csv.append(escapeCsv(log.getDetails())).append(",");
+            csv.append(escapeCsv(log.getAction() != null ? log.getAction().name() : "")).append(",");
+            csv.append(escapeCsv(log.getTargetType())).append(",");
+            csv.append(escapeCsv(log.getTargetId())).append(",");
+            csv.append(escapeCsv(log.getDetail())).append(",");
             csv.append(escapeCsv(log.getCreatedAt() != null ? log.getCreatedAt().toString() : "")).append("\n");
         }
 
