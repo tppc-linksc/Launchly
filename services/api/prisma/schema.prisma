@@ -1,0 +1,455 @@
+// Launchly v0.2 — Prisma Schema
+// Maps 14 SQL migrations (V1–V14) to a single Prisma schema.
+// PostgreSQL only. Run `npx prisma generate` after editing.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("LAUNCHLY_DATABASE_URL")
+}
+
+// ─── Auth ──────────────────────────────────────────────────────
+
+model User {
+  id           String     @id @default(uuid()) @db.VarChar(36)
+  account      String     @unique @db.VarChar(255)
+  displayName  String?    @map("display_name") @db.VarChar(255)
+  passwordHash String     @map("password_hash") @db.VarChar(255)
+  status       String     @default("ACTIVE") @db.VarChar(20)
+  createdAt    DateTime   @default(now()) @map("created_at")
+  updatedAt    DateTime   @default(now()) @map("updated_at")
+
+  workspaceMembers WorkspaceMember[]
+  auditLogs        AuditLog[]
+  notifications    Notification[]
+  reportedIssues   Issue[]            @relation("Reporter")
+  assignedIssues   Issue[]            @relation("Assignee")
+  triggeredDeployments Deployment[]   @relation("TriggeredBy")
+
+  @@map("users")
+}
+
+// ─── Workspace ─────────────────────────────────────────────────
+
+model Workspace {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  name        String   @db.VarChar(255)
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @map("updated_at")
+
+  members     WorkspaceMember[]
+  invitations Invitation[]
+  projects    Project[]
+  auditLogs   AuditLog[]
+
+  @@map("workspaces")
+}
+
+model WorkspaceMember {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  workspaceId String   @map("workspace_id") @db.VarChar(36)
+  userId      String   @map("user_id") @db.VarChar(36)
+  role        String   @db.VarChar(20)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+  user      User      @relation(fields: [userId], references: [id])
+
+  @@unique([workspaceId, userId])
+  @@map("workspace_members")
+}
+
+model Invitation {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  workspaceId String   @map("workspace_id") @db.VarChar(36)
+  role        String   @db.VarChar(20)
+  token       String   @unique @db.VarChar(255)
+  expiresAt   DateTime @map("expires_at")
+  maxUses     Int      @default(1) @map("max_uses")
+  usedCount   Int      @default(0) @map("used_count")
+  status      String   @default("ACTIVE") @db.VarChar(20)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @map("updated_at")
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@map("invitations")
+}
+
+// ─── Project ───────────────────────────────────────────────────
+
+model Project {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  workspaceId     String   @map("workspace_id") @db.VarChar(36)
+  name            String   @db.VarChar(255)
+  description     String?
+  projectType     String   @default("CUSTOM") @map("project_type") @db.VarChar(50)
+  repositoryUrl   String?  @map("repository_url") @db.VarChar(1024)
+  defaultBranch   String   @default("main") @map("default_branch") @db.VarChar(255)
+  gitProvider     String?  @map("git_provider") @db.VarChar(50)
+  installCommand  String?  @map("install_command") @db.VarChar(500)
+  buildCommand    String?  @map("build_command") @db.VarChar(500)
+  startCommand    String?  @map("start_command") @db.VarChar(500)
+  testCommand     String?  @map("test_command") @db.VarChar(500)
+  healthCheckPath String?  @map("health_check_path") @db.VarChar(500)
+  defaultPort     Int?     @map("default_port")
+  createdBy       String?  @map("created_by") @db.VarChar(36)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @map("updated_at")
+
+  workspace          Workspace            @relation(fields: [workspaceId], references: [id])
+  components         Component[]
+  environments       Environment[]
+  deployments        Deployment[]
+  deployTargets      DeployTarget[]
+  testCases          TestCase[]
+  issues             Issue[]
+  releases           Release[]
+  repoCredentials    RepositoryCredential[]
+
+  @@map("projects")
+}
+
+model Component {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  projectId       String   @map("project_id") @db.VarChar(36)
+  name            String   @db.VarChar(255)
+  description     String?
+  repositoryUrl   String?  @map("repository_url") @db.VarChar(1024)
+  buildCommand    String?  @map("build_command") @db.VarChar(500)
+  startCommand    String?  @map("start_command") @db.VarChar(500)
+  healthCheckPath String?  @map("health_check_path") @db.VarChar(500)
+  defaultPort     Int?     @map("default_port")
+  isDefault       Boolean  @default(false) @map("is_default")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@index([projectId])
+  @@map("components")
+}
+
+model RepositoryCredential {
+  id              String   @id @default(uuid()) @db.VarChar(36)
+  projectId       String   @unique @map("project_id") @db.VarChar(36)
+  credentialType  String   @map("credential_type") @db.VarChar(50)
+  encryptedValue  String   @map("encrypted_value") @db.Text
+  maskedPreview   String?  @map("masked_preview") @db.VarChar(255)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @default(now()) @map("updated_at")
+
+  project Project @relation(fields: [projectId], references: [id])
+
+  @@map("repository_credentials")
+}
+
+// ─── Environment ───────────────────────────────────────────────
+
+model Environment {
+  id                 String   @id @default(uuid()) @db.VarChar(36)
+  projectId          String   @map("project_id") @db.VarChar(36)
+  name               String   @db.VarChar(255)
+  type               String   @db.VarChar(50)
+  url                String?  @db.VarChar(1024)
+  status             String?  @db.VarChar(50)
+  currentDeploymentId String? @map("current_deployment_id") @db.VarChar(36)
+  deployMode         String?  @default("local") @map("deploy_mode") @db.VarChar(50)
+  host               String?  @db.VarChar(255)
+  sshUser            String?  @map("ssh_user") @db.VarChar(255)
+  deployDir          String?  @map("deploy_dir") @db.VarChar(500)
+  externalPort       Int?     @map("external_port")
+  dataStrategy       String?  @map("data_strategy") @db.VarChar(50)
+  enabled            Boolean? @default(true)
+  localWorkRoot      String?  @map("local_work_root") @db.VarChar(500)
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @default(now()) @map("updated_at")
+
+  project    Project             @relation(fields: [projectId], references: [id])
+  variables  EnvironmentVariable[]
+  deployments Deployment[]
+
+  @@index([projectId, type])
+  @@map("environments")
+}
+
+model EnvironmentVariable {
+  id             String   @id @default(uuid()) @db.VarChar(36)
+  environmentId  String   @map("environment_id") @db.VarChar(36)
+  key            String   @db.VarChar(255)
+  encryptedValue String   @map("encrypted_value") @db.Text
+  maskedValue    String?  @map("masked_value") @db.VarChar(255)
+  sensitive      Boolean  @default(false)
+  description    String?  @db.VarChar(500)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @map("updated_at")
+
+  environment Environment @relation(fields: [environmentId], references: [id])
+
+  @@index([environmentId])
+  @@map("environment_variables")
+}
+
+// ─── Deployment ────────────────────────────────────────────────
+
+model Deployment {
+  id                      String    @id @default(uuid()) @db.VarChar(36)
+  projectId               String    @map("project_id") @db.VarChar(36)
+  environmentId           String    @map("environment_id") @db.VarChar(36)
+  deployTargetId          String?   @map("deploy_target_id") @db.VarChar(36)
+  branch                  String?   @db.VarChar(255)
+  commitSha               String?   @map("commit_sha") @db.VarChar(255)
+  status                  String    @default("PENDING") @db.VarChar(50)
+  triggeredBy             String?   @map("triggered_by") @db.VarChar(36)
+  startedAt               DateTime? @map("started_at")
+  finishedAt              DateTime? @map("finished_at")
+  errorMessage            String?   @map("error_message") @db.Text
+  rollbackFromDeploymentId String?  @map("rollback_from_deployment_id") @db.VarChar(36)
+  accessUrl               String?   @map("access_url") @db.VarChar(512)
+  createdAt               DateTime  @default(now()) @map("created_at")
+
+  project      Project              @relation(fields: [projectId], references: [id])
+  environment  Environment          @relation(fields: [environmentId], references: [id])
+  deployTarget DeployTarget?        @relation(fields: [deployTargetId], references: [id])
+  triggeredByUser User?             @relation("TriggeredBy", fields: [triggeredBy], references: [id])
+  stageLogs    DeploymentStageLog[]
+
+  @@index([projectId])
+  @@index([environmentId])
+  @@index([deployTargetId])
+  @@index([status])
+  @@map("deployments")
+}
+
+model DeploymentStageLog {
+  id           String    @id @default(uuid()) @db.VarChar(36)
+  deploymentId String    @map("deployment_id") @db.VarChar(36)
+  stage        String    @db.VarChar(50)
+  stepOrder    Int       @default(0) @map("step_order")
+  status       String    @db.VarChar(50)
+  log          String?   @db.Text
+  startedAt    DateTime? @map("started_at")
+  finishedAt   DateTime? @map("finished_at")
+
+  deployment Deployment @relation(fields: [deploymentId], references: [id])
+
+  @@index([deploymentId])
+  @@map("deployment_stage_logs")
+}
+
+// ─── Deploy Target (BYOS) ──────────────────────────────────────
+
+model DeployTarget {
+  id                 String    @id @default(uuid()) @db.VarChar(36)
+  projectId          String    @map("project_id") @db.VarChar(36)
+  name               String    @db.VarChar(255)
+  type               String    @default("SSH") @db.VarChar(50)
+  host               String    @db.VarChar(255)
+  port               Int       @default(22)
+  username           String    @db.VarChar(255)
+  authMethod         String    @default("KEY") @map("auth_method") @db.VarChar(20)
+  encryptedCredential String   @map("encrypted_credential") @db.Text
+  status             String?   @db.VarChar(50)
+  lastVerifiedAt     DateTime? @map("last_verified_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @default(now()) @map("updated_at")
+
+  project     Project      @relation(fields: [projectId], references: [id])
+  deployments Deployment[]
+
+  @@index([projectId])
+  @@map("deploy_targets")
+}
+
+// ─── Worker Task Queue ─────────────────────────────────────────
+
+model Task {
+  id          String    @id @default(uuid()) @db.VarChar(36)
+  taskType    String    @map("task_type") @db.VarChar(50)
+  status      String    @default("PENDING") @db.VarChar(20)
+  refId       String    @map("ref_id") @db.VarChar(36)
+  payload     String?   @db.Text
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3) @map("max_attempts")
+  errorMessage String?  @map("error_message") @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
+  startedAt   DateTime? @map("started_at")
+  finishedAt  DateTime? @map("finished_at")
+
+  @@index([status, createdAt])
+  @@index([refId])
+  @@map("tasks")
+}
+
+// ─── Test Case ─────────────────────────────────────────────────
+
+model TestCase {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  projectId   String   @map("project_id") @db.VarChar(36)
+  title       String   @db.VarChar(500)
+  description String?
+  priority    String   @default("P2") @db.VarChar(10)
+  status      String   @default("ACTIVE") @db.VarChar(20)
+  steps       String?  @db.Text
+  expectedResult String? @map("expected_result") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @default(now()) @map("updated_at")
+
+  project     Project       @relation(fields: [projectId], references: [id])
+  testRunCases TestRunCase[]
+
+  @@index([projectId])
+  @@map("test_cases")
+}
+
+model TestRun {
+  id             String    @id @default(uuid()) @db.VarChar(36)
+  deploymentId   String    @map("deployment_id") @db.VarChar(36)
+  projectId      String    @map("project_id") @db.VarChar(36)
+  environmentId  String    @map("environment_id") @db.VarChar(36)
+  status         String    @default("PENDING") @db.VarChar(20)
+  totalCases     Int       @default(0) @map("total_cases")
+  passedCases    Int       @default(0) @map("passed_cases")
+  failedCases    Int       @default(0) @map("failed_cases")
+  skippedCases   Int       @default(0) @map("skipped_cases")
+  triggeredBy    String?   @map("triggered_by") @db.VarChar(36)
+  startedAt      DateTime? @map("started_at")
+  finishedAt     DateTime? @map("finished_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  testRunCases TestRunCase[]
+
+  @@index([projectId])
+  @@index([deploymentId])
+  @@map("test_runs")
+}
+
+model TestRunCase {
+  id           String    @id @default(uuid()) @db.VarChar(36)
+  testRunId    String    @map("test_run_id") @db.VarChar(36)
+  testCaseId   String    @map("test_case_id") @db.VarChar(36)
+  result       String    @default("PENDING") @db.VarChar(20)
+  executedBy   String?   @map("executed_by") @db.VarChar(36)
+  executedAt   DateTime? @map("executed_at")
+  notes        String?   @db.Text
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  testRun  TestRun  @relation(fields: [testRunId], references: [id])
+  testCase TestCase @relation(fields: [testCaseId], references: [id])
+
+  @@index([testRunId])
+  @@index([testCaseId])
+  @@map("test_run_cases")
+}
+
+// ─── Issue ─────────────────────────────────────────────────────
+
+model Issue {
+  id               String    @id @default(uuid()) @db.VarChar(36)
+  projectId        String    @map("project_id") @db.VarChar(36)
+  environmentId    String?   @map("environment_id") @db.VarChar(36)
+  deploymentId     String?   @map("deployment_id") @db.VarChar(36)
+  testCaseId       String?   @map("test_case_id") @db.VarChar(36)
+  testRunCaseId    String?   @map("test_run_case_id") @db.VarChar(36)
+  title            String    @db.VarChar(500)
+  description      String?
+  priority         String    @default("P2") @db.VarChar(10)
+  status           String    @default("OPEN") @db.VarChar(20)
+  reporterId       String?   @map("reporter_id") @db.VarChar(36)
+  assigneeId       String?   @map("assignee_id") @db.VarChar(36)
+  fixedCommitSha   String?   @map("fixed_commit_sha") @db.VarChar(255)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @default(now()) @map("updated_at")
+
+  project  Project @relation(fields: [projectId], references: [id])
+  reporter User?   @relation("Reporter", fields: [reporterId], references: [id])
+  assignee User?   @relation("Assignee", fields: [assigneeId], references: [id])
+
+  @@index([projectId])
+  @@index([assigneeId])
+  @@index([status])
+  @@map("issues")
+}
+
+// ─── Release ───────────────────────────────────────────────────
+
+model Release {
+  id                   String    @id @default(uuid()) @db.VarChar(36)
+  projectId            String    @map("project_id") @db.VarChar(36)
+  environmentId        String    @map("environment_id") @db.VarChar(36)
+  deploymentId         String    @map("deployment_id") @db.VarChar(36)
+  version              String    @db.VarChar(255)
+  notes                String?
+  status               String    @default("DRAFT") @db.VarChar(20)
+  gateStatus           String?   @map("gate_status") @db.VarChar(20)
+  releasedBy           String?   @map("released_by") @db.VarChar(36)
+  releasedAt           DateTime? @map("released_at")
+  rollbackDeploymentId String?   @map("rollback_deployment_id") @db.VarChar(36)
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  project     Project         @relation(fields: [projectId], references: [id])
+  exemptions  GateExemption[]
+
+  @@index([projectId])
+  @@map("releases")
+}
+
+model GateExemption {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  releaseId   String   @map("release_id") @db.VarChar(36)
+  gateName    String   @map("gate_name") @db.VarChar(100)
+  exemptedBy  String?  @map("exempted_by") @db.VarChar(36)
+  reason      String?  @db.VarChar(500)
+  exemptedAt  DateTime @default(now()) @map("exempted_at")
+
+  release Release @relation(fields: [releaseId], references: [id])
+
+  @@index([releaseId])
+  @@map("gate_exemptions")
+}
+
+// ─── Notification ──────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(uuid()) @db.VarChar(36)
+  userId    String   @map("user_id") @db.VarChar(36)
+  type      String   @db.VarChar(50)
+  title     String   @db.VarChar(500)
+  content   String?
+  refId     String?  @map("ref_id") @db.VarChar(36)
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+// ─── Audit Log ─────────────────────────────────────────────────
+
+model AuditLog {
+  id          String   @id @default(uuid()) @db.VarChar(36)
+  workspaceId String?  @map("workspace_id") @db.VarChar(36)
+  userId      String?  @map("user_id") @db.VarChar(36)
+  action      String   @db.VarChar(100)
+  targetType  String?  @map("target_type") @db.VarChar(50)
+  targetId    String?  @map("target_id") @db.VarChar(36)
+  detail      String?  @db.Text
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  userAgent   String?  @map("user_agent") @db.VarChar(500)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id])
+  user      User?      @relation(fields: [userId], references: [id])
+
+  @@index([workspaceId])
+  @@index([userId])
+  @@index([targetType, targetId])
+  @@map("audit_logs")
+}

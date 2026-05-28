@@ -2,7 +2,7 @@
   <img alt="status" src="https://img.shields.io/badge/status-beta-yellow">
   <img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0-blue">
   <img alt="web" src="https://img.shields.io/badge/web-Vue%203%20%2B%20TypeScript-42b883">
-  <img alt="api" src="https://img.shields.io/badge/api-Spring%20Boot%203-6db33f">
+  <img alt="api" src="https://img.shields.io/badge/api-NestJS%20+%20TypeScript-e0234e">
   <img alt="cli" src="https://img.shields.io/badge/cli-Go-00add8">
   <img alt="database" src="https://img.shields.io/badge/database-PostgreSQL-4169e1">
   <img alt="deploy" src="https://img.shields.io/badge/deploy-Docker%20Compose-2496ed">
@@ -103,13 +103,12 @@ Launchly 当前处于 **Beta 阶段**。核心部署链路、CLI 安装器、Web
 
 ## 系统架构
 
-Launchly 第一阶段采用“模块化单体 + 后台任务执行器 + CLI 一键部署”的架构。
+Launchly 第一阶段采用"模块化单体（NestJS）+ 内置后台任务执行器 + CLI 一键部署"的架构。v0.2 起 API 与 Worker 合并为单一 NestJS 进程。
 
 ```text
 launchly CLI
   -> Docker Compose
-      -> launchly-app      Web UI + API
-      -> launchly-worker   后台任务执行器
+      -> launchly-app      Web UI + API + Worker（单进程）
       -> launchly-postgres 内置 PostgreSQL
       -> launchly-data     本地文件、日志、附件和截图
 ```
@@ -119,8 +118,8 @@ launchly CLI
 | 模块 | 说明 |
 | --- | --- |
 | Web UI | 工作台、项目、部署、测试、Issue、Release 页面 |
-| API Server | 认证、Workspace、项目、环境、部署、测试、权限等业务接口 |
-| Worker | 执行拉代码、构建、部署、自动测试、通知等后台任务 |
+| API Server | 认证、Workspace、项目、环境、部署、测试、权限等业务接口（NestJS） |
+| Worker | 后台任务执行器（内嵌于 API 进程，基于 PostgreSQL 轮询） |
 | CLI | 管理安装、启动、停止、升级、备份、恢复和诊断 |
 | PostgreSQL | 内置数据库，默认随安装启动 |
 | Docker Compose | 第一阶段自托管交付方式 |
@@ -296,20 +295,20 @@ pnpm dev:web
 
 | 工具 | 用途 |
 | --- | --- |
-| Node.js + pnpm | 前端开发 |
-| Java 17 + Maven | API 和 Worker 开发 |
+| Node.js 20+ + pnpm | 前端和 API 开发 |
 | Go | CLI 开发 |
 | Docker + Docker Compose | 自托管部署和本地集成 |
 | PostgreSQL | 本地调试数据库，最终产品会内置 |
 
 API 开发约定：
 
-- 后端框架：Spring Boot 3.x，通过 `spring-boot-starter-web` 提供 REST API。
-- 数据库：PostgreSQL，通过 Flyway 管理数据库迁移。
-- 安全：Spring Security + JWT（Bearer Token）已接入，受保护接口需要登录态；RBAC 细粒度权限仍在后续迭代。
-- API 模块按 `auth`、`workspace`、`project`、`environment`、`deployment`、`testcase`、`issue`、`release`、`notification`、`audit`、`common` 分包，对应产品设计中的核心模块。
-- Worker 部署流水线已接入任务串行执行（clone -> build -> deploy -> health check）和阶段日志。
-- 环境变量敏感值已启用加密存储，部署时在 Worker 侧解密注入。
+- 后端框架：NestJS 10.x，通过 `@nestjs/platform-express` 提供 REST API。
+- ORM：Prisma，通过 `prisma migrate` 管理数据库迁移。
+- 安全：自定义 JWT Guard + RBAC Role Guard，受保护接口需要登录态。
+- API 模块按 `auth`、`workspace`、`project`、`environment`、`deployment`、`target`、`testcase`、`issue`、`release`、`notification`、`audit`、`worker` 分包，对应产品设计中的核心模块。
+- Worker 后台任务内嵌于 API 进程，通过 `@nestjs/schedule` 定时轮询 PostgreSQL 任务队列。
+- 部署流水线已接入任务串行执行（clone -> build -> deploy -> health check）和阶段日志。
+- 环境变量敏感值已启用加密存储（AES-256-GCM），部署时在 Worker 侧解密注入。
 
 开发原则：
 

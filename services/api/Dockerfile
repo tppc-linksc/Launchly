@@ -1,24 +1,29 @@
-# Node 22+ required for pnpm 11 (Corepack); pnpm 11 uses node:sqlite built-in.
-FROM node:22-alpine AS web-build
-WORKDIR /src
-RUN corepack enable
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY apps/web/package.json apps/web/package.json
-RUN pnpm install --frozen-lockfile
-COPY apps/web apps/web
-RUN pnpm --filter @launchly/web build
+FROM node:20-bookworm-slim AS builder
 
-FROM maven:3.9-eclipse-temurin-17 AS api-build
-WORKDIR /src
-COPY services/api/pom.xml services/api/pom.xml
-RUN mvn -f services/api/pom.xml -q -DskipTests dependency:go-offline
-COPY services/api services/api
-COPY --from=web-build /src/apps/web/dist services/api/src/main/resources/static
-RUN mvn -f services/api/pom.xml -q -DskipTests package
-
-FROM eclipse-temurin:17-jre-alpine
-RUN apk add --no-cache curl
 WORKDIR /app
-COPY --from=api-build /src/services/api/target/*.jar /app/app.jar
+
+COPY package*.json ./
+COPY prisma ./prisma/
+RUN npm ci
+
+COPY . .
+RUN npx prisma generate
+RUN npm run build
+
+FROM node:20-bookworm-slim
+
+WORKDIR /app
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/package.json ./
+
+# Install docker CLI for docker compose commands
+RUN apt-get update && apt-get install -y docker.io curl && rm -rf /var/lib/apt/lists/*
+
+ENV NODE_ENV=production
+
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "/app/app.jar"]
+
+CMD ["node", "dist/main"]
