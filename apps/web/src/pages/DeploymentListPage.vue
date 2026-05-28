@@ -89,7 +89,7 @@ onMounted(async () => {
   try {
     const res = await fetchDeployments()
     deployments.value = res.data
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
   loading.value = false
 })
 </script>

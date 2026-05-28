@@ -123,6 +123,6 @@ onMounted(async () => {
     const projectId = route.params.projectId as string
     const res = await fetchIssue(projectId, route.params.id as string)
     issue.value = res.data
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
 })
 </script>

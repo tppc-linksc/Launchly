@@ -137,7 +137,7 @@ async function loadTestCases() {
   try {
     const res = await fetchTestCases(selectedProjectId.value)
     testCases.value = res.data
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
   loading.value = false
 }
 
@@ -145,6 +145,6 @@ onMounted(async () => {
   try {
     const res = await fetchProjects()
     projects.value = res.data
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
 })
 </script>

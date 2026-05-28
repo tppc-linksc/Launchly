@@ -7,6 +7,7 @@
       </div>
       <div>
         <a-tag>{{ project.projectType }}</a-tag>
+        <a-button v-if="canWrite" style="margin-left: 8px;" @click="openEdit">编辑</a-button>
         <a-button style="margin-left: 8px;" @click="$router.push(`/projects/${project.id}/deploy-targets`)">部署目标</a-button>
         <a-button v-if="canDeploy" type="primary" style="margin-left: 8px;" @click="openDeployFromHeader" :disabled="!project.repositoryUrl">部署</a-button>
       </div>
@@ -65,7 +66,7 @@
 
       <a-col :span="8">
         <a-card title="环境变量" size="small" style="margin-bottom: 16px;">
-          <p style="color: #8c8c8c; margin: 0;">前往 <a @click="$router.push('/environments')">环境管理</a> 页面管理变量</p>
+          <p style="color: #8c8c8c; margin: 0;">前往 <a @click="$router.push(`/environments?projectId=${project.id}`)">环境管理</a> 页面管理变量</p>
         </a-card>
         <a-card title="最近部署" size="small">
           <div v-if="recentDeployments.length === 0" style="color: #8c8c8c;">暂无部署记录</div>
@@ -107,14 +108,58 @@
       </a-form>
       <a-alert v-if="deployError" :message="deployError" type="error" show-icon style="margin-top: 12px;" />
     </a-modal>
+
+    <!-- Edit Project Modal -->
+    <a-modal v-model:open="showEdit" title="编辑项目" @ok="doEdit" :confirm-loading="editLoading" ok-text="保存" cancel-text="取消">
+      <a-form layout="vertical">
+        <a-form-item label="项目名称" required>
+          <a-input v-model:value="editForm.name" />
+        </a-form-item>
+        <a-form-item label="项目描述">
+          <a-textarea v-model:value="editForm.description" :rows="2" />
+        </a-form-item>
+        <a-form-item label="仓库地址">
+          <a-input v-model:value="editForm.repositoryUrl" placeholder="https://github.com/user/repo" />
+        </a-form-item>
+        <a-form-item label="默认分支">
+          <a-input v-model:value="editForm.defaultBranch" />
+        </a-form-item>
+        <a-form-item label="Git 提供方">
+          <a-select v-model:value="editForm.gitProvider" allow-clear>
+            <a-select-option value="GITHUB">GitHub</a-select-option>
+            <a-select-option value="GITLAB">GitLab</a-select-option>
+            <a-select-option value="GENERIC">通用 Git URL</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-divider>命令配置</a-divider>
+        <a-form-item label="安装命令">
+          <a-input v-model:value="editForm.installCommand" />
+        </a-form-item>
+        <a-form-item label="构建命令">
+          <a-input v-model:value="editForm.buildCommand" />
+        </a-form-item>
+        <a-form-item label="启动命令">
+          <a-input v-model:value="editForm.startCommand" />
+        </a-form-item>
+        <a-form-item label="测试命令">
+          <a-input v-model:value="editForm.testCommand" />
+        </a-form-item>
+        <a-form-item label="健康检查路径">
+          <a-input v-model:value="editForm.healthCheckPath" />
+        </a-form-item>
+        <a-form-item label="默认端口">
+          <a-input-number v-model:value="editForm.defaultPort" style="width: 100%;" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { fetchProject, fetchEnvironments, fetchDeployments, fetchTestRuns, fetchIssues, fetchReleases, createDeployment, fetchDeployTargets } from '../api/client'
+import { fetchProject, updateProject, fetchEnvironments, fetchDeployments, fetchTestRuns, fetchIssues, fetchReleases, createDeployment, fetchDeployTargets } from '../api/client'
 import { deployStatusMap, envTypeMap } from '../utils/display'
 import { usePermission } from '../composables/usePermission'
 
@@ -133,6 +178,14 @@ const deployLoading = ref(false)
 const deployError = ref('')
 const deployTargets = ref<any[]>([])
 const deployForm = ref({ environmentId: '', deployTargetId: '', branch: '', notes: '' })
+const showEdit = ref(false)
+const editLoading = ref(false)
+const editForm = reactive({
+  name: '', description: '', repositoryUrl: '', defaultBranch: 'main',
+  gitProvider: '' as string,
+  installCommand: '', buildCommand: '', startCommand: '', testCommand: '',
+  healthCheckPath: '', defaultPort: null as number | null,
+})
 
 const deployableEnvs = computed(() =>
   environments.value.filter((e: any) => e.type === 'TEST' || e.type === 'STAGING')
@@ -180,6 +233,40 @@ function openDeployFromHeader() {
   showDeploy.value = true
 }
 
+function openEdit() {
+  const p = project.value
+  editForm.name = p.name || ''
+  editForm.description = p.description || ''
+  editForm.repositoryUrl = p.repositoryUrl || ''
+  editForm.defaultBranch = p.defaultBranch || 'main'
+  editForm.gitProvider = p.gitProvider || ''
+  editForm.installCommand = p.installCommand || ''
+  editForm.buildCommand = p.buildCommand || ''
+  editForm.startCommand = p.startCommand || ''
+  editForm.testCommand = p.testCommand || ''
+  editForm.healthCheckPath = p.healthCheckPath || ''
+  editForm.defaultPort = p.defaultPort ?? null
+  showEdit.value = true
+}
+
+async function doEdit() {
+  if (!editForm.name.trim()) {
+    message.warning('项目名称不能为空')
+    return
+  }
+  editLoading.value = true
+  try {
+    await updateProject(project.value.id, { ...editForm })
+    const res = await fetchProject(project.value.id)
+    project.value = res.data
+    showEdit.value = false
+    message.success('项目已更新')
+  } catch (e: any) {
+    message.error(e.response?.data?.message || '更新失败')
+  }
+  editLoading.value = false
+}
+
 onMounted(async () => {
   const id = route.params.id as string
   try {
@@ -199,7 +286,7 @@ onMounted(async () => {
     issues.value = iRes.data || []
     releases.value = rRes.data || []
     deployTargets.value = dtRes.data || []
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
 })
 
 async function doDeploy() {

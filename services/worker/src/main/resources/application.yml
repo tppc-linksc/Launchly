@@ -18,3 +18,5 @@ launchly:
   worker:
     polling-interval-ms: 3000
     task-timeout-minutes: 30
+    cleanup:
+      max-age-days: 7

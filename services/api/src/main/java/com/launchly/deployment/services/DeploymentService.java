@@ -192,27 +192,57 @@ public class DeploymentService {
     public DeploymentResponse getById(String id) {
         Deployment d = deploymentRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Deployment not found: " + id));
-        return enrichName(DeploymentResponse.from(d));
+        DeploymentResponse resp = DeploymentResponse.from(d);
+        // Resolve deploy target info
+        if (d.getDeployTargetId() != null && !d.getDeployTargetId().isBlank()) {
+            resp = deployTargetRepository.findById(d.getDeployTargetId())
+                    .map(dt -> DeploymentResponse.from(d, dt))
+                    .orElse(resp);
+        }
+        return enrichSingle(resp);
     }
 
     private List<DeploymentResponse> enrichNames(List<DeploymentResponse> responses) {
+        // Resolve user names
         Set<String> userIds = responses.stream()
                 .map(DeploymentResponse::triggeredBy)
                 .filter(id -> id != null && !id.isBlank())
                 .collect(Collectors.toSet());
-        if (userIds.isEmpty()) return responses;
-        Map<String, String> nameMap = userRepository.findAllById(userIds).stream()
+        Map<String, String> userMap = userIds.isEmpty() ? Map.of()
+                : userRepository.findAllById(userIds).stream()
                 .collect(Collectors.toMap(User::getId, User::getDisplayName));
-        return responses.stream()
-                .map(r -> r.triggeredBy() != null && nameMap.containsKey(r.triggeredBy())
-                        ? r.withTriggeredByName(nameMap.get(r.triggeredBy())) : r)
-                .collect(Collectors.toList());
+
+        // Resolve environment names
+        Set<String> envIds = responses.stream()
+                .map(DeploymentResponse::environmentId)
+                .filter(id -> id != null && !id.isBlank())
+                .collect(Collectors.toSet());
+        Map<String, String> envMap = envIds.isEmpty() ? Map.of()
+                : environmentRepository.findAllById(envIds).stream()
+                .collect(Collectors.toMap(Environment::getId, Environment::getName));
+
+        return responses.stream().map(r -> {
+            DeploymentResponse enriched = r;
+            if (r.triggeredBy() != null && userMap.containsKey(r.triggeredBy())) {
+                enriched = enriched.withTriggeredByName(userMap.get(r.triggeredBy()));
+            }
+            if (r.environmentId() != null && envMap.containsKey(r.environmentId())) {
+                enriched = enriched.withEnvironmentName(envMap.get(r.environmentId()));
+            }
+            return enriched;
+        }).collect(Collectors.toList());
     }
 
-    private DeploymentResponse enrichName(DeploymentResponse response) {
-        if (response.triggeredBy() == null || response.triggeredBy().isBlank()) return response;
-        return userRepository.findById(response.triggeredBy())
-                .map(u -> response.withTriggeredByName(u.getDisplayName()))
-                .orElse(response);
+    private DeploymentResponse enrichSingle(DeploymentResponse response) {
+        DeploymentResponse r = response;
+        if (r.triggeredBy() != null && !r.triggeredBy().isBlank()) {
+            var user = userRepository.findById(r.triggeredBy());
+            if (user.isPresent()) r = r.withTriggeredByName(user.get().getDisplayName());
+        }
+        if (r.environmentId() != null && !r.environmentId().isBlank()) {
+            var env = environmentRepository.findById(r.environmentId());
+            if (env.isPresent()) r = r.withEnvironmentName(env.get().getName());
+        }
+        return r;
     }
 }

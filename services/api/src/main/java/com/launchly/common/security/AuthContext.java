@@ -26,4 +26,26 @@ public final class AuthContext {
         }
         return workspaceId;
     }
+
+    public static String role() {
+        return current().role();
+    }
+
+    /**
+     * 要求当前用户拥有指定或更高角色。不符合则抛 SecurityException。
+     */
+    public static void requireWrite(String minimumRole) {
+        if (!current().hasRole(minimumRole)) {
+            throw new SecurityException("权限不足：需要 " + minimumRole + " 或更高角色");
+        }
+    }
+
+    /**
+     * Viewer 角色不允许执行写操作。
+     */
+    public static void requireNotReadOnly() {
+        if (current().isReadOnly()) {
+            throw new SecurityException("权限不足：Viewer 角色不允许执行写操作");
+        }
+    }
 }

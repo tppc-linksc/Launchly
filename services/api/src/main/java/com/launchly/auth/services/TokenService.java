@@ -27,11 +27,14 @@ public class TokenService {
         this.refreshTokenExpiration = refreshTokenExpiration;
     }
 
-    public String generateAccessToken(String userId, String workspaceId) {
+    public String generateAccessToken(String userId, String workspaceId, String role) {
         Map<String, Object> claims = new HashMap<>();
         claims.put("uid", userId);
         if (workspaceId != null) {
             claims.put("wid", workspaceId);
+        }
+        if (role != null) {
+            claims.put("role", role);
         }
         return Jwts.builder()
                 .claims(claims)
@@ -39,6 +42,11 @@ public class TokenService {
                 .expiration(new Date(System.currentTimeMillis() + accessTokenExpiration))
                 .signWith(signingKey)
                 .compact();
+    }
+
+    /** Backward-compatible overload without role. */
+    public String generateAccessToken(String userId, String workspaceId) {
+        return generateAccessToken(userId, workspaceId, null);
     }
 
     public String generateRefreshToken(String userId) {

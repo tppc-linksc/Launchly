@@ -9,6 +9,7 @@ public record DeploymentResponse(
         String id,
         String projectId,
         String environmentId,
+        String environmentName,
         String deployTargetId,
         DeployTargetInfo deployTarget,
         String branch,
@@ -16,6 +17,7 @@ public record DeploymentResponse(
         String status,
         String triggeredBy,
         String triggeredByName,
+        String accessUrl,
         Instant startedAt,
         Instant finishedAt,
         String errorMessage,
@@ -31,10 +33,12 @@ public record DeploymentResponse(
     public static DeploymentResponse from(Deployment d) {
         return new DeploymentResponse(
                 d.getId(), d.getProjectId(), d.getEnvironmentId(),
+                null,
                 d.getDeployTargetId(),
                 null,
                 d.getBranch(), d.getCommitSha(), d.getStatus().name(),
-                d.getTriggeredBy(), null, d.getStartedAt(), d.getFinishedAt(),
+                d.getTriggeredBy(), null, d.getAccessUrl(),
+                d.getStartedAt(), d.getFinishedAt(),
                 d.getErrorMessage(), d.getCreatedAt()
         );
     }
@@ -46,18 +50,28 @@ public record DeploymentResponse(
         }
         return new DeploymentResponse(
                 d.getId(), d.getProjectId(), d.getEnvironmentId(),
+                null,
                 d.getDeployTargetId(),
                 info,
                 d.getBranch(), d.getCommitSha(), d.getStatus().name(),
-                d.getTriggeredBy(), null, d.getStartedAt(), d.getFinishedAt(),
+                d.getTriggeredBy(), null, d.getAccessUrl(),
+                d.getStartedAt(), d.getFinishedAt(),
                 d.getErrorMessage(), d.getCreatedAt()
         );
     }
 
     public DeploymentResponse withTriggeredByName(String name) {
         return new DeploymentResponse(
-                id, projectId, environmentId, deployTargetId, deployTarget,
-                branch, commitSha, status, triggeredBy, name,
+                id, projectId, environmentId, environmentName, deployTargetId, deployTarget,
+                branch, commitSha, status, triggeredBy, name, accessUrl,
+                startedAt, finishedAt, errorMessage, createdAt
+        );
+    }
+
+    public DeploymentResponse withEnvironmentName(String envName) {
+        return new DeploymentResponse(
+                id, projectId, environmentId, envName, deployTargetId, deployTarget,
+                branch, commitSha, status, triggeredBy, triggeredByName, accessUrl,
                 startedAt, finishedAt, errorMessage, createdAt
         );
     }

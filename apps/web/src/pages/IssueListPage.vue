@@ -69,8 +69,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { fetchProjects, fetchIssues, createIssue } from '../api/client'
 import { usePermission } from '../composables/usePermission'
+
+const route = useRoute()
 
 const { canWrite } = usePermission()
 import { issueStatusMap, priorityMap } from '../utils/display'
@@ -115,7 +118,7 @@ async function loadIssues() {
     if (filterPriority.value) params.priority = filterPriority.value
     const res = await fetchIssues(selectedProjectId.value, params)
     issues.value = res.data
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
   loading.value = false
 }
 
@@ -132,6 +135,11 @@ onMounted(async () => {
   try {
     const res = await fetchProjects()
     projects.value = res.data
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
+  const qp = route.query.projectId as string
+  if (qp) {
+    selectedProjectId.value = qp
+    loadIssues()
+  }
 })
 </script>

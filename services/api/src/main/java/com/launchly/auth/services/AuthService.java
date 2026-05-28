@@ -52,7 +52,7 @@ public class AuthService {
             }
         }
 
-        String accessToken = tokenService.generateAccessToken(user.getId(), workspaceId);
+        String accessToken = tokenService.generateAccessToken(user.getId(), workspaceId, role);
         String refreshToken = tokenService.generateRefreshToken(user.getId());
 
         var userInfo = new LoginResponse.UserInfo(user.getId(), user.getAccount(), user.getDisplayName(), role);
@@ -84,7 +84,7 @@ public class AuthService {
             }
         }
 
-        String newAccessToken = tokenService.generateAccessToken(user.getId(), workspaceId);
+        String newAccessToken = tokenService.generateAccessToken(user.getId(), workspaceId, role);
         String newRefreshToken = tokenService.generateRefreshToken(user.getId());
 
         var userInfo = new LoginResponse.UserInfo(user.getId(), user.getAccount(), user.getDisplayName(), role);

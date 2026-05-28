@@ -9,6 +9,7 @@ import com.launchly.release.services.GateCheckResult;
 import com.launchly.release.services.ReleaseService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -23,6 +24,7 @@ public class ReleaseController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER')")
     public ResponseEntity<ReleaseResponse> create(@PathVariable String projectId,
                                                    @Valid @RequestBody ReleaseRequest request) {
         return ResponseEntity.ok(releaseService.createRelease(projectId, request, AuthContext.userId()));
@@ -44,11 +46,13 @@ public class ReleaseController {
     }
 
     @PutMapping("/{id}/publish")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN')")
     public ResponseEntity<ReleaseResponse> publish(@PathVariable String projectId, @PathVariable String id) {
         return ResponseEntity.ok(releaseService.publish(id, AuthContext.userId()));
     }
 
     @PostMapping("/{id}/gates/{gateName}/exempt")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN')")
     public ResponseEntity<GateExemption> exempt(@PathVariable String projectId,
                                                  @PathVariable String id,
                                                  @PathVariable String gateName,

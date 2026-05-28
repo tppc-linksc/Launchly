@@ -221,7 +221,7 @@ public class RemoteSshRunner implements Runner {
         }
 
         Session session = jsch.getSession(target.getUsername(), target.getHost(), target.getPort());
-        session.setConfig("StrictHostKeyChecking", "no");
+        session.setConfig("StrictHostKeyChecking", "accept-new");  // accept new hosts, reject changed ones (MITM protection)
 
         if ("PASSWORD".equals(target.getAuthMethod()) && credential != null) {
             session.setPassword(credential);

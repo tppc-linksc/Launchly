@@ -93,9 +93,12 @@
 
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { fetchProjects, fetchEnvironments, fetchEnvVariables, createEnvVariable, deleteEnvVariable, updateEnvironment } from '../api/client'
 import { envTypeMap, deployModeMap } from '../utils/display'
+
+const route = useRoute()
 
 const searchProject = ref('')
 
@@ -156,7 +159,7 @@ async function openVarModal(env: any) {
   try {
     const res = await fetchEnvVariables(env.id)
     variables.value = res.data
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
 }
 
 async function addVar() {
@@ -167,7 +170,7 @@ async function addVar() {
     newVar.key = ''; newVar.value = ''; newVar.sensitive = false
     const res = await fetchEnvVariables(selectedEnv.value.id)
     variables.value = res.data
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
   adding.value = false
 }
 
@@ -208,15 +211,24 @@ async function loadEnvs() {
   try {
     const projectsRes = await fetchProjects()
     projects.value = projectsRes.data || []
+    const qp = route.query.projectId as string
+    const targetProjects = qp
+      ? projects.value.filter((p: any) => p.id === qp)
+      : projects.value
+    if (qp) searchProject.value = ''
     const allEnvs: any[] = []
-    for (const p of projects.value) {
+    for (const p of targetProjects) {
       try {
         const eRes = await fetchEnvironments(p.id)
         allEnvs.push(...eRes.data)
-      } catch {}
+      } catch (e) { message.error('操作失败，请稍后重试') }
     }
     envs.value = allEnvs
-  } catch {}
+    // Auto-fill search box with project name when filtering by projectId
+    if (qp && targetProjects.length === 1) {
+      searchProject.value = targetProjects[0].name
+    }
+  } catch (e) { message.error('操作失败，请稍后重试') }
   loading.value = false
 }
 

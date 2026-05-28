@@ -6,6 +6,7 @@ import com.launchly.testcase.dto.TestRunResponse;
 import com.launchly.testcase.dto.UpdateTestRunCaseRequest;
 import com.launchly.testcase.services.TestService;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -20,6 +21,7 @@ public class TestRunController {
     }
 
     @PostMapping("/deployments/{deploymentId}/test-runs")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER', 'TESTER')")
     public ResponseEntity<TestRunResponse> create(@PathVariable String deploymentId,
                                                    @RequestParam String projectId,
                                                    @RequestParam(required = false) String environmentId) {
@@ -43,6 +45,7 @@ public class TestRunController {
     }
 
     @PutMapping("/test-runs/{testRunId}/cases/{caseId}")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER', 'TESTER')")
     public ResponseEntity<TestRunCaseResponse> updateCase(@PathVariable String testRunId,
                                                            @PathVariable String caseId,
                                                            @RequestBody UpdateTestRunCaseRequest request) {

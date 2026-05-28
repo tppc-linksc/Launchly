@@ -49,8 +49,11 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { fetchProjects, fetchReleases, fetchDeployments, createRelease } from '../api/client'
 import { releaseStatusMap } from '../utils/display'
+
+const route = useRoute()
 
 const columns = [
   { title: '版本', dataIndex: 'version' },
@@ -85,7 +88,7 @@ async function loadReleases() {
     ])
     releases.value = relRes.data
     deployments.value = (depRes.data || []).filter((d: any) => d.status === 'SUCCEEDED')
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
   loading.value = false
 }
 
@@ -102,6 +105,11 @@ onMounted(async () => {
   try {
     const res = await fetchProjects()
     projects.value = res.data
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
+  const qp = route.query.projectId as string
+  if (qp) {
+    selectedProjectId.value = qp
+    loadReleases()
+  }
 })
 </script>

@@ -1,6 +1,7 @@
 package com.launchly.project.controllers;
 
 import com.launchly.common.security.AuthContext;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.launchly.project.entities.Component;
 import com.launchly.project.entities.Project;
 import com.launchly.project.repositories.ComponentRepository;
@@ -28,6 +29,7 @@ public class ComponentController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER')")
     public ResponseEntity<Component> create(@PathVariable String projectId, @RequestBody Map<String, Object> body) {
         Project project = projectRepository.findById(projectId).orElse(null);
         if (project == null) return ResponseEntity.notFound().build();
@@ -49,6 +51,7 @@ public class ComponentController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER')")
     public ResponseEntity<Component> update(@PathVariable String projectId, @PathVariable String id, @RequestBody Map<String, Object> body) {
         Component component = componentRepository.findById(id).orElse(null);
         if (component == null || !component.getProjectId().equals(projectId)) return ResponseEntity.notFound().build();
@@ -65,6 +68,7 @@ public class ComponentController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable String projectId, @PathVariable String id) {
         Component component = componentRepository.findById(id).orElse(null);
         if (component == null || !component.getProjectId().equals(projectId)) return ResponseEntity.notFound().build();

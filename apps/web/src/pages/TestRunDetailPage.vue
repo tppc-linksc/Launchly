@@ -116,7 +116,7 @@ onMounted(async () => {
     ])
     testRun.value = runRes.data
     cases.value = casesRes.data
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
   loading.value = false
 })
 </script>

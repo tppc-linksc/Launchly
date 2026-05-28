@@ -28,7 +28,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { fetchProjects, fetchTestRuns } from '../api/client'
+
+const route = useRoute()
 
 const columns = [
   { title: '关联部署', dataIndex: 'deploymentId', ellipsis: true },
@@ -55,7 +58,7 @@ async function loadTestRuns() {
   try {
     const res = await fetchTestRuns(selectedProjectId.value)
     testRuns.value = res.data
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
   loading.value = false
 }
 
@@ -63,6 +66,11 @@ onMounted(async () => {
   try {
     const res = await fetchProjects()
     projects.value = res.data
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
+  const qp = route.query.projectId as string
+  if (qp) {
+    selectedProjectId.value = qp
+    loadTestRuns()
+  }
 })
 </script>

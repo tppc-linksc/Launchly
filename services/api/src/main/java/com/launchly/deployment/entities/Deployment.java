@@ -45,6 +45,9 @@ public class Deployment {
     @Column(name = "deploy_target_id")
     private String deployTargetId;
 
+    @Column(name = "access_url")
+    private String accessUrl;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -74,6 +77,8 @@ public class Deployment {
     public void setRollbackFromDeploymentId(String rollbackFromDeploymentId) { this.rollbackFromDeploymentId = rollbackFromDeploymentId; }
     public String getDeployTargetId() { return deployTargetId; }
     public void setDeployTargetId(String deployTargetId) { this.deployTargetId = deployTargetId; }
+    public String getAccessUrl() { return accessUrl; }
+    public void setAccessUrl(String accessUrl) { this.accessUrl = accessUrl; }
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
 }

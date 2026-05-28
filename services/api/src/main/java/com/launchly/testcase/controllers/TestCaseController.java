@@ -5,6 +5,7 @@ import com.launchly.testcase.dto.TestCaseResponse;
 import com.launchly.testcase.services.TestService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -19,6 +20,7 @@ public class TestCaseController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER', 'TESTER')")
     public ResponseEntity<TestCaseResponse> create(@PathVariable String projectId,
                                                     @Valid @RequestBody TestCaseRequest request) {
         return ResponseEntity.ok(testService.createTestCase(projectId, request));
@@ -35,12 +37,14 @@ public class TestCaseController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER', 'TESTER')")
     public ResponseEntity<TestCaseResponse> update(@PathVariable String projectId, @PathVariable String id,
                                                     @Valid @RequestBody TestCaseRequest request) {
         return ResponseEntity.ok(testService.updateTestCase(id, request));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER', 'TESTER')")
     public ResponseEntity<Void> delete(@PathVariable String projectId, @PathVariable String id) {
         testService.deleteTestCase(id);
         return ResponseEntity.noContent().build();

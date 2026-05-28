@@ -1,6 +1,7 @@
 package com.launchly.project.controllers;
 
 import com.launchly.common.security.AuthContext;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.launchly.project.dto.CreateProjectRequest;
 import com.launchly.project.dto.ProjectResponse;
 import com.launchly.project.dto.RepositoryHintsResponse;
@@ -35,6 +36,7 @@ public class ProjectController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER')")
     public ResponseEntity<ProjectResponse> create(@Valid @RequestBody CreateProjectRequest request) {
         return ResponseEntity.ok(projectService.create(request, AuthContext.workspaceId(), AuthContext.userId()));
     }
@@ -50,6 +52,7 @@ public class ProjectController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER')")
     public ResponseEntity<ProjectResponse> update(@PathVariable String id, @Valid @RequestBody CreateProjectRequest request) {
         return ResponseEntity.ok(projectService.update(id, request, AuthContext.workspaceId(), AuthContext.userId()));
     }

@@ -8,12 +8,18 @@
         <a-descriptions-item label="状态">
           <a-tag :color="statusColor(deployment.status)">{{ deployStatusMap[deployment.status] || deployment.status }}</a-tag>
         </a-descriptions-item>
+        <a-descriptions-item label="环境">{{ deployment.environmentName || deployment.environmentId || '—' }}</a-descriptions-item>
         <a-descriptions-item label="部署目标">{{ deployment.deployTarget?.name || '本地' }} <span v-if="deployment.deployTarget && deployment.deployTarget.host" style="color: #8c8c8c;">({{ deployment.deployTarget.host }})</span></a-descriptions-item>
         <a-descriptions-item label="触发人">{{ deployment.triggeredByName || deployment.triggeredBy || '—' }}</a-descriptions-item>
         <a-descriptions-item label="开始时间">{{ formatTime(deployment.startedAt) }}</a-descriptions-item>
         <a-descriptions-item label="结束时间">{{ formatTime(deployment.finishedAt) }}</a-descriptions-item>
         <a-descriptions-item label="创建时间">{{ formatTime(deployment.createdAt) }}</a-descriptions-item>
       </a-descriptions>
+      <a-alert v-if="deployment.accessUrl && deployment.status === 'SUCCEEDED'" type="success" show-icon style="margin-top: 12px;">
+        <template #message>
+          <span>部署成功！访问地址：<a :href="deployment.accessUrl" target="_blank" style="font-weight: 600;">{{ deployment.accessUrl }}</a></span>
+        </template>
+      </a-alert>
       <a-alert v-if="deployment.errorMessage" type="error" :message="deployment.errorMessage" show-icon style="margin-top: 12px;" />
       <div style="margin-top: 12px;">
         <a-button v-if="canDeploy && deployment.status === 'FAILED'" type="primary" danger style="margin-right: 8px;" :loading="redeploying" @click="handleRedeploy">
@@ -25,6 +31,12 @@
         <a-button v-if="canDeploy && deployment.status === 'SUCCEEDED' && deployment.commitSha" style="margin-right: 8px;" :loading="rollingBack" @click="handleRollback">
           回滚到此版本
         </a-button>
+      </div>
+      <div v-if="deployment.status === 'SUCCEEDED'" style="margin-top: 12px; display: flex; gap: 12px;">
+        <a-button size="small" @click="$router.push(`/tests/runs?projectId=${deployment.projectId}`)">查看测试记录</a-button>
+        <a-button size="small" @click="$router.push(`/issues?projectId=${deployment.projectId}`)">查看 Issue</a-button>
+        <a-button size="small" @click="$router.push(`/releases?projectId=${deployment.projectId}`)">查看发布</a-button>
+        <a-button size="small" @click="$router.push(`/projects/${deployment.projectId}`)">返回项目</a-button>
       </div>
     </a-card>
 

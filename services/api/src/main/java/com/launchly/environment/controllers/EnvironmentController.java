@@ -8,6 +8,7 @@ import com.launchly.environment.repositories.EnvironmentRepository;
 import com.launchly.project.entities.Project;
 import com.launchly.project.repositories.ProjectRepository;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -30,6 +31,7 @@ public class EnvironmentController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER')")
     public ResponseEntity<Environment> update(@PathVariable String id,
                                                @RequestBody UpdateEnvironmentRequest request) {
         Environment env = environmentRepository.findById(id)

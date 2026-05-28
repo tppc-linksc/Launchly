@@ -112,6 +112,6 @@ onMounted(async () => {
     ])
     release.value = relRes.data
     gateResults.value = gatesRes.data.results || []
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
 })
 </script>

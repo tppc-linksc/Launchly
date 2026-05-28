@@ -2,10 +2,12 @@ package com.launchly.worker;
 
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.launchly.worker.entities.DeployTarget;
 import com.launchly.worker.entities.Deployment;
 import com.launchly.worker.entities.DeploymentStageLog;
 import com.launchly.worker.entities.Environment;
 import com.launchly.worker.entities.Task;
+import com.launchly.worker.repositories.DeployTargetRepository;
 import com.launchly.worker.repositories.DeploymentRepository;
 import com.launchly.worker.repositories.DeploymentStageLogRepository;
 import com.launchly.worker.repositories.EnvironmentRepository;
@@ -13,11 +15,13 @@ import com.launchly.worker.repositories.TaskRepository;
 import com.launchly.worker.runner.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -31,16 +35,21 @@ public class WorkerLoop {
     private final DeploymentRepository deploymentRepository;
     private final DeploymentStageLogRepository stageLogRepository;
     private final EnvironmentRepository environmentRepository;
+    private final DeployTargetRepository deployTargetRepository;
     private final GitRunner gitRunner;
     private final ShellRunner shellRunner;
     private final DockerRunner dockerRunner;
     private final RunnerFactory runnerFactory;
     private final ObjectMapper objectMapper;
 
+    @Value("${launchly.worker.task-timeout-minutes:30}")
+    private long taskTimeoutMinutes;
+
     public WorkerLoop(TaskRepository taskRepository,
                       DeploymentRepository deploymentRepository,
                       DeploymentStageLogRepository stageLogRepository,
                       EnvironmentRepository environmentRepository,
+                      DeployTargetRepository deployTargetRepository,
                       GitRunner gitRunner,
                       ShellRunner shellRunner,
                       DockerRunner dockerRunner,
@@ -50,6 +59,7 @@ public class WorkerLoop {
         this.deploymentRepository = deploymentRepository;
         this.stageLogRepository = stageLogRepository;
         this.environmentRepository = environmentRepository;
+        this.deployTargetRepository = deployTargetRepository;
         this.gitRunner = gitRunner;
         this.shellRunner = shellRunner;
         this.dockerRunner = dockerRunner;
@@ -69,10 +79,36 @@ public class WorkerLoop {
             executeTask(task);
         } catch (Exception e) {
             log.error("Task {} execution failed: {}", task.getId(), e.getMessage(), e);
+            handleTaskFailure(task, e.getMessage());
+        }
+    }
+
+    /**
+     * 定期检测卡死的 RUNNING 任务，超过 timeout 则标记失败或重试。
+     * 每 60 秒执行一次。
+     */
+    @Scheduled(fixedDelay = 60000)
+    @Transactional
+    public void timeoutStuckTasks() {
+        Instant cutoff = Instant.now().minus(taskTimeoutMinutes, ChronoUnit.MINUTES);
+        List<Task> stuckTasks = taskRepository.findStuckRunningTasks(cutoff);
+
+        for (Task task : stuckTasks) {
+            log.warn("Task {} has been RUNNING for more than {} minutes, marking as timed out",
+                    task.getId(), taskTimeoutMinutes);
+
             task.setStatus("FAILED");
-            task.setErrorMessage(e.getMessage());
+            task.setErrorMessage("任务超时：已运行超过 " + taskTimeoutMinutes + " 分钟");
             task.setFinishedAt(Instant.now());
             taskRepository.save(task);
+
+            // Try retry if attempts remain
+            if (task.getAttempts() < task.getMaxAttempts()) {
+                log.info("Retrying task {} (attempt {}/{})", task.getId(), task.getAttempts() + 1, task.getMaxAttempts());
+                retryTask(task);
+            } else {
+                failDeployment(task.getRefId(), "任务超时失败，已无重试次数");
+            }
         }
     }
 
@@ -134,15 +170,54 @@ public class WorkerLoop {
         // Update task status
         if (result.isSuccess()) {
             task.setStatus("SUCCEEDED");
+            task.setFinishedAt(Instant.now());
+            taskRepository.save(task);
             enqueueNextStage(task);
             checkAndUpdateDeployment(deploymentId);
         } else {
-            task.setStatus("FAILED");
-            task.setErrorMessage(result.getErrorMessage());
-            failDeployment(deploymentId, result.getErrorMessage());
+            handleTaskFailure(task, result.getErrorMessage());
         }
-        task.setFinishedAt(Instant.now());
-        taskRepository.save(task);
+    }
+
+    /**
+     * 统一的失败处理：检查重试次数，决定是重试还是彻底失败。
+     */
+    private void handleTaskFailure(Task task, String errorMessage) {
+        if (task.getAttempts() < task.getMaxAttempts()) {
+            log.info("Task {} failed, retrying (attempt {}/{}): {}",
+                    task.getId(), task.getAttempts(), task.getMaxAttempts(), errorMessage);
+
+            // Write retry info to stage log
+            String stage = mapTaskTypeToStage(task.getTaskType());
+            if (stage != null) {
+                writeStageLog(task.getRefId(), stage, "RUNNING",
+                        "Retry attempt " + task.getAttempts() + "/" + task.getMaxAttempts() + ": " + errorMessage);
+            }
+
+            retryTask(task);
+        } else {
+            log.error("Task {} failed permanently after {} attempts: {}",
+                    task.getId(), task.getAttempts(), errorMessage);
+
+            task.setStatus("FAILED");
+            task.setErrorMessage(errorMessage);
+            task.setFinishedAt(Instant.now());
+            taskRepository.save(task);
+
+            failDeployment(task.getRefId(), errorMessage);
+        }
+    }
+
+    /**
+     * 重新入队一个可重试的任务：重置状态为 PENDING，保留原始 payload。
+     */
+    private void retryTask(Task failedTask) {
+        failedTask.setStatus("PENDING");
+        failedTask.setErrorMessage(null);
+        failedTask.setStartedAt(null);
+        failedTask.setFinishedAt(null);
+        // Keep attempts as-is so next claimNextTask increments it
+        taskRepository.save(failedTask);
     }
 
     private RunnerResult dispatchRunner(String taskType, RunnerContext context) {
@@ -241,6 +316,15 @@ public class WorkerLoop {
             deploymentRepository.findById(deploymentId).ifPresent(deployment -> {
                 deployment.setStatus("SUCCEEDED");
                 deployment.setFinishedAt(Instant.now());
+
+                // Compute and store access URL
+                if (deployment.getAccessUrl() == null || deployment.getAccessUrl().isBlank()) {
+                    String accessUrl = computeAccessUrl(deployment);
+                    if (accessUrl != null) {
+                        deployment.setAccessUrl(accessUrl);
+                    }
+                }
+
                 deploymentRepository.save(deployment);
 
                 // Update environment status
@@ -248,7 +332,9 @@ public class WorkerLoop {
                     env.setStatus("active");
                     env.setCurrentDeploymentId(deploymentId);
                     if (env.getUrl() == null || env.getUrl().isBlank()) {
-                        if ("local".equals(env.getDeployMode())) {
+                        if (deployment.getAccessUrl() != null) {
+                            env.setUrl(deployment.getAccessUrl());
+                        } else if ("local".equals(env.getDeployMode())) {
                             env.setUrl("http://localhost:" + effectivePort(env));
                         }
                     }
@@ -259,9 +345,29 @@ public class WorkerLoop {
     }
 
     /**
-     * Determine the effective external port for an environment.
-     * Priority: environment.externalPort → per-type default → 3000.
+     * Compose the access URL from deploy target host and effective port.
      */
+    private String computeAccessUrl(Deployment deployment) {
+        int port = 3000;
+        Environment env = environmentRepository.findById(deployment.getEnvironmentId()).orElse(null);
+        if (env != null) {
+            port = effectivePort(env);
+        }
+
+        String host = null;
+        if (deployment.getDeployTargetId() != null && !deployment.getDeployTargetId().isBlank()) {
+            DeployTarget target = deployTargetRepository.findById(deployment.getDeployTargetId()).orElse(null);
+            if (target != null) {
+                host = target.getHost();
+            }
+        }
+
+        if (host != null && !host.isBlank()) {
+            return "http://" + host + ":" + port;
+        }
+        return "http://localhost:" + port;
+    }
+
     static int effectivePort(Environment env) {
         if (env.getExternalPort() != null && env.getExternalPort() > 0) {
             return env.getExternalPort();

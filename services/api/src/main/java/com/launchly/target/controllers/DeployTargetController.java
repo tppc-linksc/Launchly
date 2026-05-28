@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
@@ -33,6 +34,7 @@ public class DeployTargetController {
     }
 
     @PostMapping("/api/projects/{projectId}/deploy-targets")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER')")
     public ResponseEntity<DeployTargetDto> create(@PathVariable String projectId,
                                                    @Valid @RequestBody DeployTargetCreateRequest request) {
         return ResponseEntity.status(HttpStatus.CREATED).body(service.create(projectId, request));
@@ -44,18 +46,21 @@ public class DeployTargetController {
     }
 
     @PatchMapping("/api/deploy-targets/{id}")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER')")
     public ResponseEntity<DeployTargetDto> update(@PathVariable String id,
                                                    @Valid @RequestBody DeployTargetUpdateRequest request) {
         return ResponseEntity.ok(service.update(id, request));
     }
 
     @DeleteMapping("/api/deploy-targets/{id}")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN')")
     public ResponseEntity<Void> delete(@PathVariable String id) {
         service.delete(id);
         return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/api/deploy-targets/{id}/verify")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER')")
     public ResponseEntity<VerifyTargetResponse> verify(@PathVariable String id) {
         return ResponseEntity.ok(service.verify(id));
     }

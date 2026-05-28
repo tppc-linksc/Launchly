@@ -113,7 +113,7 @@ onMounted(async () => {
     toFetch.forEach((d, i) => {
       stageLogs.value[d.id] = logResults[i].data || []
     })
-  } catch {}
+  } catch (e) { message.error('操作失败，请稍后重试') }
   loading.value = false
 })
 </script>

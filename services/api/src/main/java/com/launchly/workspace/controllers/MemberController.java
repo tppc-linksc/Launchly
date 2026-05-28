@@ -7,6 +7,7 @@ import com.launchly.workspace.entities.WorkspaceMember;
 import com.launchly.workspace.enums.Role;
 import com.launchly.workspace.repositories.WorkspaceMemberRepository;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -44,6 +45,7 @@ public class MemberController {
     }
 
     @PutMapping("/{id}/role")
+    @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<Void> updateRole(@PathVariable String id, @RequestBody Map<String, String> body) {
         String workspaceId = AuthContext.workspaceId();
         WorkspaceMember member = memberRepository.findById(id).orElse(null);
@@ -66,6 +68,7 @@ public class MemberController {
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('OWNER')")
     public ResponseEntity<Void> remove(@PathVariable String id) {
         String workspaceId = AuthContext.workspaceId();
         WorkspaceMember member = memberRepository.findById(id).orElse(null);

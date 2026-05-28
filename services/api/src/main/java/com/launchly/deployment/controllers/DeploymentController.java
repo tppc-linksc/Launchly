@@ -2,6 +2,8 @@ package com.launchly.deployment.controllers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.launchly.common.security.AuthContext;
+import com.launchly.deployment.enums.DeploymentStatus;
+import org.springframework.security.access.prepost.PreAuthorize;
 import com.launchly.deployment.dto.CreateDeploymentRequest;
 import com.launchly.deployment.dto.DeploymentResponse;
 import com.launchly.deployment.entities.Deployment;
@@ -20,7 +22,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 @RestController
 @RequestMapping("/api/deployments")
@@ -32,7 +36,10 @@ public class DeploymentController {
     private final DeploymentStageLogRepository stageLogRepository;
     private final DeploymentRepository deploymentRepository;
     private final ObjectMapper objectMapper;
-    private final ExecutorService sseExecutor = Executors.newCachedThreadPool();
+    private final ExecutorService sseExecutor = new ThreadPoolExecutor(
+            2, 10, 60L, TimeUnit.SECONDS,
+            new LinkedBlockingQueue<>(100),
+            new ThreadPoolExecutor.CallerRunsPolicy());
 
     public DeploymentController(DeploymentService deploymentService,
                                 DeploymentStageLogRepository stageLogRepository,
@@ -45,6 +52,7 @@ public class DeploymentController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER')")
     public ResponseEntity<DeploymentResponse> create(@Valid @RequestBody CreateDeploymentRequest request) {
         return ResponseEntity.ok(deploymentService.create(request, AuthContext.userId()));
     }
@@ -137,6 +145,7 @@ public class DeploymentController {
     }
 
     @PostMapping("/{id}/rollback")
+    @PreAuthorize("hasAnyRole('OWNER', 'ADMIN', 'DEVELOPER')")
     public ResponseEntity<DeploymentResponse> rollback(@PathVariable String id) {
         return ResponseEntity.ok(deploymentService.rollback(id, AuthContext.userId()));
     }

@@ -69,6 +69,7 @@ const navItems = [
   { key: 'overview', label: '概览', path: '/' },
   { key: 'deployments', label: '部署与运行', path: '/deployments' },
   { key: 'projects', label: '项目', path: '/projects' },
+  { key: 'environments', label: '环境管理', path: '/environments' },
   { key: 'releases', label: '发布', path: '/releases' },
   { key: 'quality', label: '测试与 Issue', path: '/tests' },
   { key: 'targets', label: '部署目标', path: '/projects' },
@@ -78,6 +79,7 @@ const activeKey = computed(() => {
   const path = route.path
   if (path === '/' || path === '') return 'overview'
   if (path.startsWith('/deployments')) return 'deployments'
+  if (path.startsWith('/environments')) return 'environments'
   if (path.startsWith('/projects')) return 'projects'
   if (path.startsWith('/releases')) return 'releases'
   if (path.startsWith('/tests') || path.startsWith('/issues')) return 'quality'
