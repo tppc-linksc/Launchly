@@ -98,7 +98,7 @@ Launchly is currently in **Beta**. The core deployment pipeline, CLI installer, 
 - **One-command deployment**: `launchly install` should initialize PostgreSQL, App, Worker, default storage, and the first Owner setup.
 - **Small-team friendly**: focus on project onboarding, deployment, testing, fixing, retesting, and release flow instead of a heavy enterprise platform.
 - **Sensible defaults**: fewer forms, more inference; commands and container details are hidden by default, with advanced capabilities disclosed progressively (see [Product Design Spec](docs/basic/产品设计规范.md) Section 4 and the archived zero-config full text).
-- **Deployment-tool shell**: default home screen highlights running deployments and next steps; target layout in [system design mock](docs/prototypes/系统设计mock.html); information architecture in [UI & Interaction Spec](docs/basic/UI与交互规范.md) Section 2, [Product Design Spec](docs/basic/产品设计规范.md) Section 6; implementation tasks in archived [AI task pack Section 15](docs/archive/v1-2026-05/root/AI开发任务包.md) (T-IA).
+- **Deployment-tool shell**: default home screen highlights running deployments and next steps; target layout in [Launchly-prototype.html](docs/prototypes/Launchly-prototype.html); information architecture in [UI & Interaction Spec](docs/basic/UI与交互规范.md) Section 2, [Product Design Spec](docs/basic/产品设计规范.md) Section 6; implementation tasks in archived [AI task pack Section 15](docs/archive/v1-2026-05/root/AI开发任务包.md) (T-IA).
 - **Traceable workflow**: every deployment, test, issue, release, and rollback should leave a record.
 - **Human-AI collaborative development**: development tasks should be understandable, divisible, executable, and verifiable by both humans and AI.
 
@@ -376,7 +376,7 @@ Only the three **Chinese baseline specs** below are tracked in the public reposi
 
 **Work logs (local)**: Append **only** to that week's `week-N-log.md` using [DeepSeek日志结构.md](docs/work/DeepSeek日志结构.md); do not fork extra log locations.
 
-**Static prototypes (local)**: [流程示意图](docs/prototypes/流程示意图.html), [系统设计mock](docs/prototypes/系统设计mock.html), [环境页面mock](docs/prototypes/环境页面mock.html).
+**Static prototypes (local)**: [Launchly-prototype.html](docs/prototypes/Launchly-prototype.html).
 
 ## Contributing
 

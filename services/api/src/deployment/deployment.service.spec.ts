@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DeploymentService } from './deployment.service';
 import { createPrismaMock, MockPrismaService } from '../../test/helpers/prisma-mock';
 
@@ -47,23 +47,23 @@ describe('DeploymentService.create', () => {
     prisma.user.findUnique.mockResolvedValue({ id: userId, displayName: 'Test User' });
   });
 
-  it('should throw ForbiddenException if environment not found', async () => {
+  it('should throw NotFoundException if environment not found', async () => {
     prisma.environment.findUnique.mockResolvedValue(null);
-    await expect(service.create(baseDto, userId, workspaceId)).rejects.toThrow(ForbiddenException);
+    await expect(service.create(baseDto, userId, workspaceId)).rejects.toThrow(NotFoundException);
   });
 
-  it('should throw ForbiddenException if environment is disabled', async () => {
+  it('should throw BadRequestException if environment is disabled', async () => {
     prisma.environment.findUnique.mockResolvedValue({
       id: 'env-1', projectId: 'proj-1', enabled: false,
     });
-    await expect(service.create(baseDto, userId, workspaceId)).rejects.toThrow(ForbiddenException);
+    await expect(service.create(baseDto, userId, workspaceId)).rejects.toThrow(BadRequestException);
   });
 
-  it('should throw ForbiddenException if environment does not belong to project', async () => {
+  it('should throw BadRequestException if environment does not belong to project', async () => {
     prisma.environment.findUnique.mockResolvedValue({
       id: 'env-1', projectId: 'other-proj', enabled: true,
     });
-    await expect(service.create(baseDto, userId, workspaceId)).rejects.toThrow(ForbiddenException);
+    await expect(service.create(baseDto, userId, workspaceId)).rejects.toThrow(BadRequestException);
   });
 
   it('should throw ForbiddenException if project not found or workspace mismatch', async () => {
@@ -71,9 +71,9 @@ describe('DeploymentService.create', () => {
     await expect(service.create(baseDto, userId, workspaceId)).rejects.toThrow(ForbiddenException);
   });
 
-  it('should throw ForbiddenException if deploy target not found or does not belong to project', async () => {
+  it('should throw NotFoundException if deploy target not found or does not belong to project', async () => {
     prisma.deployTarget.findUnique.mockResolvedValue(null);
-    await expect(service.create(baseDto, userId, workspaceId)).rejects.toThrow(ForbiddenException);
+    await expect(service.create(baseDto, userId, workspaceId)).rejects.toThrow(NotFoundException);
   });
 
   it('should create deployment, stage logs, and first task on success', async () => {

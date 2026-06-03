@@ -21,6 +21,7 @@ export class RemoteSshRunner {
   async execute(ctx: RunnerContext): Promise<RunnerResult> {
     const workDir = path.join(BUILD_ROOT, ctx.refId);
     const { deployTargetId, environmentId, port = 3000 } = ctx.payload;
+    let keyPath: string | null = null;
 
     try {
       // Get deploy target
@@ -53,6 +54,9 @@ export class RemoteSshRunner {
       await ctx.stageLogCallback?.('RUNNING', `Transferring image to ${target.host}...`);
       const credential = this.secrets.decrypt(target.encryptedCredential);
       const sshArgs = this.buildSshArgs(target, credential);
+      if (target.authMethod === 'KEY') {
+        keyPath = `/tmp/launchly-key-${target.id}`;
+      }
       await this.executor.exec(`scp ${sshArgs} ${tarPath} ${target.username}@${target.host}:/tmp/launchly-image.tar`, { timeout: 600 });
 
       // Step 4: Load image on remote
@@ -77,13 +81,19 @@ export class RemoteSshRunner {
       }
 
       // Cleanup
-      fs.unlinkSync(tarPath);
-      fs.unlinkSync(composePath);
+      this.safeUnlink(tarPath);
+      this.safeUnlink(composePath);
 
       return { success: true, stdout: deployResult.stdout, stderr: deployResult.stderr, exitCode: 0, errorMessage: '' };
     } catch (e: any) {
       return { success: false, stdout: '', stderr: e.message, exitCode: -1, errorMessage: e.message };
+    } finally {
+      if (keyPath) this.safeUnlink(keyPath);
     }
+  }
+
+  private safeUnlink(p: string): void {
+    try { fs.unlinkSync(p); } catch { /* ignore */ }
   }
 
   private buildSshArgs(target: any, credential: string): string {

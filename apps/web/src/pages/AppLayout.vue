@@ -70,7 +70,7 @@ const navItems = [
   { key: 'environments', label: '环境管理', path: '/environments' },
   { key: 'releases', label: '发布', path: '/releases' },
   { key: 'quality', label: '测试与 Issue', path: '/tests' },
-  { key: 'targets', label: '部署目标', path: '/projects' },
+  { key: 'targets', label: '部署目标', path: '/deploy-targets' },
 ]
 
 const activeKey = computed(() => {

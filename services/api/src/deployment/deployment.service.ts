@@ -1,4 +1,4 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateDeploymentDto } from './dto/create-deployment.dto';
 
@@ -9,9 +9,9 @@ export class DeploymentService {
   async create(dto: CreateDeploymentDto, userId: string, workspaceId: string) {
     // Validate environment
     const env = await this.prisma.environment.findUnique({ where: { id: dto.environmentId } });
-    if (!env) throw new ForbiddenException('环境不存在: ' + dto.environmentId);
-    if (env.enabled === false) throw new ForbiddenException('该环境已禁用，无法部署');
-    if (env.projectId !== dto.projectId) throw new ForbiddenException('环境不属于指定项目');
+    if (!env) throw new NotFoundException('环境不存在: ' + dto.environmentId);
+    if (env.enabled === false) throw new BadRequestException('该环境已禁用，无法部署');
+    if (env.projectId !== dto.projectId) throw new BadRequestException('环境不属于指定项目');
 
     // Validate project
     const project = await this.prisma.project.findUnique({ where: { id: dto.projectId } });
@@ -22,7 +22,7 @@ export class DeploymentService {
     // Validate deploy target
     const target = await this.prisma.deployTarget.findUnique({ where: { id: dto.deployTargetId } });
     if (!target || target.projectId !== dto.projectId) {
-      throw new ForbiddenException('部署目标不存在或不属于指定项目');
+      throw new NotFoundException('部署目标不存在或不属于指定项目');
     }
 
     // Create deployment + stage logs + first task in transaction
@@ -78,8 +78,8 @@ export class DeploymentService {
 
   async rollback(deploymentId: string, userId: string, workspaceId: string) {
     const source = await this.prisma.deployment.findUnique({ where: { id: deploymentId } });
-    if (!source) throw new ForbiddenException('Deployment not found: ' + deploymentId);
-    if (!source.commitSha) throw new ForbiddenException('Cannot rollback deployment without commitSha');
+    if (!source) throw new NotFoundException('Deployment not found: ' + deploymentId);
+    if (!source.commitSha) throw new BadRequestException('Cannot rollback deployment without commitSha');
 
     const project = await this.prisma.project.findUnique({ where: { id: source.projectId } });
     if (!project || project.workspaceId !== workspaceId) {
@@ -170,7 +170,7 @@ export class DeploymentService {
       where: { id },
       include: { deployTarget: true },
     });
-    if (!d) throw new ForbiddenException('Deployment not found: ' + id);
+    if (!d) throw new NotFoundException('Deployment not found: ' + id);
 
     let result: any = {
       id: d.id,

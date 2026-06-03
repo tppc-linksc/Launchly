@@ -98,7 +98,7 @@ Launchly 当前处于 **Beta 阶段**。核心部署链路、CLI 安装器、Web
 - **一键部署**：通过 `launchly install` 初始化内置 PostgreSQL、App、Worker、默认存储和最高权限管理员。
 - **小团队友好**：不做复杂企业平台，优先解决项目接入、部署、测试、修复、复测和上线闭环。
 - **省心默认路径**：少填表、多推断；命令与容器细节默认对用户不可见，高级能力渐进披露（详见 [产品设计规范](docs/basic/产品设计规范.md) 第 4 节与归档 zero-config 全文）。
-- **部署工具型壳层**：默认首屏突出运行中部署与下一步；目标布局见 [系统设计mock.html](docs/prototypes/系统设计mock.html)；信息架构见 [UI与交互规范](docs/basic/UI与交互规范.md) 第 2 节、[产品设计规范](docs/basic/产品设计规范.md) 第 6 节；实现任务见归档 [AI开发任务包 §15](docs/archive/v1-2026-05/root/AI开发任务包.md)（T-IA）。
+- **部署工具型壳层**：默认首屏突出运行中部署与下一步；目标布局见 [Launchly-prototype.html](docs/prototypes/Launchly-prototype.html)；信息架构见 [UI与交互规范](docs/basic/UI与交互规范.md) 第 2 节、[产品设计规范](docs/basic/产品设计规范.md) 第 6 节；实现任务见归档 [AI开发任务包 §15](docs/archive/v1-2026-05/root/AI开发任务包.md)（T-IA）。
 - **流程可追踪**：每次部署、测试、Issue、Release、回滚都应留下记录。
 - **人和 AI 协同开发**：开发任务要能被人和 AI 同时理解、拆分、执行和验收。
 
@@ -376,7 +376,7 @@ pnpm test:cli      # 仅运行 CLI 测试（Vitest）
 
 **工作日志（本地）**：仅当周目录下的 `week-N-log.md`。AI 按 [`DeepSeek日志结构.md`](docs/work/DeepSeek日志结构.md) **追加写入**，不要在其它平行路径克隆一份。
 
-**静态原型（本地）**：[流程示意图](docs/prototypes/流程示意图.html)、[系统设计mock](docs/prototypes/系统设计mock.html)、[环境页面mock](docs/prototypes/环境页面mock.html)。
+**静态原型（本地）**：[Launchly-prototype.html](docs/prototypes/Launchly-prototype.html)。
 
 ## 参与贡献
 
