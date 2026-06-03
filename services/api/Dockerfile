@@ -2,11 +2,11 @@ FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
-COPY package*.json ./
-COPY prisma ./prisma/
+COPY services/api/package*.json ./
+COPY services/api/prisma ./prisma/
 RUN npm ci
 
-COPY . .
+COPY services/api/ .
 RUN npx prisma generate
 RUN npm run build
 

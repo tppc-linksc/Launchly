@@ -1,17 +1,20 @@
 <template>
   <div>
-    <el-breadcrumb separator="/" style="margin-bottom: 12px;">
-      <el-breadcrumb-item><router-link to="/projects">项目</router-link></el-breadcrumb-item>
-      <el-breadcrumb-item><router-link :to="`/projects/${projectId}`">项目详情</router-link></el-breadcrumb-item>
-      <el-breadcrumb-item>部署目标</el-breadcrumb-item>
-    </el-breadcrumb>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-      <h2 style="margin: 0;">部署目标管理</h2>
-      <el-button v-if="canWrite" type="primary" @click="openCreate">添加部署目标</el-button>
+      <h2 style="margin: 0;">部署目标</h2>
+      <el-space>
+        <el-input v-model="searchText" placeholder="搜索项目或目标名称" style="width: 240px;" clearable />
+        <el-button v-if="canWrite" type="primary" @click="openCreate">添加部署目标</el-button>
+      </el-space>
     </div>
 
     <el-card>
-      <el-table :data="targets" v-loading="loading" row-key="id" size="default">
+      <el-table :data="filteredTargets" v-loading="loading" row-key="id" size="default">
+        <el-table-column prop="projectName" label="所属项目" width="150">
+          <template #default="{ row }">
+            <router-link :to="`/projects/${row.projectId}`">{{ row.projectName }}</router-link>
+          </template>
+        </el-table-column>
         <el-table-column prop="name" label="名称" />
         <el-table-column prop="type" label="类型">
           <template #default="{ row }">
@@ -55,12 +58,17 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && targets.length === 0" description="暂无部署目标，请添加" />
+      <el-empty v-if="!loading && filteredTargets.length === 0" description="暂无部署目标" />
     </el-card>
 
     <!-- Create / Edit Modal -->
     <el-dialog v-model="modalOpen" :title="editingId ? '编辑部署目标' : '添加部署目标'">
       <el-form label-position="top" :model="form">
+        <el-form-item v-if="!editingId" label="所属项目" required>
+          <el-select v-model="form.projectId" placeholder="选择项目">
+            <el-option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</el-option>
+          </el-select>
+        </el-form-item>
         <el-form-item label="名称" required>
           <el-input v-model="form.name" placeholder="生产服务器、测试节点等" />
         </el-form-item>
@@ -118,10 +126,10 @@
 
 <script setup lang="ts">
 import { ref, onMounted, reactive, computed } from 'vue'
-import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  fetchDeployTargets,
+  fetchAllDeployTargets,
+  fetchProjects,
   createDeployTarget,
   updateDeployTarget,
   deleteDeployTarget,
@@ -131,17 +139,17 @@ import { usePermission } from '../composables/usePermission'
 
 const { canWrite } = usePermission()
 
-const route = useRoute()
-const projectId = computed(() => String(route.params.id ?? ''))
-
 const targets = ref<any[]>([])
+const projects = ref<any[]>([])
 const loading = ref(false)
+const searchText = ref('')
 const modalOpen = ref(false)
 const saving = ref(false)
 const editingId = ref<string | null>(null)
 const errorMsg = ref('')
 
 const form = reactive({
+  projectId: undefined as string | undefined,
   name: '',
   type: 'BYOS_SSH',
   host: '',
@@ -170,13 +178,24 @@ function formatDateTime(value?: string | null): string {
   return date.toLocaleString('zh-CN', { hour12: false })
 }
 
-onMounted(() => { loadTargets() })
+const filteredTargets = computed(() => {
+  if (!searchText.value) return targets.value
+  const q = searchText.value.toLowerCase()
+  return targets.value.filter(t =>
+    (t.projectName || '').toLowerCase().includes(q) ||
+    t.name.toLowerCase().includes(q) ||
+    t.host.toLowerCase().includes(q)
+  )
+})
+
+onMounted(async () => {
+  await Promise.all([loadTargets(), loadProjects()])
+})
 
 async function loadTargets() {
-  if (!projectId.value) return
   loading.value = true
   try {
-    const res = await fetchDeployTargets(projectId.value)
+    const res = await fetchAllDeployTargets()
     targets.value = res.data || []
   } catch {
     ElMessage.error('加载部署目标失败')
@@ -184,12 +203,18 @@ async function loadTargets() {
   loading.value = false
 }
 
-function openCreate() {
-  if (!projectId.value) {
-    ElMessage.error('缺少项目 ID，请从项目详情进入「部署目标」页面')
-    return
+async function loadProjects() {
+  try {
+    const res = await fetchProjects()
+    projects.value = res.data || []
+  } catch {
+    // silent
   }
+}
+
+function openCreate() {
   editingId.value = null
+  form.projectId = projects.value.length === 1 ? projects.value[0].id : undefined
   form.name = ''
   form.type = 'BYOS_SSH'
   form.host = ''
@@ -203,6 +228,7 @@ function openCreate() {
 
 function openEdit(record: any) {
   editingId.value = record.id
+  form.projectId = record.projectId
   form.name = record.name
   form.type = record.type
   form.host = record.host
@@ -216,8 +242,8 @@ function openEdit(record: any) {
 
 async function doSave() {
   errorMsg.value = ''
-  if (!projectId.value) {
-    errorMsg.value = '缺少项目上下文，请从项目详情进入本页面'
+  if (!editingId.value && !form.projectId) {
+    errorMsg.value = '请选择所属项目'
     return
   }
   if (!form.name || !form.host || !form.username) {
@@ -247,7 +273,7 @@ async function doSave() {
       await updateDeployTarget(editingId.value, data)
       ElMessage.success('部署目标已更新')
     } else {
-      await createDeployTarget(projectId.value, data)
+      await createDeployTarget(form.projectId!, data)
       ElMessage.success('部署目标已创建')
     }
     modalOpen.value = false

@@ -6,50 +6,48 @@
         <p style="color: #8c8c8c;">查看所有测试任务及其执行状态。</p>
       </div>
       <div style="display: flex; gap: 12px;">
-        <a-select v-model:value="selectedProjectId" placeholder="选择项目" style="width: 200px;" @change="loadTestRuns">
-          <a-select-option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</a-select-option>
-        </a-select>
+        <el-select v-model="selectedProjectId" placeholder="选择项目" style="width: 200px;" @change="loadTestRuns">
+          <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
+        </el-select>
       </div>
     </div>
 
-    <a-table :columns="columns" :data-source="testRuns" row-key="id" :loading="loading" @row-click="(r: any) => $router.push(`/tests/runs/${r.id}`)" style="cursor: pointer;">
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'status'">
-          <a-tag :color="statusColor(record.status)">{{ record.status }}</a-tag>
+    <el-table :data="testRuns" row-key="id" v-loading="loading" @row-click="(r: any) => $router.push(`/tests/runs/${r.id}`)" style="cursor: pointer;">
+      <el-table-column prop="deploymentId" label="关联部署" show-overflow-tooltip />
+      <el-table-column label="状态">
+        <template #default="{ row }">
+          <el-tag :type="statusType(row.status)">{{ row.status }}</el-tag>
         </template>
-        <template v-if="column.key === 'action'">
-          <a-button type="link" @click.stop="$router.push(`/tests/runs/${record.id}`)">执行</a-button>
+      </el-table-column>
+      <el-table-column prop="createdBy" label="创建人" />
+      <el-table-column prop="createdAt" label="创建时间" />
+      <el-table-column prop="finishedAt" label="完成时间" />
+      <el-table-column label="操作">
+        <template #default="{ row }">
+          <el-button link @click.stop="$router.push(`/tests/runs/${row.id}`)">执行</el-button>
         </template>
-      </template>
-    </a-table>
-    <a-empty v-if="!loading && testRuns.length === 0 && selectedProjectId" description="暂无测试任务" />
+      </el-table-column>
+    </el-table>
+    <el-empty v-if="!loading && testRuns.length === 0 && selectedProjectId" description="暂无测试任务" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { fetchProjects, fetchTestRuns } from '../api/client'
 
 const route = useRoute()
-
-const columns = [
-  { title: '关联部署', dataIndex: 'deploymentId', ellipsis: true },
-  { title: '状态', dataIndex: 'status', key: 'status' },
-  { title: '创建人', dataIndex: 'createdBy' },
-  { title: '创建时间', dataIndex: 'createdAt' },
-  { title: '完成时间', dataIndex: 'finishedAt' },
-  { title: '操作', key: 'action' },
-]
 
 const projects = ref<any[]>([])
 const selectedProjectId = ref('')
 const testRuns = ref<any[]>([])
 const loading = ref(false)
 
-function statusColor(s: string) {
-  const map: Record<string, string> = { PENDING: 'default', RUNNING: 'processing', COMPLETED: 'success' }
-  return map[s] || 'default'
+function statusType(s: string) {
+  const map: Record<string, string> = { PENDING: 'info', RUNNING: 'warning', COMPLETED: 'success' }
+  return map[s] || 'info'
 }
 
 async function loadTestRuns() {
@@ -58,7 +56,7 @@ async function loadTestRuns() {
   try {
     const res = await fetchTestRuns(selectedProjectId.value)
     testRuns.value = res.data
-  } catch (e) { message.error('操作失败，请稍后重试') }
+  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
   loading.value = false
 }
 
@@ -66,7 +64,7 @@ onMounted(async () => {
   try {
     const res = await fetchProjects()
     projects.value = res.data
-  } catch (e) { message.error('操作失败，请稍后重试') }
+  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
   const qp = route.query.projectId as string
   if (qp) {
     selectedProjectId.value = qp

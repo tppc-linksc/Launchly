@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { message } from 'ant-design-vue'
+import { ElMessage } from 'element-plus'
 
 const api = axios.create({
   baseURL: '/api',
@@ -100,13 +100,13 @@ api.interceptors.response.use(
     const status = error.response?.status
     const serverMsg = error.response?.data?.message
     if (status === 403) {
-      message.error(serverMsg || '无权限执行此操作')
+      ElMessage.error(serverMsg || '无权限执行此操作')
     } else if (status === 404) {
-      message.error(serverMsg || '请求的资源不存在')
+      ElMessage.error(serverMsg || '请求的资源不存在')
     } else if (status === 409) {
-      message.error(serverMsg || '操作冲突，请刷新后重试')
+      ElMessage.error(serverMsg || '操作冲突，请刷新后重试')
     } else if (status === 500) {
-      message.error(serverMsg || '服务器内部错误，请稍后重试')
+      ElMessage.error(serverMsg || '服务器内部错误，请稍后重试')
     }
 
     return Promise.reject(error)
@@ -302,6 +302,10 @@ export function rollbackDeployment(deploymentId: string, data: { reason: string 
 }
 
 // Deploy Target API
+export function fetchAllDeployTargets() {
+  return api.get('/deploy-targets')
+}
+
 export function fetchDeployTargets(projectId: string) {
   return api.get(`/projects/${projectId}/deploy-targets`)
 }

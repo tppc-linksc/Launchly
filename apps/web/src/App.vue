@@ -1,7 +1,5 @@
 <template>
-  <a-config-provider :theme="theme">
-    <router-view />
-  </a-config-provider>
+  <router-view />
 </template>
 
 <script setup lang="ts">
@@ -11,19 +9,6 @@ import { useAuthStore } from './stores/auth'
 
 const router = useRouter()
 const auth = useAuthStore()
-
-const theme = {
-  token: {
-    colorPrimary: '#0D9488',
-    colorLink: '#0D9488',
-    colorSuccess: '#059669',
-    colorWarning: '#D97706',
-    colorError: '#DC2626',
-    borderRadius: 8,
-    fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
-    fontSize: 14,
-  },
-}
 
 onMounted(async () => {
   await auth.checkSetupStatus()
@@ -36,6 +21,13 @@ onMounted(async () => {
 </script>
 
 <style>
+:root {
+  --el-color-primary: #0D9488;
+  --el-color-success: #059669;
+  --el-color-warning: #D97706;
+  --el-color-danger: #DC2626;
+  --el-border-radius-base: 8px;
+}
 body {
   margin: 0;
   background: #F8F9FB;

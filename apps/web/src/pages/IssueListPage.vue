@@ -6,70 +6,82 @@
         <p style="color: #8c8c8c;">管理测试失败等问题，指派、修复、复测。</p>
       </div>
       <div style="display: flex; gap: 12px;">
-        <a-select v-model:value="selectedProjectId" placeholder="选择项目" style="width: 200px;" @change="loadIssues">
-          <a-select-option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</a-select-option>
-        </a-select>
-        <a-button v-if="canWrite" type="primary" @click="showCreate = true" :disabled="!selectedProjectId">新建 Issue</a-button>
+        <el-select v-model="selectedProjectId" placeholder="选择项目" style="width: 200px;" @change="loadIssues">
+          <el-option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</el-option>
+        </el-select>
+        <el-button v-if="canWrite" type="primary" @click="showCreate = true" :disabled="!selectedProjectId">新建 Issue</el-button>
       </div>
     </div>
 
     <div style="display: flex; gap: 12px; margin-bottom: 16px;">
-      <a-select v-model:value="filterStatus" placeholder="状态筛选" style="width: 140px;" allow-clear @change="loadIssues">
-        <a-select-option value="OPEN">{{ issueStatusMap.OPEN }}</a-select-option>
-        <a-select-option value="ASSIGNED">{{ issueStatusMap.ASSIGNED }}</a-select-option>
-        <a-select-option value="FIXING">{{ issueStatusMap.FIXING }}</a-select-option>
-        <a-select-option value="FIXED">{{ issueStatusMap.FIXED }}</a-select-option>
-        <a-select-option value="REOPENED">{{ issueStatusMap.REOPENED }}</a-select-option>
-        <a-select-option value="CLOSED">{{ issueStatusMap.CLOSED }}</a-select-option>
-      </a-select>
-      <a-select v-model:value="filterPriority" placeholder="优先级" style="width: 120px;" allow-clear @change="loadIssues">
-        <a-select-option value="P0">{{ priorityMap.P0 }}</a-select-option>
-        <a-select-option value="P1">{{ priorityMap.P1 }}</a-select-option>
-        <a-select-option value="P2">{{ priorityMap.P2 }}</a-select-option>
-        <a-select-option value="P3">{{ priorityMap.P3 }}</a-select-option>
-      </a-select>
+      <el-select v-model="filterStatus" placeholder="状态筛选" style="width: 140px;" clearable @change="loadIssues">
+        <el-option value="OPEN">{{ issueStatusMap.OPEN }}</el-option>
+        <el-option value="ASSIGNED">{{ issueStatusMap.ASSIGNED }}</el-option>
+        <el-option value="FIXING">{{ issueStatusMap.FIXING }}</el-option>
+        <el-option value="FIXED">{{ issueStatusMap.FIXED }}</el-option>
+        <el-option value="REOPENED">{{ issueStatusMap.REOPENED }}</el-option>
+        <el-option value="CLOSED">{{ issueStatusMap.CLOSED }}</el-option>
+      </el-select>
+      <el-select v-model="filterPriority" placeholder="优先级" style="width: 120px;" clearable @change="loadIssues">
+        <el-option value="P0">{{ priorityMap.P0 }}</el-option>
+        <el-option value="P1">{{ priorityMap.P1 }}</el-option>
+        <el-option value="P2">{{ priorityMap.P2 }}</el-option>
+        <el-option value="P3">{{ priorityMap.P3 }}</el-option>
+      </el-select>
     </div>
 
-    <a-table :columns="columns" :data-source="issues" row-key="id" :loading="loading" @row-click="(r: any) => $router.push(`/issues/${selectedProjectId}/${r.id}`)" style="cursor: pointer;">
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'priority'">
-          <a-tag :color="priorityColor(record.priority)">{{ priorityMap[record.priority] || record.priority }}</a-tag>
+    <el-table :data="issues" row-key="id" v-loading="loading" @row-click="(row: any) => $router.push(`/issues/${selectedProjectId}/${row.id}`)" style="cursor: pointer;">
+      <el-table-column prop="title" label="标题" />
+      <el-table-column prop="priority" label="优先级">
+        <template #default="{ row }">
+          <el-tag :type="priorityType(row.priority)">{{ priorityMap[row.priority] || row.priority }}</el-tag>
         </template>
-        <template v-if="column.key === 'status'">
-          <a-tag :color="statusColor(record.status)">{{ issueStatusMap[record.status] || record.status }}</a-tag>
+      </el-table-column>
+      <el-table-column prop="status" label="状态">
+        <template #default="{ row }">
+          <el-tag :type="statusType(row.status)">{{ issueStatusMap[row.status] || row.status }}</el-tag>
         </template>
-        <template v-if="column.key === 'action'">
-          <a-button type="link" @click.stop="$router.push(`/issues/${selectedProjectId}/${record.id}`)">详情</a-button>
+      </el-table-column>
+      <el-table-column prop="assigneeId" label="负责人" />
+      <el-table-column prop="createdAt" label="创建时间" />
+      <el-table-column label="操作">
+        <template #default="{ row }">
+          <el-button link @click.stop="$router.push(`/issues/${selectedProjectId}/${row.id}`)">详情</el-button>
         </template>
-      </template>
-    </a-table>
-    <a-empty v-if="!loading && issues.length === 0 && selectedProjectId" description="暂无 Issue" />
+      </el-table-column>
+    </el-table>
+    <el-empty v-if="!loading && issues.length === 0 && selectedProjectId" description="暂无 Issue" />
 
     <!-- Create Modal -->
-    <a-modal v-model:open="showCreate" title="新建 Issue" @ok="handleSave">
-      <a-form layout="vertical">
-        <a-form-item label="标题" required>
-          <a-input v-model:value="form.title" placeholder="Issue 标题" />
-        </a-form-item>
-        <a-form-item label="描述">
-          <a-textarea v-model:value="form.description" :rows="3" />
-        </a-form-item>
-        <a-form-item label="优先级">
-          <a-select v-model:value="form.priority">
-            <a-select-option value="P0">{{ priorityMap.P0 }}</a-select-option>
-            <a-select-option value="P1">{{ priorityMap.P1 }}</a-select-option>
-            <a-select-option value="P2">{{ priorityMap.P2 }}</a-select-option>
-            <a-select-option value="P3">{{ priorityMap.P3 }}</a-select-option>
-          </a-select>
-        </a-form-item>
-      </a-form>
-    </a-modal>
+    <el-dialog v-model="showCreate" title="新建 Issue">
+      <el-form label-position="top">
+        <el-form-item label="标题" required>
+          <el-input v-model="form.title" placeholder="Issue 标题" />
+        </el-form-item>
+        <el-form-item label="描述">
+          <el-input type="textarea" v-model="form.description" :rows="3" />
+        </el-form-item>
+        <el-form-item label="优先级">
+          <el-select v-model="form.priority">
+            <el-option value="P0">{{ priorityMap.P0 }}</el-option>
+            <el-option value="P1">{{ priorityMap.P1 }}</el-option>
+            <el-option value="P2">{{ priorityMap.P2 }}</el-option>
+            <el-option value="P3">{{ priorityMap.P3 }}</el-option>
+          </el-select>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showCreate = false">取消</el-button>
+        <el-button type="primary" @click="handleSave">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { fetchProjects, fetchIssues, createIssue } from '../api/client'
 import { usePermission } from '../composables/usePermission'
 
@@ -77,15 +89,6 @@ const route = useRoute()
 
 const { canWrite } = usePermission()
 import { issueStatusMap, priorityMap } from '../utils/display'
-
-const columns = [
-  { title: '标题', dataIndex: 'title' },
-  { title: '优先级', dataIndex: 'priority', key: 'priority' },
-  { title: '状态', dataIndex: 'status', key: 'status' },
-  { title: '负责人', dataIndex: 'assigneeId' },
-  { title: '创建时间', dataIndex: 'createdAt' },
-  { title: '操作', key: 'action' },
-]
 
 const projects = ref<any[]>([])
 const selectedProjectId = ref('')
@@ -96,17 +99,17 @@ const filterStatus = ref('')
 const filterPriority = ref('')
 const form = ref({ title: '', description: '', priority: 'P2' })
 
-function priorityColor(p: string) {
-  const map: Record<string, string> = { P0: 'red', P1: 'orange', P2: 'blue', P3: 'default' }
-  return map[p] || 'default'
+function priorityType(p: string): '' | 'success' | 'info' | 'warning' | 'danger' {
+  const map: Record<string, '' | 'success' | 'info' | 'warning' | 'danger'> = { P0: 'danger', P1: 'warning', P2: '', P3: 'info' }
+  return map[p] || 'info'
 }
 
-function statusColor(s: string) {
-  const map: Record<string, string> = {
-    OPEN: 'default', ASSIGNED: 'blue', FIXING: 'processing', FIXED: 'success',
-    REOPENED: 'warning', CLOSED: 'default'
+function statusType(s: string): '' | 'success' | 'info' | 'warning' | 'danger' {
+  const map: Record<string, '' | 'success' | 'info' | 'warning' | 'danger'> = {
+    OPEN: 'info', ASSIGNED: '', FIXING: '', FIXED: 'success',
+    REOPENED: 'warning', CLOSED: 'info'
   }
-  return map[s] || 'default'
+  return map[s] || 'info'
 }
 
 async function loadIssues() {
@@ -118,7 +121,7 @@ async function loadIssues() {
     if (filterPriority.value) params.priority = filterPriority.value
     const res = await fetchIssues(selectedProjectId.value, params)
     issues.value = res.data
-  } catch (e) { message.error('操作失败，请稍后重试') }
+  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
   loading.value = false
 }
 
@@ -135,7 +138,7 @@ onMounted(async () => {
   try {
     const res = await fetchProjects()
     projects.value = res.data
-  } catch (e) { message.error('操作失败，请稍后重试') }
+  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
   const qp = route.query.projectId as string
   if (qp) {
     selectedProjectId.value = qp

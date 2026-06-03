@@ -1,19 +1,19 @@
 <template>
   <div class="login-page">
-    <a-card :title="'登录 Launchly'" style="max-width: 400px; margin: 80px auto;">
-      <a-form :model="form" layout="vertical" @finish="onSubmit">
-        <a-form-item label="账号" required>
-          <a-input v-model:value="form.account" placeholder="邮箱地址" />
-        </a-form-item>
-        <a-form-item label="密码" required>
-          <a-input-password v-model:value="form.password" placeholder="输入密码" />
-        </a-form-item>
-        <a-form-item>
-          <a-button type="primary" html-type="submit" :loading="loading" block>登录</a-button>
-        </a-form-item>
-      </a-form>
-      <a-alert v-if="error" :message="error" type="error" show-icon style="margin-top: 16px" />
-    </a-card>
+    <el-card header="登录 Launchly" style="max-width: 400px; margin: 80px auto;">
+      <el-form :model="form" label-position="top" @submit.prevent="onSubmit">
+        <el-form-item label="账号" required>
+          <el-input v-model="form.account" placeholder="邮箱地址" />
+        </el-form-item>
+        <el-form-item label="密码" required>
+          <el-input type="password" show-password v-model="form.password" placeholder="输入密码" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" native-type="submit" :loading="loading" style="width: 100%;">登录</el-button>
+        </el-form-item>
+      </el-form>
+      <el-alert v-if="error" :title="error" type="error" show-icon style="margin-top: 16px" />
+    </el-card>
   </div>
 </template>
 

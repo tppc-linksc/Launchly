@@ -63,9 +63,9 @@ export class WorkerService {
 
   private async claimNextTask() {
     // Use raw query for FOR UPDATE SKIP LOCKED
-    const tasks = await this.prisma.$queryRawUnsafe<any[]>(
+    const tasks = (await this.prisma.$queryRawUnsafe(
       `SELECT * FROM tasks WHERE status = 'PENDING' AND attempts < max_attempts ORDER BY created_at ASC FOR UPDATE SKIP LOCKED LIMIT 1`,
-    );
+    )) as any[];
 
     if (!tasks || tasks.length === 0) return null;
 

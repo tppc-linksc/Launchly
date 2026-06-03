@@ -13,6 +13,7 @@ const router = createRouter({
         { path: 'projects/create', name: 'project-create', component: () => import('../pages/ProjectCreatePage.vue') },
         { path: 'projects/:id', name: 'project-detail', component: () => import('../pages/ProjectDetailPage.vue') },
         { path: 'projects/:id/deploy-targets', name: 'deploy-targets', component: () => import('../pages/DeployTargetListPage.vue') },
+        { path: 'deploy-targets', name: 'deploy-targets-all', component: () => import('../pages/DeployTargetsPage.vue') },
         { path: 'deployments', name: 'deployments', component: () => import('../pages/DeploymentListPage.vue') },
         { path: 'deployments/:id', name: 'deployment-detail', component: () => import('../pages/DeploymentDetailPage.vue') },
         { path: 'environments', name: 'environments', component: () => import('../pages/EnvironmentListPage.vue') },

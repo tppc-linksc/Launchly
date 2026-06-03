@@ -5,35 +5,33 @@
       <div class="topbar-inner">
         <div class="brand">Launch<span class="teal">ly</span></div>
         <div class="global-search-wrap">
-          <a-input
-            v-model:value="searchQuery"
+          <el-input
+            v-model="searchQuery"
             placeholder="搜索部署、项目、分支…"
-            allow-clear
+            clearable
             class="global-search"
           >
             <template #prefix><span style="color: #9ca3af;">&#9906;</span></template>
-          </a-input>
+          </el-input>
         </div>
         <div class="top-actions">
-          <a-button v-if="canDeploy" type="primary" class="btn-pill" @click="$router.push('/deployments')">触发部署</a-button>
-          <a-button class="btn-pill-ghost" @click="$router.push('/projects/create')">连接仓库</a-button>
-          <a-dropdown>
+          <el-button v-if="canDeploy" type="primary" class="btn-pill" @click="$router.push('/deployments')">触发部署</el-button>
+          <el-button class="btn-pill-ghost" @click="$router.push('/projects/create')">连接仓库</el-button>
+          <el-dropdown>
             <div class="avatar-wrap">
               <div class="avatar">{{ avatarLetter }}</div>
             </div>
-            <template #overlay>
-              <a-menu>
-                <a-menu-item disabled>{{ auth.user?.displayName || auth.user?.account }}</a-menu-item>
-                <a-menu-divider />
-                <a-menu-item @click="$router.push('/settings')">设置</a-menu-item>
-                <a-menu-item @click="$router.push('/members')">成员管理</a-menu-item>
-                <a-menu-item @click="$router.push('/audit-logs')">审计日志</a-menu-item>
-                <a-menu-item @click="$router.push('/notifications')">通知</a-menu-item>
-                <a-menu-divider />
-                <a-menu-item @click="auth.logout()">退出登录</a-menu-item>
-              </a-menu>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item disabled>{{ auth.user?.displayName || auth.user?.account }}</el-dropdown-item>
+                <el-dropdown-item divided @click="$router.push('/settings')">设置</el-dropdown-item>
+                <el-dropdown-item @click="$router.push('/members')">成员管理</el-dropdown-item>
+                <el-dropdown-item @click="$router.push('/audit-logs')">审计日志</el-dropdown-item>
+                <el-dropdown-item @click="$router.push('/notifications')">通知</el-dropdown-item>
+                <el-dropdown-item divided @click="auth.logout()">退出登录</el-dropdown-item>
+              </el-dropdown-menu>
             </template>
-          </a-dropdown>
+          </el-dropdown>
         </div>
       </div>
       <nav class="nav-row">
@@ -78,6 +76,8 @@ const navItems = [
 const activeKey = computed(() => {
   const path = route.path
   if (path === '/' || path === '') return 'overview'
+  if (path.startsWith('/deploy-targets')) return 'targets'
+  if (path.startsWith('/targets')) return 'targets'
   if (path.startsWith('/deployments')) return 'deployments'
   if (path.startsWith('/environments')) return 'environments'
   if (path.startsWith('/projects')) return 'projects'
@@ -133,14 +133,13 @@ function onNavClick(key: string) {
   min-width: 200px;
   max-width: 420px;
 }
-.global-search :deep(.ant-input) {
+.global-search :deep(.el-input__wrapper) {
   border-radius: 999px;
   background: #f9fafb;
-  border-color: #e5e7eb;
-  padding: 6px 14px;
+  box-shadow: 0 0 0 1px #e5e7eb;
+  padding: 4px 14px;
 }
-.global-search :deep(.ant-input:focus),
-.global-search :deep(.ant-input-focused) {
+.global-search :deep(.el-input__wrapper:focus-within) {
   border-color: #0d9488;
   background: #fff;
   box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.1);

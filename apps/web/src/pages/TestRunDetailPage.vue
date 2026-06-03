@@ -1,52 +1,59 @@
 <template>
   <div>
-    <a-page-header title="测试执行详情" @back="() => $router.back()">
-      <template #extra>
-        <a-tag :color="statusColor(testRun?.status)">{{ testRunStatusMap[testRun?.status] || testRun?.status }}</a-tag>
-      </template>
-    </a-page-header>
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+      <el-button link @click="() => $router.back()">&larr; 返回</el-button>
+      <h2 style="margin: 0;">测试执行详情</h2>
+      <el-tag :type="statusType(testRun?.status)">{{ testRunStatusMap[testRun?.status] || testRun?.status }}</el-tag>
+    </div>
 
-    <a-descriptions bordered size="small" :column="2" style="margin-bottom: 24px;">
-      <a-descriptions-item label="部署 ID">{{ testRun?.deploymentId }}</a-descriptions-item>
-      <a-descriptions-item label="环境">{{ testRun?.environmentId }}</a-descriptions-item>
-      <a-descriptions-item label="创建时间">{{ testRun?.createdAt }}</a-descriptions-item>
-      <a-descriptions-item label="完成时间">{{ testRun?.finishedAt || '-' }}</a-descriptions-item>
-    </a-descriptions>
+    <el-descriptions border size="small" :column="2" style="margin-bottom: 24px;">
+      <el-descriptions-item label="部署 ID">{{ testRun?.deploymentId }}</el-descriptions-item>
+      <el-descriptions-item label="环境">{{ testRun?.environmentId }}</el-descriptions-item>
+      <el-descriptions-item label="创建时间">{{ testRun?.createdAt }}</el-descriptions-item>
+      <el-descriptions-item label="完成时间">{{ testRun?.finishedAt || '-' }}</el-descriptions-item>
+    </el-descriptions>
 
     <h3 style="margin-bottom: 16px;">测试用例执行</h3>
-    <a-table :columns="columns" :data-source="cases" row-key="id" :loading="loading">
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'result'">
-          <a-select v-model:value="record.result" size="small" style="width: 100px;" @change="(v: string) => updateResult(record, v)">
-            <a-select-option value="PASSED">
+    <el-table :data="cases" row-key="id" v-loading="loading">
+      <el-table-column prop="testCaseId" label="测试用例" show-overflow-tooltip />
+      <el-table-column label="结果" width="140">
+        <template #default="{ row }">
+          <el-select v-model="row.result" size="small" style="width: 100px;" @change="(v: string) => updateResult(row, v)">
+            <el-option value="PASSED">
               <span style="color: #52c41a;">{{ testResultMap.PASSED }}</span>
-            </a-select-option>
-            <a-select-option value="FAILED">
+            </el-option>
+            <el-option value="FAILED">
               <span style="color: #ff4d4f;">{{ testResultMap.FAILED }}</span>
-            </a-select-option>
-            <a-select-option value="BLOCKED">
+            </el-option>
+            <el-option value="BLOCKED">
               <span style="color: #faad14;">{{ testResultMap.BLOCKED }}</span>
-            </a-select-option>
-            <a-select-option value="SKIPPED">{{ testResultMap.SKIPPED }}</a-select-option>
-          </a-select>
+            </el-option>
+            <el-option value="SKIPPED" :label="testResultMap.SKIPPED" />
+          </el-select>
         </template>
-        <template v-if="column.key === 'notes'">
-          <a-input v-model:value="record.notes" size="small" placeholder="备注" @blur="updateNotes(record)" />
+      </el-table-column>
+      <el-table-column label="备注">
+        <template #default="{ row }">
+          <el-input v-model="row.notes" size="small" placeholder="备注" @blur="updateNotes(row)" />
         </template>
-        <template v-if="column.key === 'action'">
-          <a-button v-if="record.result === 'FAILED'" type="link" size="small" danger @click="handleCreateIssue(record)">创建 Issue</a-button>
+      </el-table-column>
+      <el-table-column prop="executedBy" label="执行人" />
+      <el-table-column prop="executedAt" label="执行时间" />
+      <el-table-column label="操作" width="100">
+        <template #default="{ row }">
+          <el-button v-if="row.result === 'FAILED'" link size="small" style="color: #f56c6c;" @click="handleCreateIssue(row)">创建 Issue</el-button>
         </template>
-      </template>
-    </a-table>
+      </el-table-column>
+    </el-table>
 
-    <a-empty v-if="!loading && cases.length === 0" description="暂无测试用例" />
+    <el-empty v-if="!loading && cases.length === 0" description="暂无测试用例" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { ElMessage } from 'element-plus'
 import { fetchTestRun, fetchTestRunCases, fetchTestCases, updateTestRunCase, createIssueFromFailedTest } from '../api/client'
 import { testRunStatusMap, testResultMap } from '../utils/display'
 
@@ -56,18 +63,9 @@ const testRun = ref<any>(null)
 const cases = ref<any[]>([])
 const loading = ref(false)
 
-const columns = [
-  { title: '测试用例', dataIndex: 'testCaseId', ellipsis: true },
-  { title: '结果', dataIndex: 'result', key: 'result', width: 140 },
-  { title: '备注', dataIndex: 'notes', key: 'notes' },
-  { title: '执行人', dataIndex: 'executedBy' },
-  { title: '执行时间', dataIndex: 'executedAt' },
-  { title: '操作', key: 'action', width: 100 },
-]
-
-function statusColor(s: string) {
-  const map: Record<string, string> = { PENDING: 'default', RUNNING: 'processing', COMPLETED: 'success' }
-  return map[s] || 'default'
+function statusType(s: string) {
+  const map: Record<string, string> = { PENDING: 'info', RUNNING: 'warning', COMPLETED: 'success' }
+  return map[s] || 'info'
 }
 
 async function updateResult(record: any, result: string) {
@@ -100,10 +98,10 @@ async function handleCreateIssue(record: any) {
       testRun.value?.deploymentId,
       record.testCaseId,
     )
-    message.success('Issue 已创建')
+    ElMessage.success('Issue 已创建')
     router.push(`/issues/${res.data.id}`)
   } catch (e: any) {
-    message.error(e.response?.data?.message || '创建 Issue 失败')
+    ElMessage.error(e.response?.data?.message || '创建 Issue 失败')
   }
 }
 
@@ -116,7 +114,7 @@ onMounted(async () => {
     ])
     testRun.value = runRes.data
     cases.value = casesRes.data
-  } catch (e) { message.error('操作失败，请稍后重试') }
+  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
   loading.value = false
 })
 </script>

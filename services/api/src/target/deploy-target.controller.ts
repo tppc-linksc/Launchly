@@ -1,10 +1,16 @@
 import { Controller, Get, Post, Patch, Delete, Param, Body, HttpStatus } from '@nestjs/common';
 import { DeployTargetService } from './deploy-target.service';
 import { Roles } from '../common/decorators/roles.decorator';
+import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
 
 @Controller()
 export class DeployTargetController {
   constructor(private readonly service: DeployTargetService) {}
+
+  @Get('deploy-targets')
+  async listAll(@CurrentUser() user: AuthPrincipal) {
+    return this.service.listAll(user.workspaceId!);
+  }
 
   @Get('projects/:projectId/deploy-targets')
   async list(@Param('projectId') projectId: string) {

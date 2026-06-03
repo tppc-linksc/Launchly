@@ -1,22 +1,22 @@
 <template>
   <div>
-    <a-page-header :title="issue?.title" @back="() => $router.back()">
-      <template #tags>
-        <a-tag :color="priorityColor(issue?.priority)">{{ priorityMap[issue?.priority] || issue?.priority }}</a-tag>
-        <a-tag :color="statusColor(issue?.status)">{{ issueStatusMap[issue?.status] || issue?.status }}</a-tag>
-      </template>
-    </a-page-header>
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+      <el-button link @click="() => $router.back()">&larr; 返回</el-button>
+      <h2 style="margin: 0;">{{ issue?.title }}</h2>
+      <el-tag :type="priorityType(issue?.priority)">{{ priorityMap[issue?.priority] || issue?.priority }}</el-tag>
+      <el-tag :type="statusType(issue?.status)">{{ issueStatusMap[issue?.status] || issue?.status }}</el-tag>
+    </div>
 
-    <a-descriptions bordered size="small" :column="2" style="margin-bottom: 24px;">
-      <a-descriptions-item label="项目">{{ issue?.projectId }}</a-descriptions-item>
-      <a-descriptions-item label="环境">{{ issue?.environmentId || '-' }}</a-descriptions-item>
-      <a-descriptions-item label="关联部署">{{ issue?.deploymentId || '-' }}</a-descriptions-item>
-      <a-descriptions-item label="关联测试用例">{{ issue?.testRunCaseId || '-' }}</a-descriptions-item>
-      <a-descriptions-item label="负责人">{{ issue?.assigneeId || '未指派' }}</a-descriptions-item>
-      <a-descriptions-item label="创建时间">{{ issue?.createdAt }}</a-descriptions-item>
-      <a-descriptions-item label="截止时间">{{ issue?.dueDate || '-' }}</a-descriptions-item>
-      <a-descriptions-item label="修复 Commit">{{ issue?.fixedCommitSha || '-' }}</a-descriptions-item>
-    </a-descriptions>
+    <el-descriptions border size="small" :column="2" style="margin-bottom: 24px;">
+      <el-descriptions-item label="项目">{{ issue?.projectId }}</el-descriptions-item>
+      <el-descriptions-item label="环境">{{ issue?.environmentId || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="关联部署">{{ issue?.deploymentId || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="关联测试用例">{{ issue?.testRunCaseId || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="负责人">{{ issue?.assigneeId || '未指派' }}</el-descriptions-item>
+      <el-descriptions-item label="创建时间">{{ issue?.createdAt }}</el-descriptions-item>
+      <el-descriptions-item label="截止时间">{{ issue?.dueDate || '-' }}</el-descriptions-item>
+      <el-descriptions-item label="修复 Commit">{{ issue?.fixedCommitSha || '-' }}</el-descriptions-item>
+    </el-descriptions>
 
     <div v-if="issue?.description" style="margin-bottom: 24px; padding: 12px; background: #fafafa; border-radius: 4px;">
       <h4>描述</h4>
@@ -26,34 +26,43 @@
     <!-- State Transition Actions -->
     <div style="margin-bottom: 24px;">
       <h4 style="margin-bottom: 12px;">状态操作</h4>
-      <a-space wrap>
-        <a-button v-if="canTransition('ASSIGNED')" type="primary" @click="showAssignModal = true">指派</a-button>
-        <a-button v-if="canTransition('FIXING')" @click="doTransition('FIXING')">开始修复</a-button>
-        <a-button v-if="canTransition('FIXED')" @click="showFixedModal = true">标记已修复</a-button>
-        <a-button v-if="canTransition('CLOSED')" type="primary" style="background: #52c41a; border-color: #52c41a;" @click="doTransition('CLOSED')">关闭</a-button>
-        <a-button v-if="canTransition('REOPENED')" danger @click="doTransition('REOPENED')">重新打开</a-button>
-      </a-space>
+      <el-space wrap>
+        <el-button v-if="canTransition('ASSIGNED')" type="primary" @click="showAssignModal = true">指派</el-button>
+        <el-button v-if="canTransition('FIXING')" @click="doTransition('FIXING')">开始修复</el-button>
+        <el-button v-if="canTransition('FIXED')" @click="showFixedModal = true">标记已修复</el-button>
+        <el-button v-if="canTransition('CLOSED')" type="success" @click="doTransition('CLOSED')">关闭</el-button>
+        <el-button v-if="canTransition('REOPENED')" type="danger" @click="doTransition('REOPENED')">重新打开</el-button>
+      </el-space>
     </div>
 
     <!-- Assign Modal -->
-    <a-modal v-model:open="showAssignModal" title="指派负责人" @ok="handleAssign">
-      <a-form-item label="负责人 ID">
-        <a-input v-model:value="assignForm.assigneeId" placeholder="输入成员 ID" />
-      </a-form-item>
-    </a-modal>
+    <el-dialog v-model="showAssignModal" title="指派负责人">
+      <el-form-item label="负责人 ID">
+        <el-input v-model="assignForm.assigneeId" placeholder="输入成员 ID" />
+      </el-form-item>
+      <template #footer>
+        <el-button @click="showAssignModal = false">取消</el-button>
+        <el-button type="primary" @click="handleAssign">确定</el-button>
+      </template>
+    </el-dialog>
 
     <!-- Fixed Modal -->
-    <a-modal v-model:open="showFixedModal" title="标记已修复" @ok="handleFixed">
-      <a-form-item label="Commit SHA" required>
-        <a-input v-model:value="fixedForm.commitSha" placeholder="输入修复 commit SHA" />
-      </a-form-item>
-    </a-modal>
+    <el-dialog v-model="showFixedModal" title="标记已修复">
+      <el-form-item label="Commit SHA" required>
+        <el-input v-model="fixedForm.commitSha" placeholder="输入修复 commit SHA" />
+      </el-form-item>
+      <template #footer>
+        <el-button @click="showFixedModal = false">取消</el-button>
+        <el-button type="primary" @click="handleFixed">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { fetchIssue, updateIssue, transitionIssue } from '../api/client'
 import { issueStatusMap, priorityMap } from '../utils/display'
 
@@ -77,17 +86,17 @@ function canTransition(target: string) {
   return (TRANSITIONS[issue.value.status] || []).includes(target)
 }
 
-function priorityColor(p: string) {
-  const map: Record<string, string> = { P0: 'red', P1: 'orange', P2: 'blue', P3: 'default' }
-  return map[p] || 'default'
+function priorityType(p: string) {
+  const map: Record<string, string> = { P0: 'danger', P1: 'warning', P2: 'primary', P3: 'info' }
+  return map[p] || 'info'
 }
 
-function statusColor(s: string) {
+function statusType(s: string) {
   const map: Record<string, string> = {
-    OPEN: 'default', ASSIGNED: 'blue', FIXING: 'processing',
-    FIXED: 'success', REOPENED: 'warning', CLOSED: 'default'
+    OPEN: 'info', ASSIGNED: 'primary', FIXING: 'warning',
+    FIXED: 'success', REOPENED: 'warning', CLOSED: 'info'
   }
-  return map[s] || 'default'
+  return map[s] || 'info'
 }
 
 async function doTransition(target: string, commitSha?: string) {
@@ -123,6 +132,6 @@ onMounted(async () => {
     const projectId = route.params.projectId as string
     const res = await fetchIssue(projectId, route.params.id as string)
     issue.value = res.data
-  } catch (e) { message.error('操作失败，请稍后重试') }
+  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
 })
 </script>

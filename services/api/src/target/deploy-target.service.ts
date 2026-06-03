@@ -29,6 +29,28 @@ export class DeployTargetService {
     }));
   }
 
+  async listAll(workspaceId: string) {
+    const targets = await this.prisma.deployTarget.findMany({
+      where: { project: { workspaceId } },
+      include: { project: { select: { name: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+    return targets.map(t => ({
+      id: t.id,
+      projectId: t.projectId,
+      projectName: t.project.name,
+      name: t.name,
+      type: t.type,
+      host: t.host,
+      port: t.port,
+      username: t.username,
+      authMethod: t.authMethod,
+      status: t.status,
+      lastVerifiedAt: t.lastVerifiedAt?.toISOString(),
+      createdAt: t.createdAt.toISOString(),
+    }));
+  }
+
   async create(projectId: string, data: any) {
     const encryptedCredential = this.secrets.encrypt(data.credential);
 

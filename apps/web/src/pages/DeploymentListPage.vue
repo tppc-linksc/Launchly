@@ -2,28 +2,37 @@
   <div>
     <h2>部署记录</h2>
     <p style="color: #8c8c8c; margin-bottom: 24px;">当前工作空间内的全部部署记录（不限于单个项目）。从项目详情触发部署后，可在此查看历史与状态。</p>
-    <a-table :columns="columns" :data-source="deployments" row-key="id" :loading="loading" @row-click="(r: any) => $router.push(`/deployments/${r.id}`)" style="cursor: pointer;">
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'status'">
-          <a-tag :color="statusColor(record.status)">{{ deployStatusMap[record.status] || record.status }}</a-tag>
+    <el-table :data="deployments" v-loading="loading" row-key="id" @row-click="(r: any) => $router.push(`/deployments/${r.id}`)" style="cursor: pointer;">
+      <el-table-column prop="branch" label="分支" show-overflow-tooltip />
+      <el-table-column prop="status" label="状态" width="120">
+        <template #default="{ row }">
+          <el-tag :type="statusType(row.status)">{{ deployStatusMap[row.status] || row.status }}</el-tag>
         </template>
-        <template v-if="column.key === 'action'">
-          <a-button type="link" @click.stop="$router.push(`/deployments/${record.id}`)">详情</a-button>
-          <a-button v-if="canDeploy && record.status === 'FAILED'" type="link" danger @click.stop="handleRedeploy(record)">重新部署</a-button>
-          <a-button v-if="canDeploy && record.status === 'SUCCEEDED' && record.commitSha" type="link" @click.stop="handleRollback(record)">回滚</a-button>
+      </el-table-column>
+      <el-table-column label="触发人" width="120">
+        <template #default="{ row }">{{ row.triggeredByName || row.triggeredBy || '—' }}</template>
+      </el-table-column>
+      <el-table-column label="创建时间" width="180">
+        <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+      </el-table-column>
+      <el-table-column label="操作" width="180">
+        <template #default="{ row }">
+          <el-button type="primary" link @click.stop="$router.push(`/deployments/${row.id}`)">详情</el-button>
+          <el-button v-if="canDeploy && row.status === 'FAILED'" type="danger" link @click.stop="handleRedeploy(row)">重新部署</el-button>
+          <el-button v-if="canDeploy && row.status === 'SUCCEEDED' && row.commitSha" type="primary" link @click.stop="handleRollback(row)">回滚</el-button>
         </template>
-      </template>
-    </a-table>
-    <a-empty v-if="!loading && deployments.length === 0" description="暂无部署记录，从项目详情触发第一次部署">
-      <a-button type="primary" @click="$router.push('/projects')">前往项目</a-button>
-    </a-empty>
+      </el-table-column>
+    </el-table>
+    <el-empty v-if="!loading && deployments.length === 0" description="暂无部署记录，从项目详情触发第一次部署">
+      <el-button type="primary" @click="$router.push('/projects')">前往项目</el-button>
+    </el-empty>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { message, Modal } from 'ant-design-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { fetchDeployments, createDeployment, rollbackDeployment } from '../api/client'
 import { deployStatusMap, formatTime } from '../utils/display'
 import { usePermission } from '../composables/usePermission'
@@ -32,23 +41,15 @@ const { canDeploy } = usePermission()
 
 const router = useRouter()
 
-const columns = [
-  { title: '分支', dataIndex: 'branch', ellipsis: true },
-  { title: '状态', dataIndex: 'status', key: 'status' },
-  { title: '触发人', dataIndex: 'triggeredByName', customRender: ({ text, record }: any) => text || record.triggeredBy || '—' },
-  { title: '创建时间', dataIndex: 'createdAt', customRender: ({ text }: any) => formatTime(text) },
-  { title: '操作', key: 'action', width: 180 },
-]
-
 const deployments = ref<any[]>([])
 const loading = ref(false)
 
-function statusColor(s: string) {
+function statusType(s: string) {
   const map: Record<string, string> = {
-    PENDING: 'default', RUNNING: 'processing', SUCCEEDED: 'success',
-    FAILED: 'error', CANCELED: 'warning',
+    PENDING: 'info', RUNNING: 'warning', SUCCEEDED: 'success',
+    FAILED: 'danger', CANCELED: 'info',
   }
-  return map[s] || 'default'
+  return (map[s] || 'info') as any
 }
 
 async function handleRedeploy(record: any) {
@@ -61,27 +62,26 @@ async function handleRedeploy(record: any) {
       commitSha: record.commitSha || undefined,
     }
     const res = await createDeployment(payload)
-    message.success('已触发重新部署')
+    ElMessage.success('已触发重新部署')
     router.push(`/deployments/${res.data.id}`)
   } catch (e: any) {
-    message.error(e.response?.data?.message || '重新部署失败')
+    ElMessage.error(e.response?.data?.message || '重新部署失败')
   }
 }
 
 async function handleRollback(record: any) {
-  Modal.confirm({
-    title: '回滚确认',
-    content: `确定要回滚到 commit ${record.commitSha?.substring(0, 7)} 的版本吗？`,
-    onOk: async () => {
-      try {
-        const res = await rollbackDeployment(record.id, { reason: '手动回滚' })
-        message.success('回滚部署已触发')
-        router.push(`/deployments/${res.data.id}`)
-      } catch (e: any) {
-        message.error(e.response?.data?.message || '回滚失败')
-      }
-    },
-  })
+  try {
+    await ElMessageBox.confirm(
+      `确定要回滚到 commit ${record.commitSha?.substring(0, 7)} 的版本吗？`,
+      '回滚确认',
+      { type: 'warning' },
+    )
+    const res = await rollbackDeployment(record.id, { reason: '手动回滚' })
+    ElMessage.success('回滚部署已触发')
+    router.push(`/deployments/${res.data.id}`)
+  } catch (e: any) {
+    if (e !== 'cancel') ElMessage.error(e.response?.data?.message || '回滚失败')
+  }
 }
 
 onMounted(async () => {
@@ -89,7 +89,7 @@ onMounted(async () => {
   try {
     const res = await fetchDeployments()
     deployments.value = res.data
-  } catch (e) { message.error('操作失败，请稍后重试') }
+  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
   loading.value = false
 })
 </script>

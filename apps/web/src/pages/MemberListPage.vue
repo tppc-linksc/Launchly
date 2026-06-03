@@ -7,52 +7,58 @@
       </div>
     </div>
 
-    <a-card>
-      <a-table :columns="columns" :data-source="members" :loading="loading" row-key="id" size="middle">
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'user'">
+    <el-card>
+      <el-table :data="members" v-loading="loading" row-key="id" size="default">
+        <el-table-column label="成员">
+          <template #default="{ row }">
             <div style="display: flex; align-items: center; gap: 8px;">
-              <div class="member-avatar">{{ (record.displayName || record.account || '?').charAt(0).toUpperCase() }}</div>
+              <div class="member-avatar">{{ (row.displayName || row.account || '?').charAt(0).toUpperCase() }}</div>
               <div>
-                <div style="font-weight: 500;">{{ record.displayName || record.account }}</div>
-                <div style="font-size: 12px; color: #8c8c8c;">{{ record.account }}</div>
+                <div style="font-weight: 500;">{{ row.displayName || row.account }}</div>
+                <div style="font-size: 12px; color: #8c8c8c;">{{ row.account }}</div>
               </div>
             </div>
           </template>
-          <template v-if="column.key === 'role'">
-            <a-tag :color="roleColor(record.role)">{{ roleMap[record.role] || record.role }}</a-tag>
+        </el-table-column>
+        <el-table-column label="角色" width="120">
+          <template #default="{ row }">
+            <el-tag :type="roleType(row.role)">{{ roleMap[row.role] || row.role }}</el-tag>
           </template>
-          <template v-if="column.key === 'createdAt'">
-            {{ formatTime(record.createdAt) }}
-          </template>
-          <template v-if="column.key === 'actions'">
-            <a-space v-if="isOwner && record.role !== 'OWNER'">
-              <a-select
-                :value="record.role"
+        </el-table-column>
+        <el-table-column label="加入时间" width="180">
+          <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+        </el-table-column>
+        <el-table-column label="操作" width="240">
+          <template #default="{ row }">
+            <el-space v-if="isOwner && row.role !== 'OWNER'">
+              <el-select
+                :model-value="row.role"
                 size="small"
                 style="width: 120px;"
-                @change="(val: string) => handleRoleChange(record.id, val)"
+                @change="(val: string) => handleRoleChange(row.id, val)"
               >
-                <a-select-option value="ADMIN">管理员</a-select-option>
-                <a-select-option value="DEVELOPER">开发者</a-select-option>
-                <a-select-option value="TESTER">测试员</a-select-option>
-                <a-select-option value="VIEWER">观察者</a-select-option>
-              </a-select>
-              <a-popconfirm title="确定移除此成员？" @confirm="handleRemove(record.id)">
-                <a-button size="small" danger>移除</a-button>
-              </a-popconfirm>
-            </a-space>
-            <span v-else-if="record.role === 'OWNER'" style="color: #8c8c8c; font-size: 12px;">所有者</span>
+                <el-option value="ADMIN" label="管理员" />
+                <el-option value="DEVELOPER" label="开发者" />
+                <el-option value="TESTER" label="测试员" />
+                <el-option value="VIEWER" label="观察者" />
+              </el-select>
+              <el-popconfirm title="确定移除此成员？" @confirm="handleRemove(row.id)">
+                <template #reference>
+                  <el-button size="small" type="danger">移除</el-button>
+                </template>
+              </el-popconfirm>
+            </el-space>
+            <span v-else-if="row.role === 'OWNER'" style="color: #8c8c8c; font-size: 12px;">所有者</span>
           </template>
-        </template>
-      </a-table>
-    </a-card>
+        </el-table-column>
+      </el-table>
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { message } from 'ant-design-vue'
+import { ElMessage } from 'element-plus'
 import { fetchMembers, updateMemberRole, removeMember } from '../api/client'
 import { formatTime } from '../utils/display'
 import { usePermission } from '../composables/usePermission'
@@ -70,18 +76,11 @@ const roleMap: Record<string, string> = {
   VIEWER: '观察者',
 }
 
-const columns = [
-  { title: '成员', key: 'user', dataIndex: 'account' },
-  { title: '角色', key: 'role', dataIndex: 'role', width: 120 },
-  { title: '加入时间', key: 'createdAt', dataIndex: 'createdAt', width: 180 },
-  { title: '操作', key: 'actions', width: 240 },
-]
-
-function roleColor(role: string) {
+function roleType(role: string) {
   const map: Record<string, string> = {
-    OWNER: 'gold', ADMIN: 'blue', DEVELOPER: 'green', TESTER: 'orange', VIEWER: 'default',
+    OWNER: 'warning', ADMIN: 'primary', DEVELOPER: 'success', TESTER: 'warning', VIEWER: 'info',
   }
-  return map[role] || 'default'
+  return (map[role] || 'info') as any
 }
 
 async function loadMembers() {
@@ -90,7 +89,7 @@ async function loadMembers() {
     const res = await fetchMembers()
     members.value = res.data || []
   } catch {
-    message.error('加载成员列表失败')
+    ElMessage.error('加载成员列表失败')
   }
   loading.value = false
 }
@@ -98,23 +97,23 @@ async function loadMembers() {
 async function handleRoleChange(id: string, role: string) {
   try {
     await updateMemberRole(id, role)
-    message.success('角色已更新')
+    ElMessage.success('角色已更新')
     await loadMembers()
   } catch (e: any) {
-    message.error(e.response?.data?.message || '更新角色失败')
+    ElMessage.error(e.response?.data?.message || '更新角色失败')
   }
 }
 
 async function handleRemove(id: string) {
   try {
     await removeMember(id)
-    message.success('成员已移除')
+    ElMessage.success('成员已移除')
     await loadMembers()
   } catch (e: any) {
     if (e.response?.status === 409) {
-      message.error('不能移除最后一个所有者')
+      ElMessage.error('不能移除最后一个所有者')
     } else {
-      message.error(e.response?.data?.message || '移除失败')
+      ElMessage.error(e.response?.data?.message || '移除失败')
     }
   }
 }

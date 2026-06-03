@@ -6,64 +6,67 @@
         <p style="color: #8c8c8c;">查看发布历史、门禁状态和发布详情。</p>
       </div>
       <div style="display: flex; gap: 12px;">
-        <a-select v-model:value="selectedProjectId" placeholder="选择项目" style="width: 200px;" @change="loadReleases">
-          <a-select-option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</a-select-option>
-        </a-select>
-        <a-button type="primary" @click="showCreate = true" :disabled="!selectedProjectId">新建 Release</a-button>
+        <el-select v-model="selectedProjectId" placeholder="选择项目" style="width: 200px;" @change="loadReleases">
+          <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
+        </el-select>
+        <el-button type="primary" @click="showCreate = true" :disabled="!selectedProjectId">新建 Release</el-button>
       </div>
     </div>
 
-    <a-table :columns="columns" :data-source="releases" row-key="id" :loading="loading" @row-click="(r: any) => $router.push(`/releases/${selectedProjectId}/${r.id}`)" style="cursor: pointer;">
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'status'">
-          <a-tag :color="statusColor(record.status)">{{ releaseStatusMap[record.status] || record.status }}</a-tag>
+    <el-table :data="releases" row-key="id" v-loading="loading" @row-click="(r: any) => $router.push(`/releases/${selectedProjectId}/${r.id}`)" style="cursor: pointer;">
+      <el-table-column prop="version" label="版本" />
+      <el-table-column prop="environmentId" label="环境" show-overflow-tooltip />
+      <el-table-column label="状态">
+        <template #default="{ row }">
+          <el-tag :type="statusType(row.status)">{{ releaseStatusMap[row.status] || row.status }}</el-tag>
         </template>
-        <template v-if="column.key === 'gateStatus'">
-          <a-tag :color="record.gateStatus === 'PASSED' ? 'green' : 'red'">{{ record.gateStatus === 'PASSED' ? '通过' : record.gateStatus === 'FAILED' ? '失败' : record.gateStatus || '-' }}</a-tag>
+      </el-table-column>
+      <el-table-column label="门禁">
+        <template #default="{ row }">
+          <el-tag :type="row.gateStatus === 'PASSED' ? 'success' : 'danger'">{{ row.gateStatus === 'PASSED' ? '通过' : row.gateStatus === 'FAILED' ? '失败' : row.gateStatus || '-' }}</el-tag>
         </template>
-        <template v-if="column.key === 'action'">
-          <a-button type="link" @click.stop="$router.push(`/releases/${selectedProjectId}/${record.id}`)">详情</a-button>
+      </el-table-column>
+      <el-table-column prop="releasedBy" label="发布人" />
+      <el-table-column prop="releasedAt" label="发布时间" />
+      <el-table-column label="操作">
+        <template #default="{ row }">
+          <el-button link @click.stop="$router.push(`/releases/${selectedProjectId}/${row.id}`)">详情</el-button>
         </template>
-      </template>
-    </a-table>
-    <a-empty v-if="!loading && releases.length === 0 && selectedProjectId" description="暂无 Release" />
+      </el-table-column>
+    </el-table>
+    <el-empty v-if="!loading && releases.length === 0 && selectedProjectId" description="暂无 Release" />
 
     <!-- Create Modal -->
-    <a-modal v-model:open="showCreate" title="新建 Release" @ok="handleCreate">
-      <a-form layout="vertical">
-        <a-form-item label="版本号" required>
-          <a-input v-model:value="form.version" placeholder="例如 1.0.0" />
-        </a-form-item>
-        <a-form-item label="关联部署">
-          <a-select v-model:value="form.deploymentId" placeholder="选择部署" allow-clear>
-            <a-select-option v-for="d in deployments" :key="d.id" :value="d.id">{{ d.branch }} ({{ d.createdAt?.slice(0, 10) }})</a-select-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item label="发布说明">
-          <a-textarea v-model:value="form.notes" :rows="3" placeholder="发布说明" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
+    <el-dialog v-model="showCreate" title="新建 Release">
+      <el-form label-position="top">
+        <el-form-item label="版本号" required>
+          <el-input v-model="form.version" placeholder="例如 1.0.0" />
+        </el-form-item>
+        <el-form-item label="关联部署">
+          <el-select v-model="form.deploymentId" placeholder="选择部署" clearable>
+            <el-option v-for="d in deployments" :key="d.id" :label="`${d.branch} (${d.createdAt?.slice(0, 10)})`" :value="d.id" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="发布说明">
+          <el-input type="textarea" v-model="form.notes" :rows="3" placeholder="发布说明" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="showCreate = false">取消</el-button>
+        <el-button type="primary" @click="handleCreate">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import { fetchProjects, fetchReleases, fetchDeployments, createRelease } from '../api/client'
 import { releaseStatusMap } from '../utils/display'
 
 const route = useRoute()
-
-const columns = [
-  { title: '版本', dataIndex: 'version' },
-  { title: '环境', dataIndex: 'environmentId', ellipsis: true },
-  { title: '状态', dataIndex: 'status', key: 'status' },
-  { title: '门禁', dataIndex: 'gateStatus', key: 'gateStatus' },
-  { title: '发布人', dataIndex: 'releasedBy' },
-  { title: '发布时间', dataIndex: 'releasedAt' },
-  { title: '操作', key: 'action' },
-]
 
 const projects = ref<any[]>([])
 const selectedProjectId = ref('')
@@ -73,9 +76,9 @@ const loading = ref(false)
 const showCreate = ref(false)
 const form = ref({ version: '', deploymentId: '', notes: '' })
 
-function statusColor(s: string) {
-  const map: Record<string, string> = { DRAFT: 'default', PENDING_GATES: 'processing', READY: 'success', PUBLISHED: 'blue', FAILED: 'red' }
-  return map[s] || 'default'
+function statusType(s: string) {
+  const map: Record<string, string> = { DRAFT: 'info', PENDING_GATES: 'warning', READY: 'success', PUBLISHED: 'primary', FAILED: 'danger' }
+  return map[s] || 'info'
 }
 
 async function loadReleases() {
@@ -88,7 +91,7 @@ async function loadReleases() {
     ])
     releases.value = relRes.data
     deployments.value = (depRes.data || []).filter((d: any) => d.status === 'SUCCEEDED')
-  } catch (e) { message.error('操作失败，请稍后重试') }
+  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
   loading.value = false
 }
 
@@ -105,7 +108,7 @@ onMounted(async () => {
   try {
     const res = await fetchProjects()
     projects.value = res.data
-  } catch (e) { message.error('操作失败，请稍后重试') }
+  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
   const qp = route.query.projectId as string
   if (qp) {
     selectedProjectId.value = qp

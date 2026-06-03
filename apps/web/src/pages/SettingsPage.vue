@@ -3,55 +3,55 @@
     <h2>设置</h2>
     <p style="color: #8c8c8c; margin-bottom: 24px;">管理工作空间与系统配置。</p>
 
-    <a-row :gutter="16">
-      <a-col :span="16">
-        <a-card title="工作空间设置" style="margin-bottom: 16px;">
-          <a-form layout="vertical" :model="workspaceForm">
-            <a-form-item label="工作空间名称">
-              <a-input v-model:value="workspaceForm.name" placeholder="例如：My Team" />
-            </a-form-item>
-            <a-form-item>
-              <a-button type="primary" @click="saveWorkspace" :loading="saving">保存</a-button>
-            </a-form-item>
-          </a-form>
-        </a-card>
+    <el-row :gutter="16">
+      <el-col :span="16">
+        <el-card header="工作空间设置" style="margin-bottom: 16px;">
+          <el-form label-position="top" :model="workspaceForm">
+            <el-form-item label="工作空间名称">
+              <el-input v-model="workspaceForm.name" placeholder="例如：My Team" />
+            </el-form-item>
+            <el-form-item>
+              <el-button type="primary" @click="saveWorkspace" :loading="saving">保存</el-button>
+            </el-form-item>
+          </el-form>
+        </el-card>
 
-        <a-card title="个人信息" style="margin-bottom: 16px;">
-          <a-descriptions bordered size="small" :column="1">
-            <a-descriptions-item label="账号">{{ auth.user?.account || '-' }}</a-descriptions-item>
-            <a-descriptions-item label="显示名称">{{ auth.user?.displayName || '-' }}</a-descriptions-item>
-            <a-descriptions-item label="角色">
-              <a-tag :color="roleColor">{{ roleLabel }}</a-tag>
-            </a-descriptions-item>
-          </a-descriptions>
-        </a-card>
-      </a-col>
+        <el-card header="个人信息" style="margin-bottom: 16px;">
+          <el-descriptions border size="small" :column="1">
+            <el-descriptions-item label="账号">{{ auth.user?.account || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="显示名称">{{ auth.user?.displayName || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="角色">
+              <el-tag :type="roleType">{{ roleLabel }}</el-tag>
+            </el-descriptions-item>
+          </el-descriptions>
+        </el-card>
+      </el-col>
 
-      <a-col :span="8">
-        <a-card title="系统信息" style="margin-bottom: 16px;">
-          <a-descriptions bordered size="small" :column="1">
-            <a-descriptions-item label="应用名称">Launchly</a-descriptions-item>
-            <a-descriptions-item label="版本">1.0.0-beta</a-descriptions-item>
-            <a-descriptions-item label="数据库">PostgreSQL</a-descriptions-item>
-            <a-descriptions-item label="数据目录">~/.launchly</a-descriptions-item>
-          </a-descriptions>
-        </a-card>
+      <el-col :span="8">
+        <el-card header="系统信息" style="margin-bottom: 16px;">
+          <el-descriptions border size="small" :column="1">
+            <el-descriptions-item label="应用名称">Launchly</el-descriptions-item>
+            <el-descriptions-item label="版本">1.0.0-beta</el-descriptions-item>
+            <el-descriptions-item label="数据库">PostgreSQL</el-descriptions-item>
+            <el-descriptions-item label="数据目录">~/.launchly</el-descriptions-item>
+          </el-descriptions>
+        </el-card>
 
-        <a-card title="快速入口">
+        <el-card header="快速入口">
           <div style="display: flex; flex-direction: column; gap: 8px;">
-            <a-button block @click="$router.push('/members')">成员管理</a-button>
-            <a-button block @click="$router.push('/audit-logs')">审计日志</a-button>
-            <a-button block @click="$router.push('/notifications')">通知中心</a-button>
+            <el-button style="width: 100%;" @click="$router.push('/members')">成员管理</el-button>
+            <el-button style="width: 100%;" @click="$router.push('/audit-logs')">审计日志</el-button>
+            <el-button style="width: 100%;" @click="$router.push('/notifications')">通知中心</el-button>
           </div>
-        </a-card>
-      </a-col>
-    </a-row>
+        </el-card>
+      </el-col>
+    </el-row>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, computed } from 'vue'
-import { message } from 'ant-design-vue'
+import { reactive, ref, computed } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { usePermission } from '../composables/usePermission'
 
@@ -62,7 +62,7 @@ const workspaceForm = reactive({
   name: auth.workspace?.name || '',
 })
 
-const saving = false
+const saving = ref(false)
 
 const roleLabel = computed(() => {
   const map: Record<string, string> = {
@@ -71,14 +71,23 @@ const roleLabel = computed(() => {
   return map[role.value] || role.value
 })
 
-const roleColor = computed(() => {
+const roleType = computed(() => {
   const map: Record<string, string> = {
-    OWNER: 'gold', ADMIN: 'blue', DEVELOPER: 'green', TESTER: 'orange', VIEWER: 'default',
+    OWNER: 'warning', ADMIN: 'primary', DEVELOPER: 'success', TESTER: 'warning', VIEWER: 'info',
   }
-  return map[role.value] || 'default'
+  return map[role.value] || 'info'
 })
 
-function saveWorkspace() {
-  message.success('工作空间设置已保存')
+async function saveWorkspace() {
+  saving.value = true
+  try {
+    // TODO: 调用 API 保存工作空间设置
+    // await updateWorkspace({ name: workspaceForm.name })
+    ElMessage.success('工作空间设置已保存')
+  } catch (e: any) {
+    ElMessage.error(e.response?.data?.message || '保存失败')
+  } finally {
+    saving.value = false
+  }
 }
 </script>

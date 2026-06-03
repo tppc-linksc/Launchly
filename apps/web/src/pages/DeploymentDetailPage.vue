@@ -1,61 +1,64 @@
 <template>
   <div v-if="deployment">
-    <a-page-header title="部署详情" @back="$router.push('/deployments')" />
-    <a-card style="margin-bottom: 16px;">
-      <a-descriptions :column="2" size="small">
-        <a-descriptions-item label="分支">{{ deployment.branch }}</a-descriptions-item>
-        <a-descriptions-item label="Commit">{{ commitShort(deployment.commitSha) }}</a-descriptions-item>
-        <a-descriptions-item label="状态">
-          <a-tag :color="statusColor(deployment.status)">{{ deployStatusMap[deployment.status] || deployment.status }}</a-tag>
-        </a-descriptions-item>
-        <a-descriptions-item label="环境">{{ deployment.environmentName || deployment.environmentId || '—' }}</a-descriptions-item>
-        <a-descriptions-item label="部署目标">{{ deployment.deployTarget?.name || '本地' }} <span v-if="deployment.deployTarget && deployment.deployTarget.host" style="color: #8c8c8c;">({{ deployment.deployTarget.host }})</span></a-descriptions-item>
-        <a-descriptions-item label="触发人">{{ deployment.triggeredByName || deployment.triggeredBy || '—' }}</a-descriptions-item>
-        <a-descriptions-item label="开始时间">{{ formatTime(deployment.startedAt) }}</a-descriptions-item>
-        <a-descriptions-item label="结束时间">{{ formatTime(deployment.finishedAt) }}</a-descriptions-item>
-        <a-descriptions-item label="创建时间">{{ formatTime(deployment.createdAt) }}</a-descriptions-item>
-      </a-descriptions>
-      <a-alert v-if="deployment.accessUrl && deployment.status === 'SUCCEEDED'" type="success" show-icon style="margin-top: 12px;">
-        <template #message>
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+      <el-button link @click="$router.push('/deployments')">&larr; 返回</el-button>
+      <h2 style="margin: 0;">部署详情</h2>
+    </div>
+    <el-card style="margin-bottom: 16px;">
+      <el-descriptions :column="2" size="small">
+        <el-descriptions-item label="分支">{{ deployment.branch }}</el-descriptions-item>
+        <el-descriptions-item label="Commit">{{ commitShort(deployment.commitSha) }}</el-descriptions-item>
+        <el-descriptions-item label="状态">
+          <el-tag :type="statusType(deployment.status)">{{ deployStatusMap[deployment.status] || deployment.status }}</el-tag>
+        </el-descriptions-item>
+        <el-descriptions-item label="环境">{{ deployment.environmentName || deployment.environmentId || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="部署目标">{{ deployment.deployTarget?.name || '本地' }} <span v-if="deployment.deployTarget && deployment.deployTarget.host" style="color: #8c8c8c;">({{ deployment.deployTarget.host }})</span></el-descriptions-item>
+        <el-descriptions-item label="触发人">{{ deployment.triggeredByName || deployment.triggeredBy || '—' }}</el-descriptions-item>
+        <el-descriptions-item label="开始时间">{{ formatTime(deployment.startedAt) }}</el-descriptions-item>
+        <el-descriptions-item label="结束时间">{{ formatTime(deployment.finishedAt) }}</el-descriptions-item>
+        <el-descriptions-item label="创建时间">{{ formatTime(deployment.createdAt) }}</el-descriptions-item>
+      </el-descriptions>
+      <el-alert v-if="deployment.accessUrl && deployment.status === 'SUCCEEDED'" type="success" show-icon style="margin-top: 12px;">
+        <template #title>
           <span>部署成功！访问地址：<a :href="deployment.accessUrl" target="_blank" style="font-weight: 600;">{{ deployment.accessUrl }}</a></span>
         </template>
-      </a-alert>
-      <a-alert v-if="deployment.errorMessage" type="error" :message="deployment.errorMessage" show-icon style="margin-top: 12px;" />
+      </el-alert>
+      <el-alert v-if="deployment.errorMessage" type="error" :title="deployment.errorMessage" show-icon style="margin-top: 12px;" />
       <div style="margin-top: 12px;">
-        <a-button v-if="canDeploy && deployment.status === 'FAILED'" type="primary" danger style="margin-right: 8px;" :loading="redeploying" @click="handleRedeploy">
+        <el-button v-if="canDeploy && deployment.status === 'FAILED'" type="danger" style="margin-right: 8px;" :loading="redeploying" @click="handleRedeploy">
           重新部署
-        </a-button>
-        <a-button v-if="canWrite && deployment.status === 'SUCCEEDED'" type="primary" style="margin-right: 8px;" @click="handleCreateTestRun">
+        </el-button>
+        <el-button v-if="canWrite && deployment.status === 'SUCCEEDED'" type="primary" style="margin-right: 8px;" @click="handleCreateTestRun">
           创建测试任务
-        </a-button>
-        <a-button v-if="canDeploy && deployment.status === 'SUCCEEDED' && deployment.commitSha" style="margin-right: 8px;" :loading="rollingBack" @click="handleRollback">
+        </el-button>
+        <el-button v-if="canDeploy && deployment.status === 'SUCCEEDED' && deployment.commitSha" style="margin-right: 8px;" :loading="rollingBack" @click="handleRollback">
           回滚到此版本
-        </a-button>
+        </el-button>
       </div>
       <div v-if="deployment.status === 'SUCCEEDED'" style="margin-top: 12px; display: flex; gap: 12px;">
-        <a-button size="small" @click="$router.push(`/tests/runs?projectId=${deployment.projectId}`)">查看测试记录</a-button>
-        <a-button size="small" @click="$router.push(`/issues?projectId=${deployment.projectId}`)">查看 Issue</a-button>
-        <a-button size="small" @click="$router.push(`/releases?projectId=${deployment.projectId}`)">查看发布</a-button>
-        <a-button size="small" @click="$router.push(`/projects/${deployment.projectId}`)">返回项目</a-button>
+        <el-button size="small" @click="$router.push(`/tests/runs?projectId=${deployment.projectId}`)">查看测试记录</el-button>
+        <el-button size="small" @click="$router.push(`/issues?projectId=${deployment.projectId}`)">查看 Issue</el-button>
+        <el-button size="small" @click="$router.push(`/releases?projectId=${deployment.projectId}`)">查看发布</el-button>
+        <el-button size="small" @click="$router.push(`/projects/${deployment.projectId}`)">返回项目</el-button>
       </div>
-    </a-card>
+    </el-card>
 
-    <a-card title="阶段日志">
-      <a-timeline>
-        <a-timeline-item v-for="log in logs" :key="log.id" :color="dotColor(log.status)">
+    <el-card header="阶段日志">
+      <el-timeline>
+        <el-timeline-item v-for="log in logs" :key="log.id" :color="dotColor(log.status)">
           <strong>{{ deployStageMap[log.stage] || log.stage }}</strong>
-          <a-tag :color="tagColor(log.status)" style="margin-left: 8px;">{{ deployStatusMap[log.status] || log.status }}</a-tag>
+          <el-tag :type="tagType(log.status)" style="margin-left: 8px;">{{ deployStatusMap[log.status] || log.status }}</el-tag>
           <pre v-if="log.log" style="background: #f6f8fa; padding: 8px; margin-top: 8px; font-size: 12px; max-height: 200px; overflow: auto;">{{ log.log }}</pre>
-        </a-timeline-item>
-      </a-timeline>
-    </a-card>
+        </el-timeline-item>
+      </el-timeline>
+    </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { message, Modal } from 'ant-design-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { fetchDeployment, fetchDeploymentLogs, createTestRun, createDeployment, rollbackDeployment } from '../api/client'
 import { deployStatusMap, deployStageMap, formatTime } from '../utils/display'
 import { usePermission } from '../composables/usePermission'
@@ -74,12 +77,12 @@ function commitShort(sha: string) {
   return sha ? sha.substring(0, 7) : '-'
 }
 
-function statusColor(s: string) {
+function statusType(s: string) {
   const map: Record<string, string> = {
-    PENDING: 'default', RUNNING: 'processing', SUCCEEDED: 'success',
-    FAILED: 'error', CANCELED: 'warning',
+    PENDING: 'info', RUNNING: 'primary', SUCCEEDED: 'success',
+    FAILED: 'danger', CANCELED: 'warning',
   }
-  return map[s] || 'default'
+  return map[s] || 'info'
 }
 
 function dotColor(s: string) {
@@ -90,12 +93,12 @@ function dotColor(s: string) {
   return map[s] || 'gray'
 }
 
-function tagColor(s: string) {
+function tagType(s: string) {
   const map: Record<string, string> = {
-    SUCCEEDED: 'green', FAILED: 'red', RUNNING: 'processing',
-    SKIPPED: 'default', PENDING: 'default',
+    SUCCEEDED: 'success', FAILED: 'danger', RUNNING: 'primary',
+    SKIPPED: 'info', PENDING: 'info',
   }
-  return map[s] || 'default'
+  return map[s] || 'info'
 }
 
 async function connectSSE(id: string) {
@@ -151,10 +154,10 @@ async function connectSSE(id: string) {
 async function handleCreateTestRun() {
   try {
     const res = await createTestRun(deployment.value.id, deployment.value.projectId, deployment.value.environmentId)
-    message.success('测试任务已创建')
+    ElMessage.success('测试任务已创建')
     router.push(`/tests/runs/${res.data.id}`)
   } catch (e: any) {
-    message.error(e.response?.data?.message || '创建测试任务失败')
+    ElMessage.error(e.response?.data?.message || '创建测试任务失败')
   }
 }
 
@@ -169,30 +172,33 @@ async function handleRedeploy() {
       commitSha: deployment.value.commitSha || undefined,
     }
     const res = await createDeployment(payload)
-    message.success('已触发重新部署')
+    ElMessage.success('已触发重新部署')
     router.push(`/deployments/${res.data.id}`)
   } catch (e: any) {
-    message.error(e.response?.data?.message || '重新部署失败')
+    ElMessage.error(e.response?.data?.message || '重新部署失败')
     redeploying.value = false
   }
 }
 
 async function handleRollback() {
-  Modal.confirm({
-    title: '回滚确认',
-    content: `确定要回滚到 commit ${commitShort(deployment.value.commitSha)} 的版本吗？将创建新的部署。`,
-    onOk: async () => {
-      rollingBack.value = true
-      try {
-        const res = await rollbackDeployment(deployment.value.id, { reason: '手动回滚' })
-        message.success('回滚部署已触发')
-        router.push(`/deployments/${res.data.id}`)
-      } catch (e: any) {
-        message.error(e.response?.data?.message || '回滚失败')
-        rollingBack.value = false
-      }
-    },
-  })
+  try {
+    await ElMessageBox.confirm(
+      `确定要回滚到 commit ${commitShort(deployment.value.commitSha)} 的版本吗？将创建新的部署。`,
+      '回滚确认',
+      { type: 'warning' },
+    )
+    rollingBack.value = true
+    try {
+      const res = await rollbackDeployment(deployment.value.id, { reason: '手动回滚' })
+      ElMessage.success('回滚部署已触发')
+      router.push(`/deployments/${res.data.id}`)
+    } catch (e: any) {
+      ElMessage.error(e.response?.data?.message || '回滚失败')
+      rollingBack.value = false
+    }
+  } catch {
+    // user cancelled
+  }
 }
 
 onMounted(async () => {
@@ -217,16 +223,16 @@ onUnmounted(() => {
 
 <style scoped>
 /* Timeline dot pulse animation for RUNNING status */
-:deep(.ant-timeline-item-tail) {
+:deep(.el-timeline-item__tail) {
   border-left: 2px solid #e8e8e8;
 }
-:deep(.ant-timeline-item-head-blue) {
+:deep(.el-timeline-item__node--primary) {
   animation: dotPulse 1.5s ease-in-out infinite;
-  box-shadow: 0 0 0 0 rgba(24, 144, 255, 0.4);
+  box-shadow: 0 0 0 0 rgba(64, 158, 255, 0.4);
 }
 @keyframes dotPulse {
-  0% { box-shadow: 0 0 0 0 rgba(24, 144, 255, 0.4); }
-  70% { box-shadow: 0 0 0 8px rgba(24, 144, 255, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(24, 144, 255, 0); }
+  0% { box-shadow: 0 0 0 0 rgba(64, 158, 255, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(64, 158, 255, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(64, 158, 255, 0); }
 }
 </style>

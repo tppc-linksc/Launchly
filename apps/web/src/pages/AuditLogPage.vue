@@ -2,23 +2,29 @@
   <div>
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
       <h2 style="margin: 0;">审计日志</h2>
-      <a-button @click="handleExport">导出 CSV</a-button>
+      <el-button @click="handleExport">导出 CSV</el-button>
     </div>
-    <a-card>
-      <a-table :columns="columns" :data-source="logs" :loading="loading" row-key="id" size="small">
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'action'">
-            <a-tag>{{ auditActionMap[record.action] || record.action }}</a-tag>
+    <el-card>
+      <el-table :data="logs" v-loading="loading" row-key="id" size="small">
+        <el-table-column prop="userId" label="用户ID" show-overflow-tooltip />
+        <el-table-column label="操作" width="160">
+          <template #default="{ row }">
+            <el-tag>{{ auditActionMap[row.action] || row.action }}</el-tag>
           </template>
-          <template v-if="column.key === 'detail'">
-            <span style="font-family: monospace; font-size: 12px;">{{ record.detail || '-' }}</span>
+        </el-table-column>
+        <el-table-column prop="targetType" label="目标类型" width="120" />
+        <el-table-column prop="targetId" label="目标ID" show-overflow-tooltip />
+        <el-table-column label="详情" width="200">
+          <template #default="{ row }">
+            <span style="font-family: monospace; font-size: 12px;">{{ row.detail || '-' }}</span>
           </template>
-          <template v-if="column.key === 'createdAt'">
-            {{ formatTime(record.createdAt) }}
-          </template>
-        </template>
-      </a-table>
-    </a-card>
+        </el-table-column>
+        <el-table-column prop="ipAddress" label="IP" width="130" />
+        <el-table-column label="时间" width="170">
+          <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+        </el-table-column>
+      </el-table>
+    </el-card>
   </div>
 </template>
 
@@ -30,23 +36,12 @@ import { auditActionMap } from '../utils/display'
 const logs = ref<any[]>([])
 const loading = ref(false)
 
-const columns = [
-  { title: '用户ID', dataIndex: 'userId', ellipsis: true },
-  { title: '操作', dataIndex: 'action', key: 'action', width: 160 },
-  { title: '目标类型', dataIndex: 'targetType', width: 120 },
-  { title: '目标ID', dataIndex: 'targetId', ellipsis: true },
-  { title: '详情', dataIndex: 'detail', key: 'detail', width: 200 },
-  { title: 'IP', dataIndex: 'ipAddress', width: 130 },
-  { title: '时间', dataIndex: 'createdAt', key: 'createdAt', width: 170 },
-]
-
 function formatTime(t: string) {
   if (!t) return '-'
   return new Date(t).toLocaleString()
 }
 
 function handleExport() {
-  const token = localStorage.getItem('accessToken')
   const url = '/api/audit-logs/export'
   const a = document.createElement('a')
   a.href = url

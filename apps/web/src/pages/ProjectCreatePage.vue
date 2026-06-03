@@ -2,66 +2,66 @@
   <div style="max-width: 640px;">
     <h2>创建项目</h2>
     <p style="color: #8c8c8c; margin-bottom: 24px;">填写项目基础信息，创建后自动生成 Test、Staging、Production 三类环境。</p>
-    <a-card>
-      <a-form :model="form" layout="vertical" @finish="onSubmit">
-        <a-form-item label="项目名称" required>
-          <a-input v-model:value="form.name" placeholder="例如：my-app" />
-        </a-form-item>
-        <a-form-item label="项目描述">
-          <a-textarea v-model:value="form.description" placeholder="简要描述项目" :rows="2" />
-        </a-form-item>
-        <a-form-item label="项目类型">
-          <a-select v-model:value="form.projectType" placeholder="选择项目模板">
-            <a-select-option value="NODE_JS">Node.js</a-select-option>
-            <a-select-option value="JAVA_SPRING_BOOT">Java Spring Boot</a-select-option>
-            <a-select-option value="PYTHON">Python</a-select-option>
-            <a-select-option value="GO">Go</a-select-option>
-            <a-select-option value="DOCKERFILE">Dockerfile</a-select-option>
-            <a-select-option value="STATIC_SITE">静态站点</a-select-option>
-            <a-select-option value="CUSTOM">自定义</a-select-option>
-          </a-select>
-        </a-form-item>
-        <a-form-item label="仓库地址">
-          <a-input v-model:value="form.repositoryUrl" placeholder="https://github.com/user/repo" />
-        </a-form-item>
-        <a-form-item label="默认分支">
-          <a-input v-model:value="form.defaultBranch" placeholder="main" />
-        </a-form-item>
-        <a-form-item label="Git 提供方">
-          <a-select v-model:value="form.gitProvider" placeholder="选择">
-            <a-select-option value="GITHUB">GitHub</a-select-option>
-            <a-select-option value="GITLAB">GitLab</a-select-option>
-            <a-select-option value="GENERIC">通用 Git URL</a-select-option>
-          </a-select>
-        </a-form-item>
-        <a-divider>命令配置（可选）</a-divider>
-        <a-form-item label="安装命令">
-          <a-input v-model:value="form.installCommand" placeholder="npm install" />
-        </a-form-item>
-        <a-form-item label="构建命令">
-          <a-input v-model:value="form.buildCommand" placeholder="npm run build" />
-        </a-form-item>
-        <a-form-item label="启动命令">
-          <a-input v-model:value="form.startCommand" placeholder="npm start" />
-        </a-form-item>
-        <a-form-item label="测试命令">
-          <a-input v-model:value="form.testCommand" placeholder="npm test" />
-        </a-form-item>
-        <a-form-item label="健康检查路径">
-          <a-input v-model:value="form.healthCheckPath" placeholder="/health" />
-        </a-form-item>
-        <a-form-item label="默认端口">
-          <a-input-number v-model:value="form.defaultPort" placeholder="3000" style="width: 100%" />
-        </a-form-item>
-        <a-form-item>
-          <a-space>
-            <a-button type="primary" html-type="submit" :loading="loading">创建</a-button>
-            <a-button @click="$router.back()">取消</a-button>
-          </a-space>
-        </a-form-item>
-      </a-form>
-    </a-card>
-    <a-alert v-if="error" :message="error" type="error" show-icon style="margin-top: 16px" />
+    <el-card>
+      <el-form :model="form" label-position="top" @submit.prevent="onSubmit">
+        <el-form-item label="项目名称" required>
+          <el-input v-model="form.name" placeholder="例如：my-app" />
+        </el-form-item>
+        <el-form-item label="项目描述">
+          <el-input type="textarea" v-model="form.description" placeholder="简要描述项目" :rows="2" />
+        </el-form-item>
+        <el-form-item label="项目类型">
+          <el-select v-model="form.projectType" placeholder="选择项目模板">
+            <el-option value="NODE_JS">Node.js</el-option>
+            <el-option value="JAVA_SPRING_BOOT">Java Spring Boot</el-option>
+            <el-option value="PYTHON">Python</el-option>
+            <el-option value="GO">Go</el-option>
+            <el-option value="DOCKERFILE">Dockerfile</el-option>
+            <el-option value="STATIC_SITE">静态站点</el-option>
+            <el-option value="CUSTOM">自定义</el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item label="仓库地址">
+          <el-input v-model="form.repositoryUrl" placeholder="https://github.com/user/repo" />
+        </el-form-item>
+        <el-form-item label="默认分支">
+          <el-input v-model="form.defaultBranch" placeholder="main" />
+        </el-form-item>
+        <el-form-item label="Git 提供方">
+          <el-select v-model="form.gitProvider" placeholder="选择">
+            <el-option value="GITHUB">GitHub</el-option>
+            <el-option value="GITLAB">GitLab</el-option>
+            <el-option value="GENERIC">通用 Git URL</el-option>
+          </el-select>
+        </el-form-item>
+        <el-divider>命令配置（可选）</el-divider>
+        <el-form-item label="安装命令">
+          <el-input v-model="form.installCommand" placeholder="npm install" />
+        </el-form-item>
+        <el-form-item label="构建命令">
+          <el-input v-model="form.buildCommand" placeholder="npm run build" />
+        </el-form-item>
+        <el-form-item label="启动命令">
+          <el-input v-model="form.startCommand" placeholder="npm start" />
+        </el-form-item>
+        <el-form-item label="测试命令">
+          <el-input v-model="form.testCommand" placeholder="npm test" />
+        </el-form-item>
+        <el-form-item label="健康检查路径">
+          <el-input v-model="form.healthCheckPath" placeholder="/health" />
+        </el-form-item>
+        <el-form-item label="默认端口">
+          <el-input-number v-model="form.defaultPort" placeholder="3000" style="width: 100%" />
+        </el-form-item>
+        <el-form-item>
+          <el-space>
+            <el-button type="primary" native-type="submit" :loading="loading">创建</el-button>
+            <el-button @click="$router.back()">取消</el-button>
+          </el-space>
+        </el-form-item>
+      </el-form>
+    </el-card>
+    <el-alert v-if="error" :title="error" type="error" show-icon style="margin-top: 16px" />
   </div>
 </template>
 

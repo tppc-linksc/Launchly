@@ -2,30 +2,26 @@
   <div>
     <div style="display: flex; justify-content: space-between; align-items: center;">
       <h2>通知中心</h2>
-      <a-button size="small" @click="handleMarkAllRead" :disabled="unreadCount === 0">全部已读</a-button>
+      <el-button size="small" @click="handleMarkAllRead" :disabled="unreadCount === 0">全部已读</el-button>
     </div>
-    <a-list style="margin-top: 16px;" :loading="loading" item-layout="horizontal" :data-source="notifications">
-      <template #renderItem="{ item }">
-        <a-list-item>
-          <a-list-item-meta>
-            <template #title>
+    <div v-loading="loading" style="margin-top: 16px;">
+      <div v-if="notifications.length > 0">
+        <div v-for="item in notifications" :key="item.id" class="list-item">
+          <div class="list-item-content">
+            <div class="list-item-header">
               <span :style="{ fontWeight: item.read ? 'normal' : 'bold' }">{{ item.title }}</span>
-              <a-tag v-if="!item.read" color="blue" style="margin-left: 8px;">未读</a-tag>
-            </template>
-            <template #description>
-              <div>{{ item.content }}</div>
-              <div style="font-size: 12px; color: #999; margin-top: 4px;">{{ formatTime(item.createdAt) }}</div>
-            </template>
-          </a-list-item-meta>
-          <template #actions>
-            <a-button v-if="!item.read" type="link" size="small" @click="handleMarkRead(item.id)">标为已读</a-button>
-          </template>
-        </a-list-item>
-      </template>
-      <template #empty>
-        <a-empty description="暂无通知" />
-      </template>
-    </a-list>
+              <el-tag v-if="!item.read" type="primary" size="small" style="margin-left: 8px;">未读</el-tag>
+            </div>
+            <div class="list-item-body">{{ item.content }}</div>
+            <div style="font-size: 12px; color: #999; margin-top: 4px;">{{ formatTime(item.createdAt) }}</div>
+          </div>
+          <div class="list-item-actions">
+            <el-button v-if="!item.read" link type="primary" size="small" @click="handleMarkRead(item.id)">标为已读</el-button>
+          </div>
+        </div>
+      </div>
+      <el-empty v-else description="暂无通知" />
+    </div>
   </div>
 </template>
 
@@ -71,3 +67,30 @@ async function handleMarkAllRead() {
 
 onMounted(() => { load() })
 </script>
+
+<style scoped>
+.list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+.list-item:last-child {
+  border-bottom: none;
+}
+.list-item-content {
+  flex: 1;
+}
+.list-item-header {
+  display: flex;
+  align-items: center;
+}
+.list-item-body {
+  margin-top: 4px;
+}
+.list-item-actions {
+  flex-shrink: 0;
+  margin-left: 16px;
+}
+</style>

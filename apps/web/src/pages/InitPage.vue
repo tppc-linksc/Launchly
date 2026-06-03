@@ -1,30 +1,30 @@
 <template>
   <div class="init-page">
-    <a-card :title="'初始化 Launchly'" style="max-width: 480px; margin: 80px auto;">
-      <a-form :model="form" layout="vertical" @finish="onSubmit">
-        <a-form-item label="账号" required>
-          <a-input v-model:value="form.account" placeholder="邮箱地址" />
-        </a-form-item>
-        <a-form-item label="密码" required>
-          <a-input-password v-model:value="form.password" placeholder="至少 8 位，需包含字母和数字" />
-        </a-form-item>
-        <a-form-item label="显示名称">
-          <a-input v-model:value="form.displayName" placeholder="可选" />
-        </a-form-item>
-        <a-form-item label="默认 Workspace 名称" required>
-          <a-input v-model:value="form.workspaceName" placeholder="例如：My Team" />
-        </a-form-item>
-        <a-form-item>
-          <a-button type="primary" html-type="submit" :loading="loading" block>创建管理员并初始化</a-button>
-        </a-form-item>
-      </a-form>
-      <a-alert v-if="error" :message="error" type="error" show-icon style="margin-top: 16px" />
-      <a-result v-if="success" status="success" title="初始化完成">
+    <el-card header="初始化 Launchly" style="max-width: 480px; margin: 80px auto;">
+      <el-form :model="form" label-position="top" @submit.prevent="onSubmit">
+        <el-form-item label="账号" required>
+          <el-input v-model="form.account" placeholder="邮箱地址" />
+        </el-form-item>
+        <el-form-item label="密码" required>
+          <el-input type="password" show-password v-model="form.password" placeholder="至少 8 位，需包含字母和数字" />
+        </el-form-item>
+        <el-form-item label="显示名称">
+          <el-input v-model="form.displayName" placeholder="可选" />
+        </el-form-item>
+        <el-form-item label="默认 Workspace 名称" required>
+          <el-input v-model="form.workspaceName" placeholder="例如：My Team" />
+        </el-form-item>
+        <el-form-item>
+          <el-button type="primary" native-type="submit" :loading="loading" style="width: 100%;">创建管理员并初始化</el-button>
+        </el-form-item>
+      </el-form>
+      <el-alert v-if="error" :title="error" type="error" show-icon style="margin-top: 16px" />
+      <el-result v-if="success" status="success" title="初始化完成">
         <template #extra>
-          <a-button type="primary" @click="$router.push('/login')">前往登录</a-button>
+          <el-button type="primary" @click="$router.push('/login')">前往登录</el-button>
         </template>
-      </a-result>
-    </a-card>
+      </el-result>
+    </el-card>
   </div>
 </template>
 

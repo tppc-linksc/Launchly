@@ -5,22 +5,22 @@
         <h2 style="margin: 0;">项目</h2>
         <p style="color: #8c8c8c; margin: 4px 0 0;">管理项目、绑定 Git 仓库、配置构建与部署参数。</p>
       </div>
-      <a-button v-if="canWrite" type="primary" @click="$router.push('/projects/create')">创建项目</a-button>
+      <el-button v-if="canWrite" type="primary" @click="$router.push('/projects/create')">创建项目</el-button>
     </div>
 
-    <a-spin :spinning="loading">
+    <div v-loading="loading">
       <div class="project-grid">
         <div v-for="project in projects" :key="project.id" class="project-card" @click="$router.push(`/projects/${project.id}`)">
           <div class="card-header">
             <div class="card-title">{{ project.name }}</div>
-            <a-tag size="small">{{ project.projectType }}</a-tag>
+            <el-tag size="small">{{ project.projectType }}</el-tag>
           </div>
           <div class="card-desc">{{ project.repositoryUrl || '未配置仓库' }}</div>
           <div class="card-deploy">
             <template v-if="lastDeployMap[project.id]">
-              <a-tag :color="statusColor(lastDeployMap[project.id].status)" size="small">
+              <el-tag :type="deployTagType(lastDeployMap[project.id].status)" size="small">
                 {{ deployStatusMap[lastDeployMap[project.id].status] || lastDeployMap[project.id].status }}
-              </a-tag>
+              </el-tag>
               <span class="card-deploy-branch">{{ lastDeployMap[project.id].branch || '-' }}</span>
             </template>
             <span v-else class="card-no-deploy">暂无部署</span>
@@ -28,22 +28,23 @@
           <div class="card-footer">
             <span class="card-time">{{ project.createdAt ? formatTime(project.createdAt) : '' }}</span>
             <div class="card-actions">
-              <a-button v-if="canDeploy" size="small" type="primary" @click.stop="$router.push(`/projects/${project.id}`)">部署</a-button>
-              <a-button size="small" @click.stop="$router.push(`/projects/${project.id}`)">详情</a-button>
+              <el-button v-if="canDeploy" size="small" type="primary" @click.stop="$router.push(`/projects/${project.id}`)">部署</el-button>
+              <el-button size="small" @click.stop="$router.push(`/projects/${project.id}`)">详情</el-button>
             </div>
           </div>
         </div>
       </div>
-    </a-spin>
+    </div>
 
-    <a-empty v-if="!loading && projects.length === 0" description="暂无项目">
-      <a-button v-if="canWrite" type="primary" @click="$router.push('/projects/create')">创建第一个项目</a-button>
-    </a-empty>
+    <el-empty v-if="!loading && projects.length === 0" description="暂无项目">
+      <el-button v-if="canWrite" type="primary" @click="$router.push('/projects/create')">创建第一个项目</el-button>
+    </el-empty>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import { fetchProjects, fetchDeployments } from '../api/client'
 import { deployStatusMap, formatTime } from '../utils/display'
 import { usePermission } from '../composables/usePermission'
@@ -62,12 +63,12 @@ const lastDeployMap = computed(() => {
   return map
 })
 
-function statusColor(s: string) {
+function deployTagType(status: string) {
   const map: Record<string, string> = {
-    PENDING: 'default', RUNNING: 'processing', SUCCEEDED: 'success',
-    FAILED: 'error', CANCELED: 'warning',
+    PENDING: 'info', RUNNING: 'primary', SUCCEEDED: 'success',
+    FAILED: 'danger', CANCELED: 'warning',
   }
-  return map[s] || 'default'
+  return map[status] || 'info'
 }
 
 onMounted(async () => {
@@ -79,7 +80,7 @@ onMounted(async () => {
     ])
     projects.value = pRes.data || []
     deployments.value = dRes.data || []
-  } catch (e) { message.error('操作失败，请稍后重试') }
+  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
   loading.value = false
 })
 </script>

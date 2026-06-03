@@ -5,12 +5,12 @@
 
     <div class="grid-2">
       <!-- Left: running / recent deployments -->
-      <a-card class="card-surface">
+      <el-card class="card-surface">
         <template #title><span class="card-label">运行中 / 最近</span></template>
-        <a-spin :spinning="loading">
+        <div v-loading="loading">
           <div v-if="deployments.length === 0" class="empty-soft">
             <p>暂无部署记录</p>
-            <a-button type="primary" size="small" @click="$router.push('/projects')">去创建项目</a-button>
+            <el-button type="primary" size="small" @click="$router.push('/projects')">去创建项目</el-button>
           </div>
           <div v-for="d in deployments" :key="d.id" class="run-item" @click="$router.push(`/deployments/${d.id}`)">
             <div>
@@ -30,8 +30,8 @@
             </div>
             <span :class="['status-badge', statusBadgeClass(d.status)]">{{ deployStatusMap[d.status] || d.status }}</span>
           </div>
-        </a-spin>
-      </a-card>
+        </div>
+      </el-card>
 
       <!-- Right: next steps -->
       <aside class="card-surface side-card">
@@ -58,11 +58,13 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { fetchDeployments, fetchProjects, fetchDeploymentLogs } from '../api/client'
+import { ElMessage } from 'element-plus'
+import { fetchDeployments, fetchProjects, fetchDeploymentLogs, fetchEnvironments } from '../api/client'
 import { deployStatusMap, deployStageMap, formatTime } from '../utils/display'
 
 const deployments = ref<any[]>([])
 const projects = ref<any[]>([])
+const envs = ref<any[]>([])
 const stageLogs = ref<Record<string, any[]>>({})
 const loading = ref(false)
 
@@ -77,9 +79,9 @@ const failedCount = computed(() => deployments.value.filter(d => d.status === 'F
 const runningCount = computed(() => deployments.value.filter(d => d.status === 'RUNNING' || d.status === 'PENDING').length)
 
 function envName(id: string) {
-  // Environment names are not loaded here; show generic label
   if (!id) return '—'
-  return '环境'
+  const env = envs.value.find((e: any) => e.id === id)
+  return env?.name || '环境'
 }
 
 function statusBadgeClass(status: string) {
@@ -105,6 +107,15 @@ onMounted(async () => {
     deployments.value = (dRes.data || []).slice(0, 10)
     projects.value = pRes.data || []
 
+    // Fetch environments for all projects to display env names
+    const projectIds = [...new Set(deployments.value.map(d => d.projectId).filter(Boolean))]
+    if (projectIds.length > 0) {
+      const envResults = await Promise.all(
+        projectIds.map(pid => fetchEnvironments(pid).catch(() => ({ data: [] })))
+      )
+      envs.value = envResults.flatMap(r => r.data || [])
+    }
+
     // Fetch stage logs for each deployment (limit to first 5 for performance)
     const toFetch = deployments.value.slice(0, 5)
     const logResults = await Promise.all(
@@ -113,7 +124,7 @@ onMounted(async () => {
     toFetch.forEach((d, i) => {
       stageLogs.value[d.id] = logResults[i].data || []
     })
-  } catch (e) { message.error('操作失败，请稍后重试') }
+  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
   loading.value = false
 })
 </script>

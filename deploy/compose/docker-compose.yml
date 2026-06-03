@@ -27,6 +27,7 @@ services:
       LAUNCHLY_DB_NAME: ${LAUNCHLY_DB_NAME:-launchly}
       LAUNCHLY_DB_USER: ${LAUNCHLY_DB_USER:-launchly}
       LAUNCHLY_DB_PASSWORD: ${LAUNCHLY_DB_PASSWORD:-launchly_dev_password}
+      LAUNCHLY_DATABASE_URL: postgresql://${LAUNCHLY_DB_USER:-launchly}:${LAUNCHLY_DB_PASSWORD:-launchly_dev_password}@postgres:5432/${LAUNCHLY_DB_NAME:-launchly}
       LAUNCHLY_JWT_SECRET: ${LAUNCHLY_JWT_SECRET:-compose-local-only-jwt-hmac-key-min-48-chars-please-override}
       LAUNCHLY_ENCRYPTION_KEY: ${LAUNCHLY_ENCRYPTION_KEY:-compose-local-only-enc-seed-min-48-chars-override-for-prod}
       LAUNCHLY_EDITION: ${LAUNCHLY_EDITION:-selfhost}
