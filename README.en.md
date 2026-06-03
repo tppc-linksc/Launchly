@@ -30,13 +30,24 @@
 
 ## Table of Contents
 
-- [Why Launchly](#why-launchly)
+- [Table of Contents](#table-of-contents)
+- [Launchly](#launchly)
 - [Project Status](#project-status)
 - [Design Principles](#design-principles)
 - [System Architecture](#system-architecture)
 - [Planned Features](#planned-features)
+  - [Core Engine](#core-engine)
+  - [Collaboration (Baseline)](#collaboration-baseline)
+  - [SaaS Control Plane](#saas-control-plane)
+  - [Self-Host Operations](#self-host-operations)
+  - [Premium Add-ons (Pro / Future)](#premium-add-ons-pro--future)
 - [Directory Structure](#directory-structure)
 - [Quick Start](#quick-start)
+  - [One-Click Install (Recommended)](#one-click-install-recommended)
+  - [Common Commands](#common-commands)
+  - [Verify Deployment](#verify-deployment)
+  - [Development Mode](#development-mode)
+  - [Troubleshooting](#troubleshooting)
 - [Development Guide](#development-guide)
 - [Project Progress](#project-progress)
 - [Authoritative Documentation](#authoritative-documentation)
@@ -45,7 +56,7 @@
 
 ---
 
-## Why Launchly
+## Launchly
 
 Many personal projects and small-team products already have Git repositories, but still lack a low-cost, repeatable, traceable path from code to production:
 
