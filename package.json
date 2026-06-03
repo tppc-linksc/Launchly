@@ -5,7 +5,11 @@
   "description": "Self-hosted deployment and testing collaboration platform.",
   "scripts": {
     "dev:web": "pnpm --dir apps/web dev",
-    "build:web": "pnpm --dir apps/web build"
+    "build:web": "pnpm --dir apps/web build",
+    "test": "pnpm --dir services/api test && pnpm --dir apps/web test && pnpm --dir cli test",
+    "test:api": "pnpm --dir services/api test",
+    "test:web": "pnpm --dir apps/web test",
+    "test:cli": "pnpm --dir cli test"
   }
 }
 
