@@ -1,0 +1,92 @@
+name: CI
+
+on:
+  push:
+    branches: [master, 'refactor/**']
+  pull_request:
+    branches: [master]
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: API tests (Jest)
+        run: pnpm test:api
+
+      - name: Frontend tests (Vitest)
+        run: pnpm test:web
+
+      - name: CLI tests (Vitest)
+        run: pnpm test:cli
+
+  type-check:
+    name: Type Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate
+        run: cd services/api && npx prisma generate
+
+      - name: API type check
+        run: cd services/api && npx tsc --noEmit
+
+      - name: Frontend type check
+        run: cd apps/web && npx vue-tsc --noEmit
+
+      - name: CLI type check
+        run: cd cli && npx tsc --noEmit
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Prisma generate
+        run: cd services/api && npx prisma generate
+
+      - name: Build frontend
+        run: pnpm build:web
+
+      - name: Build API
+        run: cd services/api && npx nest build
+
+      - name: Build CLI
+        run: cd cli && pnpm build
