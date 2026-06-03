@@ -13,9 +13,8 @@ node_modules/
 dist/
 .vite/
 
-# Java / Maven (only build output dirs — do not use bare "target/" or it ignores com.launchly.target package)
+# Build output (only specific dirs — do not use bare "target/" or it ignores com.launchly.target package)
 services/api/target/
-services/worker/target/
 
 # Local binaries
 cli/launchly
@@ -25,10 +24,17 @@ cli/launchly
 .vscode/
 
 # Local development planning docs, not for upload
-docs/dev-tasks/
 .claude/settings.local.json
 .arts/
 .pnpm-store/
+
+# Generated / runtime
+*.log
+*.db
+*.sqlite
+coverage/
+.nyc_output/
+.claude/projects/
 
 # Docs policy: only keep 3 baseline files in repo
 docs/*
