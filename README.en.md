@@ -84,6 +84,7 @@ Launchly is currently in **Beta**. The core deployment pipeline, CLI installer, 
 - Design system token landing (Element Plus primary color #0D9488)
 - EDITION switch (cloud / selfhost mode)
 - Zero-Config Node inference (auto-detect package.json)
+- Complete test suite (API Jest 42 tests + Frontend Vitest 22 tests + CLI Vitest 15 tests)
 
 **Not Started**:
 
@@ -186,6 +187,7 @@ apps/web                 Vue 3 + Element Plus Web UI
 services/api             NestJS API Server + Worker (single process)
 cli                      TypeScript CLI (commander.js)
 deploy/compose           Self-hosted Docker Compose template
+examples                 Example projects (for verifying deployment flow)
 docs/basic               Product Design Spec / Technical Architecture Spec / UI & Interaction Spec (authoritative)
 docs/work                [planning.md](docs/work/planning.md) (16-week map); `phase1|phase2|phase3/weekNN/` each with week-N-plan/test/log/review quad
 docs/archive             Archived v1 documentation
@@ -307,6 +309,15 @@ API development conventions:
 - Deployment pipeline runs staged tasks in sequence (clone -> build -> deploy -> health check) with stage logs.
 - Sensitive environment variables are encrypted at rest (AES-256-GCM) and decrypted by Worker at deployment time.
 
+Testing:
+
+```bash
+pnpm test          # Run all tests (API + Frontend + CLI)
+pnpm test:api      # API tests only (Jest)
+pnpm test:web      # Frontend tests only (Vitest)
+pnpm test:cli      # CLI tests only (Vitest)
+```
+
 Development principles:
 
 - Public README files should describe the real project state and avoid presenting planned features as completed.
@@ -341,6 +352,7 @@ Development principles:
 | Design system token landing | Completed |
 | EDITION switch (cloud / selfhost) | Completed |
 | Zero-Config Node inference | Completed |
+| Complete test suite (79 tests, all passing) | Completed |
 | **Not Started** | |
 | SaaS control plane (registration / billing / multi-tenancy) | Not Started |
 | AI-powered features | Not Started |

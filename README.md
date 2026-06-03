@@ -84,6 +84,7 @@ Launchly 当前处于 **Beta 阶段**。核心部署链路、CLI 安装器、Web
 - 设计系统 token 落地（Element Plus 主色 #0D9488）
 - EDITION 开关（cloud/selfhost 模式）
 - Zero-Config Node 推断（自动检测 package.json）
+- 完整测试体系（API Jest 42 测试 + 前端 Vitest 22 测试 + CLI Vitest 15 测试）
 
 **未开始**：
 
@@ -186,6 +187,7 @@ apps/web                 Vue 3 + Element Plus Web UI
 services/api             NestJS API Server + Worker（单进程）
 cli                      TypeScript CLI（commander.js）
 deploy/compose           自托管 Docker Compose 模板
+examples                 示例项目（用于验证部署流程）
 docs/basic               产品设计规范 / 技术架构规范 / UI与交互规范（权威）
 docs/work                [planning.md](docs/work/planning.md)（全局 16 周）；`phase1|phase2|phase3/weekNN/` 各含 week-N-plan/test/log/review 四件套
 docs/archive             历史文档 v1 归档
@@ -307,6 +309,15 @@ API 开发约定：
 - 部署流水线已接入任务串行执行（clone -> build -> deploy -> health check）和阶段日志。
 - 环境变量敏感值已启用加密存储（AES-256-GCM），部署时在 Worker 侧解密注入。
 
+测试：
+
+```bash
+pnpm test          # 运行全部测试（API + 前端 + CLI）
+pnpm test:api      # 仅运行 API 测试（Jest）
+pnpm test:web      # 仅运行前端测试（Vitest）
+pnpm test:cli      # 仅运行 CLI 测试（Vitest）
+```
+
 开发原则：
 
 - 对外 README 只描述真实状态，不把计划能力写成已完成能力。
@@ -341,6 +352,7 @@ API 开发约定：
 | 设计系统 token 落地 | 已完成 |
 | EDITION 开关（cloud/selfhost） | 已完成 |
 | Zero-Config Node 推断 | 已完成 |
+| 完整测试体系（79 个测试用例，全部通过） | 已完成 |
 | **未开始** | |
 | SaaS 控制面（注册 / 计费 / 多租户） | 未开始 |
 | AI 增值功能 | 未开始 |
