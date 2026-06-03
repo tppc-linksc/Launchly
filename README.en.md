@@ -22,7 +22,7 @@
   <a href="README.md">中文文档</a>
 </p>
 
-> **2026-05 Direction Pivot**: Launchly has been refocused to a **dual-delivery lightweight code auto-deployment platform**. Decisions and historical materials have been archived; **the current product authority is the [Product Design Spec](docs/basic/产品设计规范.md)**. Archive index: [docs/archive/v1-2026-05/README.md](docs/archive/v1-2026-05/README.md). New direction is being developed on the `refactor/dual-mode-deploy` branch.
+> **2026-05 Direction Pivot**: Launchly has been refocused to a **dual-delivery lightweight code auto-deployment platform**. Decisions and historical materials have been archived; **the current product authority is the [Product Design Spec](docs/basic/产品设计规范.md)**. Archive index: `docs/archive/v1-2026-05/README.md` (local archive, not uploaded). New direction is being developed on the `refactor/dual-mode-deploy` branch.
 >
 > **Documentation upload note**: only the three baseline specs under `docs/basic/` are tracked in the public repository. `docs/work/`, `docs/archive/`, and `docs/prototypes/` are local collaboration docs and prototypes, added to `.gitignore`; README links to those paths are kept for maintainer-local navigation and are not guaranteed to resolve on GitHub.
 
@@ -109,7 +109,7 @@ Launchly is currently in **Beta**. The core deployment pipeline, CLI installer, 
 - **One-command deployment**: `launchly install` should initialize PostgreSQL, App, Worker, default storage, and the first Owner setup.
 - **Small-team friendly**: focus on project onboarding, deployment, testing, fixing, retesting, and release flow instead of a heavy enterprise platform.
 - **Sensible defaults**: fewer forms, more inference; commands and container details are hidden by default, with advanced capabilities disclosed progressively (see [Product Design Spec](docs/basic/产品设计规范.md) Section 4 and the archived zero-config full text).
-- **Deployment-tool shell**: default home screen highlights running deployments and next steps; target layout in [Launchly-prototype.html](docs/prototypes/Launchly-prototype.html); information architecture in [UI & Interaction Spec](docs/basic/UI与交互规范.md) Section 2, [Product Design Spec](docs/basic/产品设计规范.md) Section 6; implementation tasks in archived [AI task pack Section 15](docs/archive/v1-2026-05/root/AI开发任务包.md) (T-IA).
+- **Deployment-tool shell**: default home screen highlights running deployments and next steps; target layout in `docs/prototypes/Launchly-prototype.html` (local prototype, not uploaded); information architecture in [UI & Interaction Spec](docs/basic/UI与交互规范.md) Section 2, [Product Design Spec](docs/basic/产品设计规范.md) Section 6; implementation tasks in archived `docs/archive/v1-2026-05/root/AI开发任务包.md` Section 15 (T-IA, local archive).
 - **Traceable workflow**: every deployment, test, issue, release, and rollback should leave a record.
 - **Human-AI collaborative development**: development tasks should be understandable, divisible, executable, and verifiable by both humans and AI.
 
@@ -200,9 +200,9 @@ cli                      TypeScript CLI (commander.js)
 deploy/compose           Self-hosted Docker Compose template
 examples                 Example projects (for verifying deployment flow)
 docs/basic               Product Design Spec / Technical Architecture Spec / UI & Interaction Spec (authoritative)
-docs/work                [planning.md](docs/work/planning.md) (16-week map); `phase1|phase2|phase3/weekNN/` each with week-N-plan/test/log/review quad
-docs/archive             Archived v1 documentation
-docs/prototypes          Static HTML interactive prototypes
+docs/work                planning.md (16-week map, local collaboration, not uploaded)
+docs/archive             Archived v1 documentation (local, not uploaded)
+docs/prototypes          Static HTML interactive prototypes (local, not uploaded)
 # (optional) local scratch folders with any name; if added to .gitignore, they won't be pushed — not part of collaboration breakdown
 ```
 
@@ -338,7 +338,7 @@ Development principles:
 
 - Public README files should describe the real project state and avoid presenting planned features as completed.
 - Product decisions live in **`docs/basic/`** three specs; **update docs before code** when behavior changes.
-- **Collaboration breakdown**: the sole entry point is [`docs/work/planning.md`](docs/work/planning.md) → `docs/work/phase*/weekNN/week-N-plan.md` (includes the DeepSeek "contract" section). Feed DeepSeek **one weekday slice per session**; append to that week's `week-N-log.md` per [DeepSeek日志结构.md](docs/work/DeepSeek日志结构.md). **Do not** maintain parallel session directories or duplicate logs.
+- **Collaboration breakdown**: the sole entry point is `docs/work/planning.md` → `docs/work/phase*/weekNN/week-N-plan.md` (includes the DeepSeek "contract" section, local collaboration, not uploaded). Feed DeepSeek **one weekday slice per session**; append to that week's `week-N-log.md` per `DeepSeek日志结构.md`. **Do not** maintain parallel session directories or duplicate logs.
 - Optional personal notes: use any local ignored folder you like; it **must not** replace `week-*-plan.md`.
 - Humans mainly review boundaries and key decisions; AI should execute concrete code, documentation, and verification tasks whenever possible.
 - Implementation should stay aligned with **[Product Design Spec](docs/basic/产品设计规范.md) + [Technical Architecture Spec](docs/basic/技术架构规范.md) + [UI & Interaction Spec](docs/basic/UI与交互规范.md)**.
@@ -383,11 +383,11 @@ Only the three **Chinese baseline specs** below are tracked in the public reposi
 | Product spec | [docs/basic/产品设计规范.md](docs/basic/产品设计规范.md) | Positioning, models, permissions, flows |
 | Technical spec | [docs/basic/技术架构规范.md](docs/basic/技术架构规范.md) | Stack, architecture, modules, security |
 | UI & interaction spec | [docs/basic/UI与交互规范.md](docs/basic/UI与交互规范.md) | Pages, interactions, prototype index |
-| Master plan (local) | [docs/work/planning.md](docs/work/planning.md) | Local collaboration entry; not uploaded to the public repository |
+| Master plan (local) | `docs/work/planning.md` | Local collaboration entry; not uploaded |
 
-**Work logs (local)**: Append **only** to that week's `week-N-log.md` using [DeepSeek日志结构.md](docs/work/DeepSeek日志结构.md); do not fork extra log locations.
+**Work logs (local)**: Append **only** to that week's `week-N-log.md` using `DeepSeek日志结构.md`; do not fork extra log locations.
 
-**Static prototypes (local)**: [Launchly-prototype.html](docs/prototypes/Launchly-prototype.html).
+**Static prototypes (local)**: `docs/prototypes/Launchly-prototype.html` (not uploaded).
 
 ## Contributing
 

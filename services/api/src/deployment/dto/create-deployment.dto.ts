@@ -10,8 +10,8 @@ export class CreateDeploymentDto {
   environmentId!: string;
 
   @IsString()
-  @IsNotEmpty()
-  deployTargetId!: string;
+  @IsOptional()
+  deployTargetId?: string;
 
   @IsString()
   @IsOptional()

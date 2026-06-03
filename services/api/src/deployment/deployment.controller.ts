@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Param, Body, Query, Sse, MessageEvent } from '@nestjs/common';
-import { Observable, interval, switchMap, takeWhile, map } from 'rxjs';
+import { Observable, defer, interval, switchMap, takeWhile, map, from } from 'rxjs';
 import { DeploymentService } from './deployment.service';
 import { CreateDeploymentDto } from './dto/create-deployment.dto';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
@@ -25,26 +25,32 @@ export class DeploymentController {
     @Query('environmentId') environmentId?: string,
     @CurrentUser() user?: AuthPrincipal,
   ) {
-    if (environmentId) return this.deploymentService.listByEnvironment(environmentId);
-    if (projectId) return this.deploymentService.listByProject(projectId);
-    return this.deploymentService.listForWorkspace(user!.workspaceId!);
+    const wsId = user!.workspaceId!;
+    if (environmentId) return this.deploymentService.listByEnvironment(environmentId, wsId);
+    if (projectId) return this.deploymentService.listByProject(projectId, wsId);
+    return this.deploymentService.listForWorkspace(wsId);
   }
 
   @Get(':id')
-  async get(@Param('id') id: string) {
-    return this.deploymentService.getById(id);
+  async get(@Param('id') id: string, @CurrentUser() user: AuthPrincipal) {
+    return this.deploymentService.getById(id, user.workspaceId!);
   }
 
   @Get(':id/logs')
-  async logs(@Param('id') id: string) {
-    return this.deploymentService.getLogs(id);
+  async logs(@Param('id') id: string, @CurrentUser() user: AuthPrincipal) {
+    return this.deploymentService.getLogs(id, user.workspaceId!);
   }
 
   @Sse(':id/logs/stream')
-  streamLogs(@Param('id') id: string): Observable<MessageEvent> {
-    return interval(2000).pipe(
+  streamLogs(@Param('id') id: string, @CurrentUser() user: AuthPrincipal): Observable<MessageEvent> {
+    const workspaceId = user.workspaceId!;
+    return defer(() => from(this.deploymentService.getById(id, workspaceId))).pipe(
+      switchMap(() => interval(2000)),
       switchMap(async () => {
-        const deployment = await this.prisma.deployment.findUnique({ where: { id } });
+        const deployment = await this.prisma.deployment.findFirst({
+          where: { id, project: { workspaceId } },
+        });
+        if (!deployment) return { deployment: null, logs: [] };
         const logs = await this.prisma.deploymentStageLog.findMany({
           where: { deploymentId: id },
           orderBy: { stepOrder: 'asc' },

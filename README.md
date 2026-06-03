@@ -22,7 +22,7 @@
   <a href="README.en.md">English Documentation</a>
 </p>
 
-> **2026-05 项目方向重塑**：Launchly 已从「自托管部署测试协作平台」收敛为「**双模式同源的轻量代码自动部署平台**」。决策与历史材料已归档；**当前以 [产品设计规范](docs/basic/产品设计规范.md) 为产品权威**。归档索引：[docs/archive/v1-2026-05/README.md](docs/archive/v1-2026-05/README.md)。新方向在 `refactor/dual-mode-deploy` 分支下开发。
+> **2026-05 项目方向重塑**：Launchly 已从「自托管部署测试协作平台」收敛为「**双模式同源的轻量代码自动部署平台**」。决策与历史材料已归档；**当前以 [产品设计规范](docs/basic/产品设计规范.md) 为产品权威**。归档索引：`docs/archive/v1-2026-05/README.md`（本地归档，未随仓库上传）。新方向在 `refactor/dual-mode-deploy` 分支下开发。
 >
 > **文档上传说明**：仓库只上传 `docs/basic/` 下三份基线规范；`docs/work/`、`docs/archive/`、`docs/prototypes/` 属于本地协作文档和原型资料，已加入 `.gitignore`，README 中相关链接仅在维护者本地工作区可用。
 
@@ -109,7 +109,7 @@ Launchly 当前处于 **Beta 阶段**。核心部署链路、CLI 安装器、Web
 - **一键部署**：通过 `launchly install` 初始化内置 PostgreSQL、App、Worker、默认存储和最高权限管理员。
 - **小团队友好**：不做复杂企业平台，优先解决项目接入、部署、测试、修复、复测和上线闭环。
 - **省心默认路径**：少填表、多推断；命令与容器细节默认对用户不可见，高级能力渐进披露（详见 [产品设计规范](docs/basic/产品设计规范.md) 第 4 节与归档 zero-config 全文）。
-- **部署工具型壳层**：默认首屏突出运行中部署与下一步；目标布局见 [Launchly-prototype.html](docs/prototypes/Launchly-prototype.html)；信息架构见 [UI与交互规范](docs/basic/UI与交互规范.md) 第 2 节、[产品设计规范](docs/basic/产品设计规范.md) 第 6 节；实现任务见归档 [AI开发任务包 §15](docs/archive/v1-2026-05/root/AI开发任务包.md)（T-IA）。
+- **部署工具型壳层**：默认首屏突出运行中部署与下一步；目标布局见 `docs/prototypes/Launchly-prototype.html`（本地原型，未随仓库上传）；信息架构见 [UI与交互规范](docs/basic/UI与交互规范.md) 第 2 节、[产品设计规范](docs/basic/产品设计规范.md) 第 6 节；实现任务见归档 `docs/archive/v1-2026-05/root/AI开发任务包.md` §15（T-IA，本地归档）。
 - **流程可追踪**：每次部署、测试、Issue、Release、回滚都应留下记录。
 - **人和 AI 协同开发**：开发任务要能被人和 AI 同时理解、拆分、执行和验收。
 
@@ -200,9 +200,9 @@ cli                      TypeScript CLI（commander.js）
 deploy/compose           自托管 Docker Compose 模板
 examples                 示例项目（用于验证部署流程）
 docs/basic               产品设计规范 / 技术架构规范 / UI与交互规范（权威）
-docs/work                [planning.md](docs/work/planning.md)（全局 16 周）；`phase1|phase2|phase3/weekNN/` 各含 week-N-plan/test/log/review 四件套
-docs/archive             历史文档 v1 归档
-docs/prototypes          静态 HTML 交互原型
+docs/work                planning.md（全局 16 周，本地协作，未随仓库上传）
+docs/archive             历史文档 v1 归档（本地，未随仓库上传）
+docs/prototypes          静态 HTML 交互原型（本地，未随仓库上传）
 # （可选）本地自建目录名任意；若在仓库根 .gitignore 中配置了忽略规则，则不进远端——不是协作拆解的一部分
 ```
 
@@ -338,7 +338,7 @@ pnpm test:cli      # 仅运行 CLI 测试（Vitest）
 
 - 对外 README 只描述真实状态，不把计划能力写成已完成能力。
 - 产品决策写入 **`docs/basic/`** 三份规范；**先改文档再改代码**。
-- **协作拆解**：唯一入口为 [`docs/work/planning.md`](docs/work/planning.md) → `docs/work/phase*/weekNN/week-N-plan.md`（含 DeepSeek「命簿」）。DeepSeek **单次会话只推进一个工作日**；收工按 [`DeepSeek日志结构.md`](docs/work/DeepSeek日志结构.md) **追加写入** 当周的 `week-N-log.md`。**禁止**平行会话目录或其它第二份日志。
+- **协作拆解**：唯一入口为 `docs/work/planning.md` → `docs/work/phase*/weekNN/week-N-plan.md`（含 DeepSeek「命簿」，本地协作，未随仓库上传）。DeepSeek **单次会话只推进一个工作日**；收工按 `DeepSeek日志结构.md` **追加写入** 当周的 `week-N-log.md`。**禁止**平行会话目录或其它第二份日志。
 - 若个人仍要随手记：可在本地自建任意草稿目录并自行 gitignore；**不得**当作 `week-*-plan.md` 的替代品。
 - 人主要负责审核边界和关键决策，AI 尽量执行可落地的代码、文档和验证任务。
 - 实现应与 **[产品设计规范](docs/basic/产品设计规范.md) + [技术架构规范](docs/basic/技术架构规范.md) + [UI与交互规范](docs/basic/UI与交互规范.md)** 保持一致。
@@ -383,11 +383,11 @@ pnpm test:cli      # 仅运行 CLI 测试（Vitest）
 | **产品设计规范** | [docs/basic/产品设计规范.md](docs/basic/产品设计规范.md) | 定位、模型、权限、流程 |
 | **技术架构规范** | [docs/basic/技术架构规范.md](docs/basic/技术架构规范.md) | 技术栈、架构、模块、安全 |
 | **UI 与交互规范** | [docs/basic/UI与交互规范.md](docs/basic/UI与交互规范.md) | 页面、交互、原型索引 |
-| **总体规划（本地）** | [docs/work/planning.md](docs/work/planning.md) | 本地协作入口；不随仓库上传 |
+| **总体规划（本地）** | `docs/work/planning.md` | 本地协作入口；未随仓库上传 |
 
-**工作日志（本地）**：仅当周目录下的 `week-N-log.md`。AI 按 [`DeepSeek日志结构.md`](docs/work/DeepSeek日志结构.md) **追加写入**，不要在其它平行路径克隆一份。
+**工作日志（本地）**：仅当周目录下的 `week-N-log.md`。AI 按 `DeepSeek日志结构.md` **追加写入**，不要在其它平行路径克隆一份。
 
-**静态原型（本地）**：[Launchly-prototype.html](docs/prototypes/Launchly-prototype.html)。
+**静态原型（本地）**：`docs/prototypes/Launchly-prototype.html`（未随仓库上传）。
 
 ## 参与贡献
 

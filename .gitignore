@@ -12,6 +12,8 @@ tmp/
 node_modules/
 dist/
 .vite/
+package-lock.json
+yarn.lock
 
 # Build output (only specific dirs — do not use bare "target/" or it ignores com.launchly.target package)
 services/api/target/

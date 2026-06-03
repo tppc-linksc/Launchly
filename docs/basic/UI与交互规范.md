@@ -4,7 +4,7 @@
 > **生效日期**：2026-05-18  
 > **地位**：所有页面结构、交互、视觉规范的单一来源；**不**重复产品决策条文（见 [产品设计规范](./产品设计规范.md)）。  
 > **静态原型**：`docs/prototypes/Launchly-prototype.html`（壳层）、`docs/prototypes/Launchly-prototype.html`（环境目录表）。  
-> **历史**：v1 全文见 [docs/archive/v1-2026-05/root/UI设计与规范.md](../archive/v1-2026-05/root/UI设计与规范.md)。
+> **历史**：v1 全文见 `docs/archive/v1-2026-05/root/UI设计与规范.md`（本地归档，未随仓库上传）。
 
 ---
 
@@ -88,8 +88,8 @@
 
 | 原型 | 路径 | 用途 |
 | --- | --- | --- |
-| 全站壳层 | [Launchly-prototype.html](../prototypes/Launchly-prototype.html) | 顶栏、圆角全局搜索、teal 主按钮、药丸导航、运行态卡片、配置二级化 — **避免做成传统左侧主导航控制台** |
-| 环境目录表 | [Launchly-prototype.html](../prototypes/Launchly-prototype.html) | 合并列、项目块白/灰斑马、分页语义 |
+| 全站壳层 | `docs/prototypes/Launchly-prototype.html`（本地原型，未随仓库上传） | 顶栏、圆角全局搜索、teal 主按钮、药丸导航、运行态卡片、配置二级化 — **避免做成传统左侧主导航控制台** |
+| 环境目录表 | `docs/prototypes/Launchly-prototype.html`（本地原型，未随仓库上传） | 合并列、项目块白/灰斑马、分页语义 |
 
 ---
 
