@@ -205,14 +205,14 @@ docs/prototypes          Static HTML interactive prototypes
 ### One-Click Install (Recommended)
 
 ```bash
-# Build CLI
+# Install dependencies and build CLI
 cd cli && pnpm install && pnpm build
 
 # Preview install (dry run, no changes)
-./launchly install --dry-run
+node dist/index.js install --dry-run
 
 # Run install
-./launchly install
+node dist/index.js install
 ```
 
 After installation:
@@ -223,14 +223,16 @@ After installation:
 
 ### Common Commands
 
+The CLI binary is at `cli/dist/index.js` after build, invoke via `node`:
+
 ```bash
-launchly doctor      # Check system environment (Docker, ports, disk)
-launchly status      # View service status
-launchly logs -f     # Stream logs in real time
-launchly up          # Start services
-launchly down        # Stop services
-launchly backup      # Backup database and data
-launchly restore <file>  # Restore from backup
+node dist/index.js doctor      # Check system environment (Docker, ports, disk)
+node dist/index.js status      # View service status
+node dist/index.js logs -f     # Stream logs in real time
+node dist/index.js up          # Start services
+node dist/index.js down        # Stop services
+node dist/index.js backup      # Backup database and data
+node dist/index.js restore <file>  # Restore from backup
 ```
 
 ### Verify Deployment
@@ -274,7 +276,10 @@ docker compose -f deploy/compose/docker-compose.yml up -d --build
 **Web development**
 
 ```bash
+# Install all dependencies (including workspaces) from root
 pnpm install
+
+# Start frontend dev server (http://localhost:5173)
 pnpm dev:web
 ```
 
@@ -282,10 +287,10 @@ pnpm dev:web
 
 | Problem | How to diagnose |
 | --- | --- |
-| Port in use | `launchly doctor` checks 8080/5173/5432 ports |
-| Docker not running | `launchly doctor` reports Docker status |
-| Cannot access after install | Check `launchly status` to confirm services are running |
-| Deployment failed | View `launchly logs -f app` |
+| Port in use | `node dist/index.js doctor` checks 8080/5173/5432 ports |
+| Docker not running | `node dist/index.js doctor` reports Docker status |
+| Cannot access after install | Check `node dist/index.js status` to confirm services are running |
+| Deployment failed | View `node dist/index.js logs -f` |
 | Database connection failed | Confirm PostgreSQL container is running: `docker ps` |
 | Data issues after key change | Changing `LAUNCHLY_ENCRYPTION_KEY` makes previously encrypted data unreadable; keep it consistent |
 

@@ -205,14 +205,14 @@ docs/prototypes          静态 HTML 交互原型
 ### 一键安装（推荐）
 
 ```bash
-# 编译 CLI
+# 安装依赖并编译 CLI
 cd cli && pnpm install && pnpm build
 
 # 预览安装（不实际执行）
-./launchly install --dry-run
+node dist/index.js install --dry-run
 
 # 正式安装
-./launchly install
+node dist/index.js install
 ```
 
 安装完成后：
@@ -223,14 +223,16 @@ cd cli && pnpm install && pnpm build
 
 ### 常用命令
 
+安装后 CLI 二进制位于 `cli/dist/index.js`，可通过 `node` 调用：
+
 ```bash
-launchly doctor      # 检查系统环境（Docker、端口、磁盘）
-launchly status      # 查看服务状态
-launchly logs -f     # 实时查看日志
-launchly up          # 启动服务
-launchly down        # 停止服务
-launchly backup      # 备份数据库和数据
-launchly restore <file>  # 从备份恢复
+node dist/index.js doctor      # 检查系统环境（Docker、端口、磁盘）
+node dist/index.js status      # 查看服务状态
+node dist/index.js logs -f     # 实时查看日志
+node dist/index.js up          # 启动服务
+node dist/index.js down        # 停止服务
+node dist/index.js backup      # 备份数据库和数据
+node dist/index.js restore <file>  # 从备份恢复
 ```
 
 ### 验证部署
@@ -274,7 +276,10 @@ docker compose -f deploy/compose/docker-compose.yml up -d --build
 **Web 开发**
 
 ```bash
+# 根目录安装所有依赖（含 workspaces）
 pnpm install
+
+# 启动前端开发服务器（http://localhost:5173）
 pnpm dev:web
 ```
 
@@ -282,10 +287,10 @@ pnpm dev:web
 
 | 问题 | 排查方式 |
 | --- | --- |
-| 端口被占用 | `launchly doctor` 会检测 8080/5173/5432 端口 |
-| Docker 未运行 | `launchly doctor` 会提示 Docker 状态 |
-| 安装后无法访问 | 检查 `launchly status` 确认服务是否启动 |
-| 部署失败 | 查看 `launchly logs -f app` 或 `launchly logs -f worker` |
+| 端口被占用 | `node dist/index.js doctor` 会检测 8080/5173/5432 端口 |
+| Docker 未运行 | `node dist/index.js doctor` 会提示 Docker 状态 |
+| 安装后无法访问 | 检查 `node dist/index.js status` 确认服务是否启动 |
+| 部署失败 | 查看 `node dist/index.js logs -f` |
 | 数据库连接失败 | 确认 PostgreSQL 容器运行中：`docker ps` |
 | 密钥变更后数据异常 | `LAUNCHLY_ENCRYPTION_KEY` 变化会导致已加密数据无法解密，需保持一致 |
 
