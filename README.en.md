@@ -1,9 +1,9 @@
 <p align="center">
-  <img alt="status" src="https://img.shields.io/badge/status-pre--alpha-d9534f">
+  <img alt="status" src="https://img.shields.io/badge/status-beta-yellow">
   <img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0-blue">
   <img alt="web" src="https://img.shields.io/badge/web-Vue%203%20%2B%20TypeScript-42b883">
-  <img alt="api" src="https://img.shields.io/badge/api-Spring%20Boot%203-6db33f">
-  <img alt="cli" src="https://img.shields.io/badge/cli-Go-00add8">
+  <img alt="api" src="https://img.shields.io/badge/api-NestJS%20+%20TypeScript-e0234e">
+  <img alt="cli" src="https://img.shields.io/badge/cli-TypeScript-3178c6">
   <img alt="database" src="https://img.shields.io/badge/database-PostgreSQL-4169e1">
   <img alt="deploy" src="https://img.shields.io/badge/deploy-Docker%20Compose-2496ed">
 </p>
@@ -22,9 +22,9 @@
   <a href="README.md">中文文档</a>
 </p>
 
-> **2026-05 Direction Pivot**: Launchly has been refocused to a **dual-delivery lightweight code auto-deployment platform**. **Authoritative product spec**: [Product Handbook 2.0 (ZH)](docs/basic/产品设计规范.md). Historical v1 docs: [docs/archive/v1-2026-05/README.md](docs/archive/v1-2026-05/README.md). New work continues on `refactor/dual-mode-deploy`.
+> **2026-05 Direction Pivot**: Launchly has been refocused to a **dual-delivery lightweight code auto-deployment platform**. Decisions and historical materials have been archived; **the current product authority is the [Product Design Spec](docs/basic/产品设计规范.md)**. Archive index: [docs/archive/v1-2026-05/README.md](docs/archive/v1-2026-05/README.md). New direction is being developed on the `refactor/dual-mode-deploy` branch.
 >
-> **Documentation upload note**: only the three baseline files under `docs/basic/` are tracked for upload. `docs/work/`, `docs/archive/`, and `docs/prototypes/` are local collaboration notes and prototypes ignored by `.gitignore`; links to those paths are kept for maintainer-local navigation and may not resolve on GitHub.
+> **Documentation upload note**: only the three baseline specs under `docs/basic/` are tracked in the public repository. `docs/work/`, `docs/archive/`, and `docs/prototypes/` are local collaboration docs and prototypes, added to `.gitignore`; README links to those paths are kept for maintainer-local navigation and are not guaranteed to resolve on GitHub.
 
 ---
 
@@ -39,7 +39,7 @@
 - [Quick Start](#quick-start)
 - [Development Guide](#development-guide)
 - [Project Progress](#project-progress)
-- [Authoritative documentation](#authoritative-documentation)
+- [Authoritative Documentation](#authoritative-documentation)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -59,50 +59,56 @@ Launchly fills that gap: **connect repo → build → deploy → health check �
 
 ## Project Status
 
-Launchly is currently in **pre-alpha / undergoing a direction pivot**. The project is being restructured from its old scaffold into a dual-delivery lightweight code auto-deployment platform.
+Launchly is currently in **Beta**. The core deployment pipeline, CLI installer, and web workstation are usable, and early trial rollout is being prepared.
 
 **Completed**:
 
 - Product design documentation and architecture docs
 - Base monorepo layout
-- Web / API / Worker / CLI core module scaffolds (Weeks 1-13)
+- Web / API / Worker / CLI core module scaffolds
 - JWT-authenticated Owner initialization flow
 - Deployment task pipeline (clone / build / deploy / health check) with stage logs
 - Test case, issue, release, gate, and rollback baseline flow
 - Docker Compose local-build deployment template
-
-**In Progress**:
-
-- Worker: replacing local docker.sock with remote SSH execution (BYOS)
-- Data model: introducing DeployTarget and Component entities
-- UI: converging navigation, surfacing deployments / projects / deploy targets
-- README and docs: syncing with new direction
+- DeployTarget API and frontend deploy target management page
+- Worker BYOS (SSH remote execution, local image build + SSH deploy to remote compose)
+- CLI installer (install / up / down / status / logs / doctor / backup / restore / upgrade / uninstall)
+- UI navigation convergence (top bar + horizontal capsule navigation, runtime Dashboard)
+- Global error toasts, empty-state CTAs, responsive layout
+- `triggeredByName` trigger person display
+- Viewer permission control (hide write-action buttons)
+- Project list card layout (cards + latest deploy status)
+- Member management page (list, role change, remove)
+- Component multi-deployable-unit data model
+- Audit log CSV export
+- Design system token landing (Element Plus primary color #0D9488)
+- EDITION switch (cloud / selfhost mode)
+- Zero-Config Node inference (auto-detect package.json)
 
 **Not Started**:
 
 - SaaS control plane (registration, billing, multi-tenancy)
 - AI-powered features (reports, anomaly attribution, security monitoring)
 - Third-party notification integrations
-- Self-Host CLI installer (`launchly install`)
 
 ## Design Principles
 
 - **Local-first**: users should not manually prepare internal dependencies such as database, queue, or object storage.
 - **One-command deployment**: `launchly install` should initialize PostgreSQL, App, Worker, default storage, and the first Owner setup.
 - **Small-team friendly**: focus on project onboarding, deployment, testing, fixing, retesting, and release flow instead of a heavy enterprise platform.
-- **Traceable workflow**: every deployment, test result, issue, release, and rollback should leave a record.
-- **Zero-config first** (summary in [Product Handbook 2.0 §4](docs/basic/产品设计规范.md)); full archived text: `docs/archive/v1-2026-05/product/zero-config-ux-principles.md`.
-- **Deployment-tool shell**: run-first home and horizontal work domains; see [UI Handbook 2.0 §2](docs/basic/UI与交互规范.md) and `docs/prototypes/系统设计mock.html`; implementation tasks **T-IA** in [archived AI task pack §15](docs/archive/v1-2026-05/root/AI开发任务包.md).
+- **Sensible defaults**: fewer forms, more inference; commands and container details are hidden by default, with advanced capabilities disclosed progressively (see [Product Design Spec](docs/basic/产品设计规范.md) Section 4 and the archived zero-config full text).
+- **Deployment-tool shell**: default home screen highlights running deployments and next steps; target layout in [system design mock](docs/prototypes/系统设计mock.html); information architecture in [UI & Interaction Spec](docs/basic/UI与交互规范.md) Section 2, [Product Design Spec](docs/basic/产品设计规范.md) Section 6; implementation tasks in archived [AI task pack Section 15](docs/archive/v1-2026-05/root/AI开发任务包.md) (T-IA).
+- **Traceable workflow**: every deployment, test, issue, release, and rollback should leave a record.
+- **Human-AI collaborative development**: development tasks should be understandable, divisible, executable, and verifiable by both humans and AI.
 
 ## System Architecture
 
-Launchly starts with a modular monolith, a background worker, and a CLI-driven self-hosted installation flow.
+Launchly first phase uses a "modular monolith (NestJS) + built-in background task executor + CLI one-click deployment" architecture. Since v0.2, API and Worker are merged into a single NestJS process.
 
 ```text
 launchly CLI
   -> Docker Compose
-      -> launchly-app      Web UI + API
-      -> launchly-worker   Background task executor
+      -> launchly-app      Web UI + API + Worker (single process)
       -> launchly-postgres Built-in PostgreSQL
       -> launchly-data     Local files, logs, attachments, and screenshots
 ```
@@ -112,8 +118,8 @@ Core modules:
 | Module | Description |
 | --- | --- |
 | Web UI | Dashboard, projects, deployments, tests, issues, and releases |
-| API Server | Auth, Workspace, project, environment, deployment, test, and permission APIs |
-| Worker | Runs clone, build, deploy, automated test, and notification jobs |
+| API Server | Auth, Workspace, project, environment, deployment, test, and permission APIs (NestJS) |
+| Worker | Background task executor (embedded in API process, PostgreSQL polling) |
 | CLI | Manages install, start, stop, upgrade, backup, restore, and diagnostics |
 | PostgreSQL | Built-in database started by default |
 | Docker Compose | First-stage self-hosted delivery method |
@@ -176,117 +182,110 @@ Core modules:
 ## Directory Structure
 
 ```text
-apps/web                 Vue 3 Web UI scaffold
-services/api             Spring Boot API Server scaffold
-services/worker          Spring Boot Worker scaffold
-cli                      launchly CLI scaffold
+apps/web                 Vue 3 + Element Plus Web UI
+services/api             NestJS API Server + Worker (single process)
+cli                      TypeScript CLI (commander.js)
 deploy/compose           Self-hosted Docker Compose template
-docs/basic               Three baseline specs (ZH): product / technical / UI
-docs/work                [planning.md](docs/work/planning.md) (16-week map); `phase1|phase2|phase3/weekNN/` each with `week-N-{plan,test,log,review}.md`; [DeepSeek log schema](docs/work/DeepSeek日志结构.md)
+docs/basic               Product Design Spec / Technical Architecture Spec / UI & Interaction Spec (authoritative)
+docs/work                [planning.md](docs/work/planning.md) (16-week map); `phase1|phase2|phase3/weekNN/` each with week-N-plan/test/log/review quad
 docs/archive             Archived v1 documentation
-docs/prototypes          Static HTML prototypes
-# optional local scratch: create any ignored folder yourself — never substitutes week-*-plan.md
-scripts                  Utility scripts
+docs/prototypes          Static HTML interactive prototypes
+# (optional) local scratch folders with any name; if added to .gitignore, they won't be pushed — not part of collaboration breakdown
 ```
 
 ## Quick Start
 
-Launchly is not usable as a product yet. The commands below only validate the current development scaffold.
-There are two run modes in this repository. Pick one mode and avoid mixing them.
-
-Mandatory prerequisites:
+**Prerequisites**:
 
 - Docker is installed and the Docker engine is running.
-- Local `5432` and `8080` ports are available (or override via env).
-- Root `.env` is configured, especially `LAUNCHLY_JWT_SECRET` and `LAUNCHLY_ENCRYPTION_KEY`.
+- Local `8080` and `5432` ports are available (or override via env).
 
-> Important: if `LAUNCHLY_ENCRYPTION_KEY` changes, previously encrypted records in DB (for example deploy target credentials) can no longer be decrypted.
-> Reusing existing DB data requires the same key pair.
-
-### Mode A: Local minimal dev mode (1 container + local API)
-
-#### 1. CLI Scaffold
+### One-Click Install (Recommended)
 
 ```bash
-cd cli
-go test ./...
-go run ./cmd/launchly doctor
+# Build CLI
+cd cli && pnpm install && pnpm build
+
+# Preview install (dry run, no changes)
+./launchly install --dry-run
+
+# Run install
+./launchly install
 ```
 
-#### 2. Start PostgreSQL (API dependency)
+After installation:
 
-The API requires a running PostgreSQL instance. For local development, start one with Docker:
+1. Open `http://localhost:8080/setup`
+2. Create an admin account and default Workspace
+3. Log in and start using
+
+### Common Commands
 
 ```bash
+launchly doctor      # Check system environment (Docker, ports, disk)
+launchly status      # View service status
+launchly logs -f     # Stream logs in real time
+launchly up          # Start services
+launchly down        # Stop services
+launchly backup      # Backup database and data
+launchly restore <file>  # Restore from backup
+```
+
+### Verify Deployment
+
+After installation, use the `examples/node-hello` example project to verify the deployment flow:
+
+1. Push `examples/node-hello` to a Git repository
+2. Create a project in Launchly and connect the repository
+3. Add a deploy target (SSH server address, port, username, authentication method)
+4. Configure environment variables (optional)
+5. Trigger a deployment and observe the staged pipeline (clone → build → deploy → health check)
+
+### Development Mode
+
+For local development and debugging, there are two modes:
+
+**Mode A: Local minimal dev mode**
+
+```bash
+# Start PostgreSQL
 docker run -d --name launchly-postgres-dev \
   -e POSTGRES_USER=launchly \
   -e POSTGRES_PASSWORD=launchly_dev_password \
   -e POSTGRES_DB=launchly \
   -p 5432:5432 \
   postgres:16-alpine
-```
 
-> One-click deployment (`launchly install`) starts PostgreSQL automatically via docker-compose. This manual step is only needed for local development.
-
-#### 3. Start API locally
-
-```bash
-cd /Users/chenshaolin/Desktop/Linksc/code/Launchly
-set -a
-source ./.env
-set +a
+# Start API + Worker
 cd services/api
-mvn spring-boot:run
+set -a && source ../../.env && set +a
+pnpm run start:dev
 ```
 
-Health check:
+**Mode B: Full compose stack (2 containers: postgres + app)**
 
 ```bash
-curl http://localhost:8080/api/health
-```
-
----
-
-### Mode B: Full compose stack (3 containers: postgres + app + worker)
-
-Recommended for integration tests and deploy-target verification.
-
-#### 1. Start stack (keep existing DB volume)
-
-```bash
-cd /Users/chenshaolin/Desktop/Linksc/code/Launchly
-set -a
-source ./.env
-set +a
+set -a && source ./.env && set +a
 docker compose -f deploy/compose/docker-compose.yml up -d --build
 ```
 
-#### 2. Recreate clean stack (delete old data)
-
-```bash
-cd /Users/chenshaolin/Desktop/Linksc/code/Launchly
-set -a
-source ./.env
-set +a
-docker compose -f deploy/compose/docker-compose.yml down -v
-docker compose -f deploy/compose/docker-compose.yml up -d --build
-```
-
-#### 3. Check services
-
-```bash
-docker compose -f deploy/compose/docker-compose.yml ps
-docker compose -f deploy/compose/docker-compose.yml logs -f app
-```
-
----
-
-### Web Scaffold
+**Web development**
 
 ```bash
 pnpm install
 pnpm dev:web
 ```
+
+### Troubleshooting
+
+| Problem | How to diagnose |
+| --- | --- |
+| Port in use | `launchly doctor` checks 8080/5173/5432 ports |
+| Docker not running | `launchly doctor` reports Docker status |
+| Cannot access after install | Check `launchly status` to confirm services are running |
+| Deployment failed | View `launchly logs -f app` |
+| Database connection failed | Confirm PostgreSQL container is running: `docker ps` |
+| Data issues after key change | Changing `LAUNCHLY_ENCRYPTION_KEY` makes previously encrypted data unreadable; keep it consistent |
 
 ## Development Guide
 
@@ -294,29 +293,28 @@ Recommended local tools:
 
 | Tool | Purpose |
 | --- | --- |
-| Node.js + pnpm | Web development |
-| Java 17 + Maven | API and Worker development |
-| Go | CLI development |
+| Node.js 20+ + pnpm | Frontend, API, and CLI development |
 | Docker + Docker Compose | Self-hosted deployment and local integration |
 | PostgreSQL | Local database debugging; the final product will include it |
 
 API development conventions:
 
-- Backend framework: Spring Boot 3.x with `spring-boot-starter-web` for REST APIs.
-- Database: PostgreSQL with Flyway migrations enabled.
-- Security: Spring Security + JWT (Bearer Token) is integrated for protected APIs; fine-grained RBAC is still in progress.
-- API modules are organized into `auth`, `workspace`, `project`, `environment`, `deployment`, `testcase`, `issue`, `release`, `notification`, `audit`, and `common` packages, matching the core modules in the product design.
-- Worker pipeline runs staged tasks in sequence (clone -> build -> deploy -> health check) with stage logs.
-- Sensitive environment variables are encrypted at rest and decrypted by Worker at deployment time.
+- Backend framework: NestJS 10.x, via `@nestjs/platform-express` for REST APIs.
+- ORM: Prisma, with `prisma migrate` for database migrations.
+- Security: Custom JWT Guard + RBAC Role Guard; protected APIs require authentication.
+- API modules are organized into `auth`, `workspace`, `project`, `environment`, `deployment`, `target`, `testcase`, `issue`, `release`, `notification`, `audit`, and `worker` packages, matching the core modules in the product design.
+- Worker background tasks are embedded in the API process, polling the PostgreSQL task queue via `@nestjs/schedule`.
+- Deployment pipeline runs staged tasks in sequence (clone -> build -> deploy -> health check) with stage logs.
+- Sensitive environment variables are encrypted at rest (AES-256-GCM) and decrypted by Worker at deployment time.
 
 Development principles:
 
 - Public README files should describe the real project state and avoid presenting planned features as completed.
-- Product decisions live in **docs 2.0 handbooks**; **update docs before code** when behavior changes.
-- Collaborative breakdown lives only in **[planning.md](docs/work/planning.md)** → **`docs/work/phase*/weekNN/week-N-plan.md`** (includes the DeepSeek “contract” section). Feed DeepSeek **one weekday slice per session**; append to that week's **`week-N-log.md`** via **[DeepSeek日志结构.md](docs/work/DeepSeek日志结构.md)**. **Do not** maintain parallel “session” trees or duplicate logs.
+- Product decisions live in **`docs/basic/`** three specs; **update docs before code** when behavior changes.
+- **Collaboration breakdown**: the sole entry point is [`docs/work/planning.md`](docs/work/planning.md) → `docs/work/phase*/weekNN/week-N-plan.md` (includes the DeepSeek "contract" section). Feed DeepSeek **one weekday slice per session**; append to that week's `week-N-log.md` per [DeepSeek日志结构.md](docs/work/DeepSeek日志结构.md). **Do not** maintain parallel session directories or duplicate logs.
 - Optional personal notes: use any local ignored folder you like; it **must not** replace `week-*-plan.md`.
 - Humans mainly review boundaries and key decisions; AI should execute concrete code, documentation, and verification tasks whenever possible.
-- Implementation should stay aligned with **[Product 2.0](docs/basic/产品设计规范.md) + [Technical 2.0](docs/basic/技术架构规范.md) + [UI 2.0](docs/basic/UI与交互规范.md)**.
+- Implementation should stay aligned with **[Product Design Spec](docs/basic/产品设计规范.md) + [Technical Architecture Spec](docs/basic/技术架构规范.md) + [UI & Interaction Spec](docs/basic/UI与交互规范.md)**.
 
 ## Project Progress
 
@@ -330,19 +328,25 @@ Development principles:
 | Deployment pipeline (clone / build / deploy / health check) | Completed |
 | Docker Compose local-build template | Completed |
 | LICENSE replaced with AGPL-3.0 | Completed |
-| **In Progress** | |
-| README / dual-mode docs and badges | Completed |
 | DeployTarget API, delete 409 guard, deploy-target UI | Completed |
-| Worker BYOS (local image build + SSH to remote compose) | Completed (worker service mounts host `docker.sock` in `deploy/compose/docker-compose.yml`; see comments there) |
-| Component data model (multi deployable units per project) | Not started |
-| Full navigation convergence: top bar + horizontal work domains, secondary config entries | Target locked; implementation still needs to follow [UI Handbook 2.0](docs/basic/UI与交互规范.md), `docs/prototypes/系统设计mock.html`, and [T-IA in archived task pack](docs/archive/v1-2026-05/root/AI开发任务包.md) |
+| Worker BYOS (local image build + SSH to remote compose) | Completed |
+| Self-Host CLI (install / up / down / status / logs / doctor / backup / restore) | Completed |
+| UI navigation convergence (top bar + horizontal capsule navigation, runtime Dashboard) | Completed |
+| Global error toasts, empty-state CTAs, responsive layout | Completed |
+| Viewer permission control (hide write-action buttons) | Completed |
+| Project list card layout | Completed |
+| Member management page | Completed |
+| Component multi-deployable-unit data model | Completed |
+| Audit log CSV export | Completed |
+| Design system token landing | Completed |
+| EDITION switch (cloud / selfhost) | Completed |
+| Zero-Config Node inference | Completed |
 | **Not Started** | |
 | SaaS control plane (registration / billing / multi-tenancy) | Not Started |
 | AI-powered features | Not Started |
-| Self-Host CLI (install / backup / restore) | Not Started |
 | End-to-end integration and release | Not Started |
 
-## Authoritative documentation
+## Authoritative Documentation
 
 Only the three **Chinese baseline specs** below are tracked in the public repository. The master plan, work logs, archived notes, and static prototypes are local collaboration documents; README links are kept for maintainer-local navigation and are not guaranteed to resolve on GitHub.
 

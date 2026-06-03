@@ -3,7 +3,7 @@
   <img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0-blue">
   <img alt="web" src="https://img.shields.io/badge/web-Vue%203%20%2B%20TypeScript-42b883">
   <img alt="api" src="https://img.shields.io/badge/api-NestJS%20+%20TypeScript-e0234e">
-  <img alt="cli" src="https://img.shields.io/badge/cli-Go-00add8">
+  <img alt="cli" src="https://img.shields.io/badge/cli-TypeScript-3178c6">
   <img alt="database" src="https://img.shields.io/badge/database-PostgreSQL-4169e1">
   <img alt="deploy" src="https://img.shields.io/badge/deploy-Docker%20Compose-2496ed">
 </p>
@@ -81,7 +81,7 @@ Launchly 当前处于 **Beta 阶段**。核心部署链路、CLI 安装器、Web
 - 成员管理页面（列表、角色变更、移除）
 - Component 多发布单元数据模型
 - 审计日志 CSV 导出
-- 设计系统 token 落地（Ant Design 主色 #0D9488）
+- 设计系统 token 落地（Element Plus 主色 #0D9488）
 - EDITION 开关（cloud/selfhost 模式）
 - Zero-Config Node 推断（自动检测 package.json）
 
@@ -182,17 +182,15 @@ launchly CLI
 ## 目录结构
 
 ```text
-apps/web                 Vue 3 Web UI 骨架
-services/api             Spring Boot API Server 骨架
-services/worker          Spring Boot Worker 骨架
-cli                      launchly CLI 骨架
+apps/web                 Vue 3 + Element Plus Web UI
+services/api             NestJS API Server + Worker（单进程）
+cli                      TypeScript CLI（commander.js）
 deploy/compose           自托管 Docker Compose 模板
 docs/basic               产品设计规范 / 技术架构规范 / UI与交互规范（权威）
 docs/work                [planning.md](docs/work/planning.md)（全局 16 周）；`phase1|phase2|phase3/weekNN/` 各含 week-N-plan/test/log/review 四件套
 docs/archive             历史文档 v1 归档
 docs/prototypes          静态 HTML 交互原型
 # （可选）本地自建目录名任意；若在仓库根 .gitignore 中配置了忽略规则，则不进远端——不是协作拆解的一部分
-scripts                  工具脚本目录
 ```
 
 ## 快速开始
@@ -206,7 +204,7 @@ scripts                  工具脚本目录
 
 ```bash
 # 编译 CLI
-cd cli && go build -o launchly ./cmd/launchly/
+cd cli && pnpm install && pnpm build
 
 # 预览安装（不实际执行）
 ./launchly install --dry-run
@@ -258,10 +256,10 @@ docker run -d --name launchly-postgres-dev \
   -p 5432:5432 \
   postgres:16-alpine
 
-# 启动 API
+# 启动 API + Worker
 cd services/api
 set -a && source ../../.env && set +a
-mvn spring-boot:run
+pnpm run start:dev
 ```
 
 **模式 B：Compose 全栈模式**
@@ -295,8 +293,7 @@ pnpm dev:web
 
 | 工具 | 用途 |
 | --- | --- |
-| Node.js 20+ + pnpm | 前端和 API 开发 |
-| Go | CLI 开发 |
+| Node.js 20+ + pnpm | 前端、API 和 CLI 开发 |
 | Docker + Docker Compose | 自托管部署和本地集成 |
 | PostgreSQL | 本地调试数据库，最终产品会内置 |
 
