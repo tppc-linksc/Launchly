@@ -20,7 +20,7 @@
   <a href="README.en.md">English Documentation</a>
 </p>
 
-> **当前状态（2026-08-13）**：项目正在以 `6eef007` 为基线重启，处于 **R0 可信基线修复**，不是 Beta。现有代码可作为复用基础，但生产镜像、启动、权限隔离和真实部署仍有阻断；没有对应真实验收记录的能力不得对外称为完成。
+> **当前状态（2026-08-13）**：项目正在以 `6220fb6` 为基线重启，处于 **R0 可信基线修复**，不是 Beta。现有代码可作为复用基础，但生产镜像、启动、权限隔离和真实部署仍有阻断；没有对应真实验收记录的能力不得对外称为完成。
 
 ## Launchly 是什么
 
@@ -111,7 +111,7 @@ GitHub / GitLab + CI Checks
 
 ## 当前真实状态
 
-基线 `6eef007` 已包含 Vue/NestJS/Prisma/CLI、项目/环境/部署/Test/Issue/Release/审计模块，以及部分 Webhook、Worker、BuildKit、OCI 和 SSH 代码路径。
+基线 `6220fb6` 已包含 Vue/NestJS/Prisma/CLI、项目/环境/部署/Test/Issue/Release/审计模块，以及部分 Webhook、Worker、BuildKit、OCI 和 SSH 代码路径。
 
 独立验证结果：
 
@@ -119,8 +119,10 @@ GitHub / GitLab + CI Checks
 - Web 现有 22 个单元测试通过。
 - CLI 现有 15 个单元测试通过。
 - API/Web/CLI 编译通过。
-- API 实测覆盖率为 Statements 13.11%、Branches 13.06%、Functions 9.97%、Lines 13.41%。
-- Web/CLI 尚未安装覆盖率 Provider，当前不能报告百分比。
+- TEST-000 已经 Codex 独立复核：API/Web/CLI 均能按全量生产源码口径输出 text 与 JSON summary。
+- API 覆盖率为 Statements 11.74%、Branches 12.95%、Functions 9.84%、Lines 11.96%。
+- Web 覆盖率为 Statements 5.65%、Branches 39.13%、Functions 5.61%、Lines 5.65%。
+- CLI 覆盖率为 Statements 10.13%、Branches 87.50%、Functions 83.33%、Lines 10.13%。
 
 但 R0 尚未通过：
 
