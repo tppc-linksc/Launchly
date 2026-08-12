@@ -1,386 +1,207 @@
 <p align="center">
-  <img alt="status" src="https://img.shields.io/badge/status-beta-yellow">
+  <img alt="status" src="https://img.shields.io/badge/status-rebooting-orange">
   <img alt="license" src="https://img.shields.io/badge/license-AGPL--3.0-blue">
   <img alt="web" src="https://img.shields.io/badge/web-Vue%203%20%2B%20TypeScript-42b883">
-  <img alt="api" src="https://img.shields.io/badge/api-NestJS%20+%20TypeScript-e0234e">
-  <img alt="cli" src="https://img.shields.io/badge/cli-TypeScript-3178c6">
-  <img alt="database" src="https://img.shields.io/badge/database-PostgreSQL-4169e1">
-  <img alt="deploy" src="https://img.shields.io/badge/deploy-Docker%20Compose-2496ed">
+  <img alt="api" src="https://img.shields.io/badge/api-NestJS%20%2B%20PostgreSQL-e0234e">
+  <img alt="runtime" src="https://img.shields.io/badge/runtime-BYOS-0d9488">
 </p>
 
 <h1 align="center">Launchly</h1>
 
 <p align="center">
-  <strong>BYOS 全自动应用运行平台 · 小团队发布治理平台</strong>
+  <strong>把通过 CI 的每个提交，清楚、可靠、可回滚地送到自己的服务器。</strong>
 </p>
 
 <p align="center">
-  面向 5-20 人小团队及个人开发者，目标闭环为“Git Push → 验签 → 隔离构建 → 不可变镜像 → BYOS 部署 → HTTPS/健康检查 → 流量切换或自动回滚”，并以测试、Issue、复测、Release 门禁和审计治理发布。
+  中文优先的 BYOS 发布控制面 · 面向个人开发者与 5–20 人小团队
 </p>
 
 <p align="center">
   <a href="README.en.md">English Documentation</a>
 </p>
 
-> **2026-07 方向纠正**：Launchly 的权威目标是“BYOS 全自动应用运行平台 + 小团队发布治理平台”。可配置 webhook 自动部署取代“仅手动触发”；API/Worker 独立、BuildKit/OCI 不可变制品、域名/HTTPS 和真实自动回滚是后续实施项。请以[产品设计规范](docs/basic/产品设计规范.md)、[技术架构规范](docs/basic/技术架构规范.md)与[交付验收规范](docs/basic/交付验收规范.md)为准；页面、CLI、单测或 Compose 骨架不代表这些能力已完成。
->
-> **文档上传说明**：仓库只上传 `docs/basic/` 下三份基线规范；`docs/work/`、`docs/archive/`、`docs/prototypes/` 属于本地协作文档和原型资料，已加入 `.gitignore`，README 中相关链接仅在维护者本地工作区可用。
+> **当前状态（2026-08-13）**：项目正在以 `6eef007` 为基线重启，处于 **R0 可信基线修复**，不是 Beta。现有代码可作为复用基础，但生产镜像、启动、权限隔离和真实部署仍有阻断；没有对应真实验收记录的能力不得对外称为完成。
 
----
+## Launchly 是什么
 
-## 目录
+Launchly 连接 Git 提供方与现有 CI，把代码或不可变 OCI 制品部署到用户自己的 Linux/NAS 服务器，并在一个中文控制面中管理：
 
-- [目录](#目录)
-- [Launchly](#launchly)
-- [项目状态](#项目状态)
-- [设计理念](#设计理念)
-- [系统架构](#系统架构)
-- [功能规划](#功能规划)
-  - [核心引擎](#核心引擎)
-  - [协作（基础）](#协作基础)
-  - [SaaS 控制面](#saas-控制面)
-  - [Self-Host 运维](#self-host-运维)
-  - [付费增值（Pro 专属 / 远期）](#付费增值pro-专属--远期)
-- [目录结构](#目录结构)
-- [快速开始](#快速开始)
-  - [一键安装（推荐）](#一键安装推荐)
-  - [常用命令](#常用命令)
-  - [验证部署](#验证部署)
-  - [开发模式](#开发模式)
-  - [故障排查](#故障排查)
-- [开发指南](#开发指南)
-- [项目进展](#项目进展)
-- [权威文档](#权威文档)
-- [参与贡献](#参与贡献)
-- [开源协议](#开源协议)
+- 应用、服务、环境和 PR Preview。
+- Git Push/PR、CI 门禁和部署并发策略。
+- 构建计划、不可变 Artifact 和环境晋级。
+- BYOS 节点、域名、HTTPS、健康和流量。
+- 部署日志、配置差异、回滚和运行状态。
+- 测试、安全、审批、阻断项、发布证据和审计。
 
----
-
-## Launchly
-
-很多个人项目和小团队项目不是缺少 Git 仓库，而是缺少一条从代码到运行环境的低成本、可重复、可追踪通路：
-
-- 代码提交后，测试环境经常靠人工部署，出了问题不知道上次部署的是哪个 commit。
-- 每次部署都要手动 SSH 上去敲 `git pull && docker build && docker run`，烦琐且容易出错。
-- 测试用例、失败截图、修复任务、复测结果分散在聊天记录和文档里，没有统一入口。
-- 预发和生产发布缺少门禁和回滚保护，一次误操作就可能导致线上事故。
-- 小团队不需要完整企业 DevOps 平台，但需要一个能本地部署或 SaaS 即用的轻量工具。
-
-Launchly 的目标是补上这条链路：**接入仓库 → 构建 → 部署 → 健康检查 → 回滚**，并内置测试集成、Issue 跟踪、Release 门禁、审计和通知作为基础功能。
-
-部署目标支持普通 Linux 与 Docker NAS：目标配置可把工作目录从默认 `/var/lib/launchly` 改为 NAS 持久共享卷，并在保存后验证 SSH Host Key、Docker、Compose v2、目录权限、磁盘与 80 端口提示。使用条件与边界见 [NAS 部署兼容性](docs/basic/NAS%20部署兼容性.md)；这不是 NAS 真实 E2E 通过声明。
-
-极空间 Z4 Pro 从 GitHub 安装控制面、配置 NAS 目标并部署首个 OCI 镜像的逐步流程见[极空间 Z4 Pro 从 GitHub 部署 Launchly](docs/basic/极空间Z4Pro从GitHub部署Launchly.md)。
-
-## 项目状态
-
-Launchly 处于**架构重构前的基线阶段**，不是可对外承诺自动部署、生产回滚或 Cloud SaaS 的 Beta 成品。
-
-已存在的可复用基线包括 Vue/NestJS/Prisma/CLI、项目/环境/部署/测试/Issue/Release/审计模块，以及一次基础 SSH/Compose 尝试。它们尚未通过真实 GitHub、Docker Registry、PostgreSQL、SSH 目标机和 HTTPS 的 E2E 验收。
-
-当前阻断项包括：GitHub App 与 webhook、独立 Worker、隔离 BuildKit、digest 固定 OCI 制品、节点隔离、域名/HTTPS、真实自动回滚、密钥轮换、Agent、Cloud 多租户，以及空白 Ubuntu 安装验证。详见[交付验收规范](docs/basic/交付验收规范.md)。
-
-## 设计理念
-
-- **本地优先**：最终用户不应手动准备数据库、队列、对象存储等内部依赖。
-- **一键部署**：通过 `launchly install` 初始化内置 PostgreSQL、App、Worker、默认存储和最高权限管理员。
-- **小团队友好**：不做复杂企业平台，优先解决项目接入、部署、测试、修复、复测和上线闭环。
-- **省心默认路径**：少填表、多推断；命令与容器细节默认对用户不可见，高级能力渐进披露（详见 [产品设计规范](docs/basic/产品设计规范.md) 第 4 节与归档 zero-config 全文）。
-- **部署工具型壳层**：默认首屏突出运行中部署与下一步；目标布局见 `docs/prototypes/Launchly-prototype.html`（本地原型，未随仓库上传）；信息架构见 [UI与交互规范](docs/basic/UI与交互规范.md) 第 2 节、[产品设计规范](docs/basic/产品设计规范.md) 第 6 节；实现任务见归档 `docs/archive/v1-2026-05/root/AI开发任务包.md` §15（T-IA，本地归档）。
-- **流程可追踪**：每次部署、测试、Issue、Release、回滚都应留下记录。
-- **人和 AI 协同开发**：开发任务要能被人和 AI 同时理解、拆分、执行和验收。
-
-## 系统架构
-
-目标架构采用 NestJS 控制面、独立 Worker/Scheduler、PostgreSQL 可靠任务队列、隔离 BuildKit 和 BYOS Agent/加固 SSH 执行面。当前仓库仍为历史单进程 Worker 基线，正在按 P1–P7 迁移，不能据此认定目标架构已经交付。
+目标闭环：
 
 ```text
-Git provider/webhook
-  -> Web UI + API control plane
-      -> PostgreSQL + durable queue
-      -> Worker/Scheduler -> isolated BuildKit -> OCI Registry
-      -> BYOS Agent / hardened SSH -> proxy + isolated Compose runtime
+Push / PR
+  → Webhook 验签与去重
+  → 分支 / 路径 / CI / 并发策略
+  → 检测或读取 launchly.yaml
+  → 隔离构建一次
+  → OCI image@sha256
+  → BYOS 候选部署
+  → Release Phase / 健康 / 测试 / 审批
+  → 流量切换
+  → 运行、证据、通知或真实回滚
 ```
 
-核心模块：
+## 产品边界
 
-| 模块 | 说明 |
-| --- | --- |
-| Web UI | 工作台、项目、部署、测试、Issue、Release 页面 |
-| API Server | 认证、Workspace、项目、环境、部署、测试、权限等业务接口（NestJS） |
-| Worker | 独立进程的可靠任务执行器；当前实现尚未完成迁移 |
-| CLI | 管理安装、启动、停止、升级、备份、恢复和诊断 |
-| PostgreSQL | 内置数据库，默认随安装启动 |
-| Docker Compose | Self-Host 控制面与节点运行时之一；必须使用项目/环境/部署隔离 |
+Launchly 不是 GitHub Actions 的替代品。Actions/GitLab CI 继续负责代码检查、单测和扫描；Launchly 专注于 **CD、BYOS 运行和发布治理**。
 
-## 功能规划
+当前不建设：
 
-> 下列历史表格只保留为旧版信息架构与商业设想，**不是当前能力矩阵**；其中 webhook、自动回滚、Cloud 与 Pro 等能力均以[交付验收规范](docs/basic/交付验收规范.md)的阶段状态为准，当前不得视为可用。
+- 通用 CI DSL、任意 Job 和插件市场。
+- Kubernetes 控制台。
+- 完整 Issue Tracker。
+- 默认托管应用运行时。
+- 浏览器宿主终端。
+- 在 Self-Host 闭环稳定前的 Cloud 计费和多租户。
 
-### 核心引擎
+## 核心产品体验
 
-| 功能 | Cloud Free | Cloud Pro | Self-Host |
-| --- | :---: | :---: | :---: |
-| 创建项目 | 1-2 个 | 不限 | 不限 |
-| 绑定 Git 仓库（GitHub / GitLab / 通用 PAT） | ✓ | ✓ | ✓ |
-| 多 Component（一项目多服务） | ✓（UI 默认折叠） | ✓ | ✓ |
-| 部署到 BYOS 服务器（SSH / Docker context） | ✓ | ✓ | ✓ |
-| 构建 + 部署 + 健康检查 | ✓ | ✓ | ✓ |
-| 部署日志实时流 | ✓ | ✓ | ✓ |
-| 自动回滚（失败回到上一成功版本） | ✓ | ✓ | ✓ |
-| 手动触发部署（用户点击发布） | ✓ | ✓ | ✓ |
-| 多环境配置 | 固定 2 层 | 自定义 N 层 | 自定义 N 层 |
-| 顺序门禁 L1 | ✓ | ✓ | ✓ |
-| 进阶门禁 L2/L3/L4 | ✗ | ✓ | ✓ |
-| L0 测试（shell exit code） | ✓ | ✓ | ✓ |
-| L1 测试（JUnit XML 解析） | ✓ | ✓ | ✓ |
+### 发布指挥中心
 
-### 协作（基础）
+首屏展示运行中的部署、等待审批、失败/回滚、异常节点、磁盘/证书风险和可执行下一步，而不是用项目总数填充 Dashboard。
 
-| 功能 | Cloud Free | Cloud Pro | Self-Host |
-| --- | :---: | :---: | :---: |
-| Issue 指派 + 复测闭环 | ✓ | ✓ | ✓ |
-| Release 记录 | ✓ | ✓ | ✓ |
-| 角色：Owner / Member / Viewer | ✓ | ✓ | ✓ |
-| 项目级权限（人 x Component x 操作） | ✗ | ✓ | ✓ |
-| Webhook 通知 | ✓ | ✓ | ✓ |
-| 审计日志 | ✗ | ✓ | ✓ |
+### 应用环境泳道
 
-### SaaS 控制面
+测试、预发和生产展示当前 Artifact、ConfigRevision、域名、节点和健康；同一个 digest 逐级晋级，不在生产重新构建。
 
-| 功能 | Cloud Free | Cloud Pro | Self-Host |
-| --- | :---: | :---: | :---: |
-| 邮箱注册 + 邀请加入 | ✓ | ✓ | ✗ |
-| 计费门户 + 订阅管理 | – | ✓ | ✗ |
+### 部署工作台
 
-### Self-Host 运维
+在一个页面查看真实阶段图、实时日志、CI/Test/Security Gate、Artifact、配置差异、流量状态、失败原因和回滚点，并明确区分重启、重部署、重建和回滚。
 
-| 功能 | Cloud Free | Cloud Pro | Self-Host |
-| --- | :---: | :---: | :---: |
-| CLI install / up / down / status / logs / doctor | ✗ | ✗ | ✓ |
-| 备份 / 恢复 | ✗ | ✗ | ✓ |
+### BYOS 基础设施中心
 
-### 付费增值（Pro 专属 / 远期）
+节点不仅是 SSH 地址：必须展示 Agent/SSH、Docker/Compose、CPU 架构、CPU/内存/磁盘、代理、运行应用、诊断和排空状态。
 
-| 功能 | Cloud Free | Cloud Pro | Self-Host |
-| --- | :---: | :---: | :---: |
-| AI 日报 / 周报 / 月报 | ✗ | ✓ | ✗ |
-| AI 异常归因 | ✗ | ✓ | ✗ |
-| 项目安全监控 | ✗ | ✓ | ✗ |
-| 第三方通知（飞书 / 钉钉 / Slack） | ✗ | ✓ | ✗ |
-| Launchly 托管运行时 | ✗ | 远期 | ✗ |
+### PR Preview
 
-## 目录结构
+按 PR 创建隔离环境和动态 URL，支持标签、路径过滤、数量上限、TTL、新提交更新及关闭后自动回收；外部 fork 默认不接触受信秘密。
+
+### 发布证据
+
+Release 聚合 commit/PR、Artifact、Config、CI、测试、安全、审批、豁免、部署和回滚证据。内置 Issue 收敛为发布阻断项/部署事故，不复制通用项目管理工具。
+
+## 目标架构
+
+```text
+GitHub / GitLab + CI Checks
+  → Vue Web + NestJS API
+      → PostgreSQL + durable task queue
+      → Worker / Scheduler
+      → isolated Build Worker + BuildKit → OCI Registry
+      → Agent / hardened SSH → isolated Compose runtime
+      → managed reverse proxy + ACME HTTPS
+      → evidence / audit / notification
+```
+
+关键不变量：
+
+- API 不挂 Docker Socket，不直接构建或 SSH。
+- API、Worker、Build Worker 和运行节点职责隔离。
+- 部署输入只接受 OCI digest，不用 `latest` 作为发布依据。
+- 所有项目子资源同时验证 Workspace、Project、资源归属和角色。
+- 健康、迁移、门禁失败不切流量。
+- 密钥只在任务执行时短时使用，不进入普通 API、日志和审计导出。
+
+## 当前真实状态
+
+基线 `6eef007` 已包含 Vue/NestJS/Prisma/CLI、项目/环境/部署/Test/Issue/Release/审计模块，以及部分 Webhook、Worker、BuildKit、OCI 和 SSH 代码路径。
+
+独立验证结果：
+
+- API 现有 52 个单元测试通过。
+- Web 现有 22 个单元测试通过。
+- CLI 现有 15 个单元测试通过。
+- API/Web/CLI 编译通过。
+- API 实测覆盖率为 Statements 13.11%、Branches 13.06%、Functions 9.97%、Lines 13.41%。
+- Web/CLI 尚未安装覆盖率 Provider，当前不能报告百分比。
+
+但 R0 尚未通过：
+
+- 生产构建输出与 `dist/main` 启动入口不一致。
+- Dockerfile 的 Web/BuildKit 构建阶段需要修复。
+- `EnvironmentService` 注入缺失会阻止 Nest 启动。
+- 多个项目子资源接口缺少完整 Workspace/Project 授权。
+- 没有真实 Docker 镜像启动、空库/升级库、GitHub、Registry、BuildKit、SSH、HTTPS 和回滚 E2E。
+
+因此当前没有可对外承诺的部署路径，历史“Beta”“核心流水线可用”“完整测试体系”等表述全部失效。
+
+## 项目路线图
+
+| 阶段 | 结果 | 状态 |
+| --- | --- | --- |
+| R0 可信基线 | 构建、启动、权限隔离、迁移与交付配置可信 | 进行中 |
+| R1 首次部署 | 空白机安装、节点诊断、已有 OCI digest 上线 | 未验收 |
+| R2 持续交付 | GitHub App、Webhook、CI/分支/路径/并发、状态回写 | 未验收 |
+| R3 安全生产 | 隔离构建、制品晋级、HTTPS、切流、真实回滚 | 未验收 |
+| R4 Preview/Monorepo | PR 环境、TTL/配额/回收、受影响服务部署 | 未验收 |
+| R5 发布治理 | 发布证据、阻断项、审批、通知、轻量观测 | 未验收 |
+| R6 多节点/Cloud | Agent、多节点；Self-Host 稳定后再评估 Cloud | 未开始 |
+
+任务、依赖与验收映射见[项目重启路线图](docs/basic/项目重启路线图.md)。
+
+## 仓库结构
 
 ```text
 apps/web                 Vue 3 + Element Plus Web UI
-services/api             NestJS API（API 进程）+ Worker（独立进程）
-cli                      TypeScript CLI（commander.js）
-deploy/compose           自托管 Docker Compose 模板
-examples                 示例项目（用于验证部署流程）
-docs/basic               产品设计规范 / 技术架构规范 / 交付验收规范 / UI与交互规范（权威）
-docs/work                planning.md（全局 16 周，本地协作，未随仓库上传）
-docs/archive             历史文档 v1 归档（本地，未随仓库上传）
-docs/prototypes          静态 HTML 交互原型（本地，未随仓库上传）
-# （可选）本地自建目录名任意；若在仓库根 .gitignore 中配置了忽略规则，则不进远端——不是协作拆解的一部分
+services/api             NestJS API + Worker 基线
+cli                      TypeScript Self-Host CLI
+deploy/compose           Self-Host Compose 模板
+examples                 真实验收用示例应用
+docs/basic               权威产品、架构、UI、验收与路线图
+docs/prototypes          本地原型（默认不上传）
 ```
 
-## 快速开始
+## 当前开发命令
 
-**前置条件**：
-
-- Docker 已安装且正在运行
-- 本地 `8080`、`5432` 端口可用（或通过环境变量自定义）
-
-### 一键安装（推荐）
+以下命令仅证明静态检查/单元测试，不代表 Self-Host 或部署可用：
 
 ```bash
-# 安装依赖并编译 CLI
-cd cli && pnpm install && pnpm build
-
-# 预览安装（不实际执行）
-node dist/index.js install --dry-run
-
-# 正式安装
-node dist/index.js install
+pnpm test
+pnpm --dir services/api build
+pnpm --dir apps/web build
+pnpm --dir cli build
 ```
 
-安装完成后：
+历史 `launchly install` 和 Compose 快速开始在 R0/R1 验收前不作为有效安装指南。NAS/极空间文档也只作为待复核环境说明，不能视为安装成功证明。
 
-1. 打开 `http://localhost:8080/setup`
-2. 创建管理员账号和默认 Workspace
-3. 登录后即可开始使用
+## 项目文档
 
-### 常用命令
+完整分类、阅读顺序和编号规则见[文档索引](docs/basic/文档索引.md)。
 
-安装后 CLI 二进制位于 `cli/dist/index.js`，可通过 `node` 调用：
-
-```bash
-node dist/index.js doctor      # 检查系统环境（Docker、端口、磁盘）
-node dist/index.js status      # 查看服务状态
-node dist/index.js logs -f     # 实时查看日志
-node dist/index.js up          # 启动服务
-node dist/index.js down        # 停止服务
-node dist/index.js backup      # 备份数据库和数据
-node dist/index.js restore <file>  # 从备份恢复
-```
-
-### 验证部署
-
-安装完成后，可以用 `examples/node-hello` 示例项目验证部署流程：
-
-1. 将 `examples/node-hello` 推送到 Git 仓库
-2. 在 Launchly 中创建项目，连接该仓库
-3. 添加部署目标（SSH 服务器地址、端口、用户名、认证方式）
-4. 配置环境变量（可选）
-5. 触发部署，观察阶段管线（克隆 → 构建 → 部署 → 健康检查）
-
-### 开发模式
-
-如果需要本地开发调试，有两种模式：
-
-**模式 A：本地开发最小模式**
-
-```bash
-# 启动 PostgreSQL
-docker run -d --name launchly-postgres-dev \
-  -e POSTGRES_USER=launchly \
-  -e POSTGRES_PASSWORD=launchly_dev_password \
-  -e POSTGRES_DB=launchly \
-  -p 5432:5432 \
-  postgres:16-alpine
-
-# 启动 API + Worker
-cd services/api
-set -a && source ../../.env && set +a
-pnpm run start:dev
-```
-
-**模式 B：Compose 全栈模式**
-
-```bash
-set -a && source ./.env && set +a
-docker compose -f deploy/compose/docker-compose.yml up -d --build
-```
-
-**Web 开发**
-
-```bash
-# 根目录安装所有依赖（含 workspaces）
-pnpm install
-
-# 启动前端开发服务器（http://localhost:5173）
-pnpm dev:web
-```
-
-### 故障排查
-
-| 问题 | 排查方式 |
+| 文档 | 说明 |
 | --- | --- |
-| 端口被占用 | `node dist/index.js doctor` 会检测 8080/5173/5432 端口 |
-| Docker 未运行 | `node dist/index.js doctor` 会提示 Docker 状态 |
-| 安装后无法访问 | 检查 `node dist/index.js status` 确认服务是否启动 |
-| 部署失败 | 查看 `node dist/index.js logs -f` |
-| 数据库连接失败 | 确认 PostgreSQL 容器运行中：`docker ps` |
-| 密钥变更后数据异常 | `LAUNCHLY_ENCRYPTION_KEY` 变化会导致已加密数据无法解密，需保持一致 |
+| [文档索引](docs/basic/文档索引.md) | 规范、问题、任务、验收和环境说明的分类与链接 |
+| [产品设计规范](docs/basic/产品设计规范.md) | 定位、用户、领域模型、功能范围和优先级 |
+| [技术架构规范](docs/basic/技术架构规范.md) | 拓扑、状态机、数据、安全和执行边界 |
+| [UI 与交互规范](docs/basic/UI与交互规范.md) | 信息架构、核心页面和设计系统 |
+| [交付验收规范](docs/basic/交付验收规范.md) | 证据等级、阻断 E2E 和阶段退出条件 |
+| [已知问题清单](docs/basic/已知问题清单.md) | 已确认问题、证据、影响和关联任务，不作为排期 |
+| [项目重启路线图](docs/basic/项目重启路线图.md) | 当前基线、任务依赖、进度和下一批工作 |
+| [测试补全任务书](docs/basic/测试补全任务书.md) | 覆盖率基线、完整测试矩阵、MiniMax 工作包和 Codex 复核规则 |
+| [NAS 部署兼容性](docs/basic/NAS%20部署兼容性.md) | R1 兼容性目标，当前不是安装承诺 |
+| [极空间 Z4 Pro 计划稿](docs/basic/极空间Z4Pro从GitHub部署Launchly.md) | 暂停执行，待 R0/R1 真实 E2E 后升级为 Runbook |
 
-## 开发指南
+`KI-###` 是问题、`R#-##` 是实施待办、`TEST-*` 是测试工作包、`BASE/E2E` 是验收证据，四者不得互相代替。文档中的“必须/目标”不等于已实现；路线图状态只能由交付验收证据改变。
 
-推荐本地工具：
+## 开发原则
 
-| 工具 | 用途 |
-| --- | --- |
-| Node.js 20+ + pnpm | 前端、API 和 CLI 开发 |
-| Docker + Docker Compose | 自托管部署和本地集成 |
-| PostgreSQL | 本地调试数据库，最终产品会内置 |
+- 先更新权威文档，再实施范围变化。
+- 每个任务只覆盖一个可验收目标，并给出 diff、命令、原始结果和未覆盖边界。
+- 安全、权限、migration、状态机和生产配置必须独立复核。
+- 自动生成代码或审计报告不能自行改变完成状态。
+- R0 完成前不并行实现 Cloud、AI、Canary 或模板市场。
 
-API 开发约定：
+## 贡献
 
-- 后端框架：NestJS 10.x，通过 `@nestjs/platform-express` 提供 REST API。
-- ORM：Prisma，通过 `prisma migrate` 管理数据库迁移。
-- 安全：自定义 JWT Guard + RBAC Role Guard，受保护接口需要登录态。
-- API 模块按 `auth`、`workspace`、`project`、`environment`、`deployment`、`target`、`testcase`、`issue`、`release`、`notification`、`audit`、`worker` 分包，对应产品设计中的核心模块。
-- Worker 后台任务内嵌于 API 进程，通过 `@nestjs/schedule` 定时轮询 PostgreSQL 任务队列。
-- 部署流水线已接入任务串行执行（clone -> build -> deploy -> health check）和阶段日志。
-- 环境变量敏感值已启用加密存储（AES-256-GCM），部署时在 Worker 侧解密注入。
+项目尚未进入正式开源协作阶段。当前优先恢复可信基线、完成真实 BYOS 闭环并重做核心产品体验。正式开放贡献前将补充 `CONTRIBUTING.md`、行为准则和 Issue/PR 模板。
 
-测试：
+## License
 
-```bash
-pnpm test          # 运行全部测试（API + 前端 + CLI）
-pnpm test:api      # 仅运行 API 测试（Jest）
-pnpm test:web      # 仅运行前端测试（Vitest）
-pnpm test:cli      # 仅运行 CLI 测试（Vitest）
-```
-
-开发原则：
-
-- 对外 README 只描述真实状态，不把计划能力写成已完成能力。
-- 产品决策写入 **`docs/basic/`** 三份规范；**先改文档再改代码**。
-- **协作拆解**：唯一入口为 `docs/work/planning.md` → `docs/work/phase*/weekNN/week-N-plan.md`（含 DeepSeek「命簿」，本地协作，未随仓库上传）。DeepSeek **单次会话只推进一个工作日**；收工按 `DeepSeek日志结构.md` **追加写入** 当周的 `week-N-log.md`。**禁止**平行会话目录或其它第二份日志。
-- 若个人仍要随手记：可在本地自建任意草稿目录并自行 gitignore；**不得**当作 `week-*-plan.md` 的替代品。
-- 人主要负责审核边界和关键决策，AI 尽量执行可落地的代码、文档和验证任务。
-- 实现应与 **[产品设计规范](docs/basic/产品设计规范.md) + [技术架构规范](docs/basic/技术架构规范.md) + [UI与交互规范](docs/basic/UI与交互规范.md)** 保持一致。
-
-## 项目进展
-
-> 本表是历史模块清单，不是发布验收结论。任何“已完成”仅表示代码/页面骨架曾存在；自动部署、真实回滚、Cloud 与生产可用性均以[交付验收规范](docs/basic/交付验收规范.md)为准。
-
-| 项目 | 状态 |
-| --- | --- |
-| **已完成** | |
-| 产品设计文档 | 已完成 |
-| 基础 monorepo 目录结构 | 已完成 |
-| Web / API / Worker / CLI 核心骨架 | 已完成 |
-| JWT 鉴权与 Owner 初始化 | 已完成 |
-| 部署任务链路（clone / build / deploy / health check） | 已完成 |
-| Docker Compose 本地构建模板 | 已完成 |
-| LICENSE 替换为 AGPL-3.0 | 已完成 |
-| DeployTarget API、删除 409 校验、前端部署目标页 | 已完成 |
-| Worker BYOS（本机构建镜像 + SSH 下发远端 compose） | 已完成 |
-| Self-Host CLI（install / up / down / status / logs / doctor / backup / restore） | 已完成 |
-| UI 导航收敛（顶栏 + 水平胶囊导航，运行态 Dashboard） | 已完成 |
-| 全局错误提示、空状态 CTA、响应式适配 | 已完成 |
-| Viewer 权限控制（隐藏写操作按钮） | 已完成 |
-| 项目列表卡片化 | 已完成 |
-| 成员管理页面 | 已完成 |
-| 数据模型 Component（多发布单元） | 已完成 |
-| 审计日志 CSV 导出 | 已完成 |
-| 设计系统 token 落地 | 已完成 |
-| EDITION 开关（cloud/selfhost） | 已完成 |
-| Zero-Config Node 推断 | 已完成 |
-| 完整测试体系（79 个测试用例，全部通过） | 已完成 |
-| **未开始** | |
-| SaaS 控制面（注册 / 计费 / 多租户） | 未开始 |
-| AI 增值功能 | 未开始 |
-| 端到端联调与发布 | 未开始 |
-
-## 权威文档
-
-公开仓库保留以下基线规范。总体规划、工作日志、历史归档和静态原型为本地协作文档，README 保留链接是为了维护者本地跳转；这些目录默认不上传远端。
-
-| 文档 | 路径 | 说明 |
-| --- | --- | --- |
-| **产品设计规范** | [docs/basic/产品设计规范.md](docs/basic/产品设计规范.md) | 定位、模型、权限、流程 |
-| **技术架构规范** | [docs/basic/技术架构规范.md](docs/basic/技术架构规范.md) | 技术栈、架构、模块、安全 |
-| **交付验收规范** | [docs/basic/交付验收规范.md](docs/basic/交付验收规范.md) | 真实 E2E、阶段退出与完成证据 |
-| **UI 与交互规范** | [docs/basic/UI与交互规范.md](docs/basic/UI与交互规范.md) | 页面、交互、原型索引 |
-| **总体规划（本地）** | `docs/work/planning.md` | 本地协作入口；未随仓库上传 |
-
-**工作日志（本地）**：仅当周目录下的 `week-N-log.md`。AI 按 `DeepSeek日志结构.md` **追加写入**，不要在其它平行路径克隆一份。
-
-**静态原型（本地）**：`docs/prototypes/Launchly-prototype.html`（未随仓库上传）。
-
-## 参与贡献
-
-项目尚未进入正式开源协作阶段。当前更适合围绕产品设计、架构边界、MVP 任务拆分和基础实现进行小范围迭代。
-
-后续正式开放贡献前，建议补充：
-
-- `CONTRIBUTING.md`
-- `CODE_OF_CONDUCT.md`
-- Issue / PR 模板
-
-## 开源协议
-
-本项目以 **GNU Affero General Public License v3.0（AGPL-3.0）** 授权，完整条款见仓库根目录 [LICENSE](LICENSE) 文件。
+Launchly 使用 [GNU AGPL-3.0](LICENSE) 许可证。

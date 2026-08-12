@@ -38,7 +38,7 @@ coverage/
 .nyc_output/
 .claude/projects/
 
-# Docs policy: only keep 3 baseline files in repo
+# Docs policy: track authoritative project docs and maintained environment notes
 docs/*
 !docs/basic/
 docs/basic/*
@@ -46,3 +46,9 @@ docs/basic/*
 !docs/basic/技术架构规范.md
 !docs/basic/产品设计规范.md
 !docs/basic/交付验收规范.md
+!docs/basic/项目重启路线图.md
+!docs/basic/文档索引.md
+!docs/basic/已知问题清单.md
+!docs/basic/测试补全任务书.md
+!docs/basic/NAS 部署兼容性.md
+!docs/basic/极空间Z4Pro从GitHub部署Launchly.md
