@@ -3,6 +3,9 @@ import { GitRunner } from './git.runner';
 import { ShellRunner } from './shell.runner';
 import { DockerRunner } from './docker.runner';
 import { RemoteSshRunner } from './remote-ssh.runner';
+import { BuildkitRunner } from './buildkit.runner';
+import { OciImageRunner } from './oci-image.runner';
+import { TemplateSourceRunner } from './template-source.runner';
 
 export interface RunnerContext {
   taskType: string;
@@ -28,6 +31,9 @@ export class RunnerFactory {
     private readonly shellRunner: ShellRunner,
     private readonly dockerRunner: DockerRunner,
     private readonly remoteSshRunner: RemoteSshRunner,
+    private readonly buildkitRunner: BuildkitRunner,
+    private readonly ociImageRunner: OciImageRunner,
+    private readonly templateSourceRunner: TemplateSourceRunner,
   ) {}
 
   async execute(taskType: string, context: RunnerContext): Promise<RunnerResult> {
@@ -41,11 +47,15 @@ export class RunnerFactory {
   private getRunner(taskType: string, context: RunnerContext): { execute: (ctx: RunnerContext) => Promise<RunnerResult> } | null {
     switch (taskType) {
       case 'REPO_CLONE': return this.gitRunner;
-      case 'PROJECT_BUILD': return this.shellRunner;
+      case 'PROJECT_BUILD': return this.buildkitRunner;
+      case 'PROJECT_IMAGE_PREPARE': return this.ociImageRunner;
+      case 'TEMPLATE_SOURCE': return this.templateSourceRunner;
       case 'PROJECT_DEPLOY':
-        // Check if BYOS SSH deployment
+      case 'PROJECT_BOOTSTRAP':
         if (context.payload.deployTargetId) return this.remoteSshRunner;
-        return this.dockerRunner;
+        return null;
+      case 'ROLLBACK_DEPLOY':
+        return this.remoteSshRunner;
       case 'HEALTH_CHECK': return this.shellRunner;
       default: return null;
     }

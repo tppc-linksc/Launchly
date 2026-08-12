@@ -10,6 +10,7 @@ const router = createRouter({
       children: [
         { path: '', name: 'dashboard', component: () => import('../pages/DashboardPage.vue') },
         { path: 'projects', name: 'projects', component: () => import('../pages/ProjectListPage.vue') },
+        { path: 'resources/new', name: 'resource-catalog', component: () => import('../pages/ResourceCatalogPage.vue') },
         { path: 'projects/create', name: 'project-create', component: () => import('../pages/ProjectCreatePage.vue') },
         { path: 'projects/:id', name: 'project-detail', component: () => import('../pages/ProjectDetailPage.vue') },
         { path: 'projects/:id/deploy-targets', name: 'deploy-targets', component: () => import('../pages/DeployTargetListPage.vue') },

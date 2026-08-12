@@ -9,7 +9,7 @@
         <el-tag>{{ project.projectType }}</el-tag>
         <el-button v-if="canWrite" style="margin-left: 8px;" @click="openEdit">编辑</el-button>
         <el-button style="margin-left: 8px;" @click="$router.push(`/projects/${project.id}/deploy-targets`)">部署目标</el-button>
-        <el-button v-if="canDeploy" type="primary" style="margin-left: 8px;" @click="openDeployFromHeader" :disabled="!project.repositoryUrl">部署</el-button>
+        <el-button v-if="canDeploy" type="primary" style="margin-left: 8px;" @click="openDeployFromHeader" :disabled="!canDeployProject">部署</el-button>
       </div>
     </div>
 
@@ -22,6 +22,7 @@
             <el-descriptions-item label="Git 提供方">{{ project.gitProvider || '未选择' }}</el-descriptions-item>
             <el-descriptions-item label="健康检查路径">{{ project.healthCheckPath || '未配置' }}</el-descriptions-item>
             <el-descriptions-item label="默认端口">{{ project.defaultPort || '未配置' }}</el-descriptions-item>
+            <el-descriptions-item label="初始化管理员">{{ project.bootstrapAdminEnabled ? '已配置（首次部署时创建）' : '未配置' }}</el-descriptions-item>
           </el-descriptions>
           <el-divider>命令配置摘要</el-divider>
           <el-descriptions :column="1" size="small">
@@ -150,6 +151,26 @@
         <el-form-item label="默认端口">
           <el-input-number v-model="editForm.defaultPort" style="width: 100%;" />
         </el-form-item>
+        <el-divider content-position="left">部署应用的初始化管理员</el-divider>
+        <el-alert type="info" :closable="false" style="margin-bottom:16px" title="Launchly 不直接写业务数据库。首次部署时会把以下信息短暂注入应用容器，并执行你声明的初始化命令。密码加密保存且不再回显。" />
+        <el-form-item label="首次部署时创建后台管理员">
+          <el-switch v-model="editForm.bootstrapAdminEnabled" active-text="启用" inactive-text="关闭" inline-prompt />
+        </el-form-item>
+        <template v-if="editForm.bootstrapAdminEnabled">
+          <el-form-item label="容器内初始化命令" required>
+            <el-input v-model="editForm.bootstrapAdminCommand" placeholder="例如 node dist/cli.js create-admin" />
+            <div style="font-size:12px;color:#909399;margin-top:4px">命令在 app 容器中执行，可读取 LAUNCHLY_BOOTSTRAP_ADMIN_USERNAME、EMAIL、PASSWORD。</div>
+          </el-form-item>
+          <el-form-item label="管理员账号">
+            <el-input v-model="editForm.bootstrapAdminUsername" placeholder="admin" />
+          </el-form-item>
+          <el-form-item label="管理员邮箱">
+            <el-input v-model="editForm.bootstrapAdminEmail" placeholder="admin@example.com" />
+          </el-form-item>
+          <el-form-item label="管理员初始密码" :required="!project?.bootstrapAdminEnabled">
+            <el-input v-model="editForm.bootstrapAdminPassword" type="password" show-password autocomplete="new-password" :placeholder="project?.bootstrapAdminEnabled ? '留空则保持已有加密密码' : '至少 8 位，需包含字母和数字'" />
+          </el-form-item>
+        </template>
       </el-form>
       <template #footer>
         <el-button @click="showEdit = false">取消</el-button>
@@ -189,11 +210,17 @@ const editForm = reactive({
   gitProvider: '' as string,
   installCommand: '', buildCommand: '', startCommand: '', testCommand: '',
   healthCheckPath: '', defaultPort: null as number | null,
+  bootstrapAdminEnabled: false, bootstrapAdminCommand: '', bootstrapAdminUsername: '', bootstrapAdminEmail: '', bootstrapAdminPassword: '',
 })
 
 const deployableEnvs = computed(() =>
   environments.value.filter((e: any) => e.type === 'TEST' || e.type === 'STAGING')
 )
+
+const canDeployProject = computed(() => {
+  if (!project.value) return false
+  return Boolean(project.value.repositoryUrl || project.value.imageReference || project.value.templateId === 'static-blog')
+})
 
 const workflowCurrent = computed(() => {
   if (!project.value) return 0
@@ -258,6 +285,11 @@ function openEdit() {
   editForm.testCommand = p.testCommand || ''
   editForm.healthCheckPath = p.healthCheckPath || ''
   editForm.defaultPort = p.defaultPort ?? null
+  editForm.bootstrapAdminEnabled = p.bootstrapAdminEnabled === true
+  editForm.bootstrapAdminCommand = p.bootstrapAdminCommand || ''
+  editForm.bootstrapAdminUsername = p.bootstrapAdminUsername || ''
+  editForm.bootstrapAdminEmail = p.bootstrapAdminEmail || ''
+  editForm.bootstrapAdminPassword = ''
   showEdit.value = true
 }
 
@@ -268,7 +300,30 @@ async function doEdit() {
   }
   editLoading.value = true
   try {
-    await updateProject(project.value.id, { ...editForm })
+    if (editForm.bootstrapAdminEnabled && (!editForm.bootstrapAdminCommand.trim() || (!editForm.bootstrapAdminUsername.trim() && !editForm.bootstrapAdminEmail.trim()))) {
+      ElMessage.warning('请填写容器内初始化命令，以及管理员账号或邮箱')
+      editLoading.value = false
+      return
+    }
+    if (editForm.bootstrapAdminEnabled && !project.value.bootstrapAdminEnabled && !editForm.bootstrapAdminPassword) {
+      ElMessage.warning('首次启用初始化管理员必须设置密码')
+      editLoading.value = false
+      return
+    }
+    const payload: any = { ...editForm }
+    delete payload.bootstrapAdminEnabled
+    delete payload.bootstrapAdminCommand
+    delete payload.bootstrapAdminUsername
+    delete payload.bootstrapAdminEmail
+    delete payload.bootstrapAdminPassword
+    payload.bootstrapAdmin = {
+      enabled: editForm.bootstrapAdminEnabled,
+      command: editForm.bootstrapAdminCommand || undefined,
+      username: editForm.bootstrapAdminUsername || undefined,
+      email: editForm.bootstrapAdminEmail || undefined,
+      password: editForm.bootstrapAdminPassword || undefined,
+    }
+    await updateProject(project.value.id, payload)
     const res = await fetchProject(project.value.id)
     project.value = res.data
     showEdit.value = false

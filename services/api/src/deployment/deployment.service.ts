@@ -1,10 +1,11 @@
-import { Injectable, ForbiddenException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, ForbiddenException, NotFoundException, BadRequestException, Optional } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateDeploymentDto } from './dto/create-deployment.dto';
+import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class DeploymentService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, @Optional() private readonly audit?: AuditService) {}
 
   async create(dto: CreateDeploymentDto, userId: string, workspaceId: string) {
     const env = await this.prisma.environment.findUnique({ where: { id: dto.environmentId } });
@@ -16,16 +17,18 @@ export class DeploymentService {
     if (!project || project.workspaceId !== workspaceId) {
       throw new ForbiddenException('无权在该项目中创建部署');
     }
-    if (!project.repositoryUrl) {
-      throw new BadRequestException('项目未配置代码仓库');
-    }
+    this.assertDeployableProject(project);
 
-    let target: any = null;
-    if (dto.deployTargetId) {
-      target = await this.prisma.deployTarget.findUnique({ where: { id: dto.deployTargetId } });
-      if (!target || target.projectId !== dto.projectId) {
-        throw new NotFoundException('部署目标不存在或不属于指定项目');
-      }
+    const targetId = dto.deployTargetId || env.deployTargetId;
+    if (!targetId) throw new BadRequestException('环境未绑定部署目标');
+    const target = await this.prisma.deployTarget.findUnique({ where: { id: targetId } });
+    if (!target || target.projectId !== dto.projectId) {
+      throw new NotFoundException('部署目标不存在或不属于指定项目');
+    }
+    const externalPort = await this.resolveExternalPort(env, target.id);
+    const effectiveEnvironment = { ...env, externalPort, deployTargetId: target.id };
+    if (env.externalPort !== externalPort || env.deployTargetId !== target.id) {
+      await this.prisma.environment.update({ where: { id: env.id }, data: { externalPort, deployTargetId: target.id } });
     }
 
     const deployment = await this.prisma.$transaction(async (tx) => {
@@ -33,42 +36,76 @@ export class DeploymentService {
         data: {
           projectId: dto.projectId,
           environmentId: dto.environmentId,
-          deployTargetId: dto.deployTargetId || null,
+          deployTargetId: target.id,
           branch: dto.branch,
           commitSha: dto.commitSha,
           status: 'PENDING',
-          triggeredBy: userId,
+          triggeredBy: userId || null,
         },
       });
 
-      const stages = [
-        { stage: 'CLONE', stepOrder: 1 },
-        { stage: 'BUILD', stepOrder: 2 },
-        { stage: 'DEPLOY', stepOrder: 3 },
-        { stage: 'HEALTH_CHECK', stepOrder: 4 },
-      ];
+      const stages = this.deploymentStages(project);
       await tx.deploymentStageLog.createMany({
         data: stages.map(s => ({
           deploymentId: d.id,
           stage: s.stage,
           stepOrder: s.stepOrder,
-          status: 'PENDING',
+          status: s.status || 'PENDING',
         })),
       });
 
-      const payload = this.buildWorkerPayload({ project, environment: env, target, branch: dto.branch, commitSha: dto.commitSha });
+      const payload = this.buildWorkerPayload({ project, environment: effectiveEnvironment, target, branch: dto.branch, commitSha: dto.commitSha });
       await tx.task.create({
         data: {
-          taskType: 'REPO_CLONE',
+          taskType: this.initialTaskType(project),
           refId: d.id,
           payload: JSON.stringify(payload),
+          idempotencyKey: `${this.initialTaskType(project).toLowerCase()}:${d.id}`,
         },
       });
 
       return d;
     });
 
+    await this.audit?.record(userId || null, project.workspaceId, 'DEPLOYMENT_QUEUED', 'DEPLOYMENT', deployment.id, {
+      projectId: project.id, environmentId: env.id, trigger: userId ? 'MANUAL' : 'AUTOMATED', commitSha: dto.commitSha || null,
+    });
     return this.enrichDeployment(deployment);
+  }
+
+  /** Creates a deployment only after a provider webhook has been verified. */
+  async createAutomated(input: {
+    projectId: string;
+    environmentId: string;
+    branch: string;
+    commitSha: string;
+    idempotencyKey: string;
+  }) {
+    const existing = await this.prisma.deployment.findFirst({
+      where: { idempotencyKey: input.idempotencyKey },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing) return this.enrichDeployment(existing);
+
+    const project = await this.prisma.project.findUnique({ where: { id: input.projectId } });
+    if (!project) throw new NotFoundException('项目不存在');
+    const target = await this.prisma.deployTarget.findFirst({ where: { projectId: input.projectId }, orderBy: { createdAt: 'asc' } });
+    if (!target) throw new BadRequestException('自动部署需要已验证的部署目标');
+    const deployment = await this.create({
+      projectId: input.projectId,
+      environmentId: input.environmentId,
+      deployTargetId: target.id,
+      branch: input.branch,
+      commitSha: input.commitSha,
+    }, '', project.workspaceId);
+    await this.prisma.deployment.update({
+      where: { id: deployment.id },
+      data: { triggerSource: 'GITHUB_WEBHOOK', idempotencyKey: input.idempotencyKey },
+    });
+    await this.audit?.record(null, project.workspaceId, 'DEPLOYMENT_WEBHOOK_QUEUED', 'DEPLOYMENT', deployment.id, {
+      projectId: project.id, environmentId: input.environmentId, commitSha: input.commitSha,
+    });
+    return { ...deployment, triggerSource: 'GITHUB_WEBHOOK' };
   }
 
   async rollback(deploymentId: string, userId: string, workspaceId: string) {
@@ -80,9 +117,7 @@ export class DeploymentService {
 
     const project = await this.prisma.project.findUnique({ where: { id: source.projectId } });
     if (!project) throw new ForbiddenException('无权操作');
-    if (!project.repositoryUrl) {
-      throw new BadRequestException('项目未配置代码仓库');
-    }
+    this.assertDeployableProject(project);
 
     const env = await this.prisma.environment.findUnique({ where: { id: source.environmentId } });
     if (!env) throw new NotFoundException('环境不存在: ' + source.environmentId);
@@ -106,33 +141,30 @@ export class DeploymentService {
         },
       });
 
-      const stages = [
-        { stage: 'CLONE', stepOrder: 1 },
-        { stage: 'BUILD', stepOrder: 2 },
-        { stage: 'DEPLOY', stepOrder: 3 },
-        { stage: 'HEALTH_CHECK', stepOrder: 4 },
-      ];
+      const stages = this.deploymentStages(project);
       await tx.deploymentStageLog.createMany({
         data: stages.map(s => ({
           deploymentId: d.id,
           stage: s.stage,
           stepOrder: s.stepOrder,
-          status: 'PENDING',
+          status: s.status || 'PENDING',
         })),
       });
 
       const payload = this.buildWorkerPayload({ project, environment: env, target, branch: source.branch, commitSha: source.commitSha });
       await tx.task.create({
         data: {
-          taskType: 'REPO_CLONE',
+          taskType: this.initialTaskType(project),
           refId: d.id,
           payload: JSON.stringify(payload),
+          idempotencyKey: `${this.initialTaskType(project).toLowerCase()}:${d.id}`,
         },
       });
 
       return d;
     });
 
+    await this.audit?.record(userId, project.workspaceId, 'DEPLOYMENT_ROLLBACK_REQUESTED', 'DEPLOYMENT', rollback.id, { rollbackFromDeploymentId: source.id });
     return this.enrichDeployment(rollback);
   }
 
@@ -224,13 +256,20 @@ export class DeploymentService {
     branch?: string | null;
     commitSha?: string | null;
   }) {
-    const port = input.environment.externalPort ?? input.project.defaultPort ?? 3000;
+    const containerPort = input.project.defaultPort ?? (input.project.templateId === 'static-blog' ? 80 : 3000);
+    const externalPort = input.environment.externalPort ?? containerPort;
 
     return {
       projectId: input.project.id,
       environmentId: input.environment.id,
       deployTargetId: input.target?.id ?? '',
       repositoryUrl: input.project.repositoryUrl,
+      sourceType: input.project.sourceType || 'GIT_PUBLIC',
+      resourceKind: input.project.resourceKind || 'APPLICATION',
+      runtimeMode: input.project.runtimeMode || 'BUILDKIT',
+      imageReference: input.project.imageReference || null,
+      templateId: input.project.templateId || null,
+      templateTitle: input.project.name,
       branch: input.branch || input.project.defaultBranch || 'main',
       commitSha: input.commitSha || '',
       installCommand: input.project.installCommand || null,
@@ -238,11 +277,80 @@ export class DeploymentService {
       startCommand: input.project.startCommand || null,
       testCommand: input.project.testCommand || null,
       healthCheckPath: input.project.healthCheckPath || '/',
-      port,
+      bootstrapAdminEnabled: Boolean(input.project.bootstrapAdminEnabled && input.project.bootstrapAdminCommand),
+      bootstrapAdminCommand: input.project.bootstrapAdminCommand || null,
+      bootstrapAdminUsername: input.project.bootstrapAdminUsername || null,
+      bootstrapAdminEmail: input.project.bootstrapAdminEmail || null,
+      domain: input.environment.domain || null,
+      // port stays the externally reachable port for backward-compatible workers/logs.
+      port: externalPort,
+      containerPort,
+      externalPort,
+      healthPort: externalPort,
       host: input.target?.host || input.environment.host || 'localhost',
       deployMode: input.environment.deployMode || 'local',
       deployDir: input.environment.deployDir || null,
     };
+  }
+
+  private assertDeployableProject(project: any) {
+    const sourceType = project.sourceType || 'GIT_PUBLIC';
+    if (['GIT_PUBLIC', 'GITHUB_APP', 'DEPLOY_KEY'].includes(sourceType) && !project.repositoryUrl) {
+      throw new BadRequestException('Git 资源必须配置代码仓库');
+    }
+    if (sourceType === 'OCI_IMAGE' && !project.imageReference) {
+      throw new BadRequestException('OCI 镜像资源必须配置不可变镜像引用');
+    }
+    if (sourceType === 'TEMPLATE' && project.templateId === 'static-blog' && project.registryRepository) return;
+    if (!['GIT_PUBLIC', 'GITHUB_APP', 'DEPLOY_KEY', 'OCI_IMAGE'].includes(sourceType)) {
+      throw new BadRequestException(`资源来源 ${sourceType} 当前仅可保存配置，尚未具备安全发布执行器`);
+    }
+  }
+
+  /** Keeps a fallback port unique per target even when users leave the default 3001/3002/3003 values. */
+  private async resolveExternalPort(environment: any, deployTargetId: string): Promise<number> {
+    const desired = environment.externalPort || 3000;
+    const deployments = await this.prisma.deployment.findMany({
+      where: { deployTargetId, status: { notIn: ['FAILED', 'CANCELED', 'ROLLED_BACK'] } },
+      include: { environment: { select: { id: true, externalPort: true } } },
+    }) || [];
+    const used = new Set<number>(deployments
+      .filter((deployment: any) => deployment.environmentId !== environment.id)
+      .map((deployment: any) => deployment.environment?.externalPort)
+      .filter((port: unknown): port is number => Number.isInteger(port)));
+    if (!used.has(desired)) return desired;
+    for (let candidate = Math.max(10000, desired + 1); candidate <= 60000; candidate += 1) {
+      if (!used.has(candidate)) return candidate;
+    }
+    throw new BadRequestException('部署目标没有可用的回退访问端口');
+  }
+
+  private initialTaskType(project: any): string {
+    if ((project.sourceType || 'GIT_PUBLIC') === 'OCI_IMAGE') return 'PROJECT_IMAGE_PREPARE';
+    if (project.sourceType === 'TEMPLATE') return 'TEMPLATE_SOURCE';
+    return 'REPO_CLONE';
+  }
+
+  private deploymentStages(project: any): Array<{ stage: string; stepOrder: number; status?: string }> {
+    const bootstrap = Boolean(project.bootstrapAdminEnabled && project.bootstrapAdminCommand);
+    if ((project.sourceType || 'GIT_PUBLIC') === 'OCI_IMAGE') {
+      const stages = [
+        { stage: 'CLONE', stepOrder: 1, status: 'SKIPPED' },
+        { stage: 'BUILD', stepOrder: 2 },
+        { stage: 'DEPLOY', stepOrder: 3 },
+      ];
+      if (bootstrap) stages.push({ stage: 'BOOTSTRAP', stepOrder: 4 });
+      stages.push({ stage: 'HEALTH_CHECK', stepOrder: bootstrap ? 5 : 4 });
+      return stages;
+    }
+    const stages = [
+      { stage: 'CLONE', stepOrder: 1 },
+      { stage: 'BUILD', stepOrder: 2 },
+      { stage: 'DEPLOY', stepOrder: 3 },
+    ];
+    if (bootstrap) stages.push({ stage: 'BOOTSTRAP', stepOrder: 4 });
+    stages.push({ stage: 'HEALTH_CHECK', stepOrder: bootstrap ? 5 : 4 });
+    return stages;
   }
 
   private async enrichDeployments(deployments: any[]) {

@@ -16,7 +16,7 @@
         </div>
         <div class="top-actions">
           <el-button v-if="canDeploy" type="primary" class="btn-pill" @click="$router.push('/deployments')">触发部署</el-button>
-          <el-button class="btn-pill-ghost" @click="$router.push('/projects/create')">连接仓库</el-button>
+          <el-button class="btn-pill-ghost" @click="$router.push('/resources/new')">新建资源</el-button>
           <el-dropdown>
             <div class="avatar-wrap">
               <div class="avatar">{{ avatarLetter }}</div>

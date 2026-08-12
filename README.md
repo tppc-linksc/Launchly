@@ -11,18 +11,18 @@
 <h1 align="center">Launchly</h1>
 
 <p align="center">
-  <strong>轻量代码自动部署平台 · 双模式交付（SaaS + 开源自托管同源）</strong>
+  <strong>BYOS 全自动应用运行平台 · 小团队发布治理平台</strong>
 </p>
 
 <p align="center">
-  面向 5-20 人小团队及个人开发者，围绕"接入仓库 → 构建 → 部署 → 健康检查 → 回滚"主线，提供双模式同源交付：Launchly Cloud（SaaS，账号注册即用）与 Launchly Self-Host（开源版，用户自部署）。
+  面向 5-20 人小团队及个人开发者，目标闭环为“Git Push → 验签 → 隔离构建 → 不可变镜像 → BYOS 部署 → HTTPS/健康检查 → 流量切换或自动回滚”，并以测试、Issue、复测、Release 门禁和审计治理发布。
 </p>
 
 <p align="center">
   <a href="README.en.md">English Documentation</a>
 </p>
 
-> **2026-05 项目方向重塑**：Launchly 已从「自托管部署测试协作平台」收敛为「**双模式同源的轻量代码自动部署平台**」。决策与历史材料已归档；**当前以 [产品设计规范](docs/basic/产品设计规范.md) 为产品权威**。归档索引：`docs/archive/v1-2026-05/README.md`（本地归档，未随仓库上传）。新方向在 `refactor/dual-mode-deploy` 分支下开发。
+> **2026-07 方向纠正**：Launchly 的权威目标是“BYOS 全自动应用运行平台 + 小团队发布治理平台”。可配置 webhook 自动部署取代“仅手动触发”；API/Worker 独立、BuildKit/OCI 不可变制品、域名/HTTPS 和真实自动回滚是后续实施项。请以[产品设计规范](docs/basic/产品设计规范.md)、[技术架构规范](docs/basic/技术架构规范.md)与[交付验收规范](docs/basic/交付验收规范.md)为准；页面、CLI、单测或 Compose 骨架不代表这些能力已完成。
 >
 > **文档上传说明**：仓库只上传 `docs/basic/` 下三份基线规范；`docs/work/`、`docs/archive/`、`docs/prototypes/` 属于本地协作文档和原型资料，已加入 `.gitignore`，README 中相关链接仅在维护者本地工作区可用。
 
@@ -68,40 +68,17 @@
 
 Launchly 的目标是补上这条链路：**接入仓库 → 构建 → 部署 → 健康检查 → 回滚**，并内置测试集成、Issue 跟踪、Release 门禁、审计和通知作为基础功能。
 
+部署目标支持普通 Linux 与 Docker NAS：目标配置可把工作目录从默认 `/var/lib/launchly` 改为 NAS 持久共享卷，并在保存后验证 SSH Host Key、Docker、Compose v2、目录权限、磁盘与 80 端口提示。使用条件与边界见 [NAS 部署兼容性](docs/basic/NAS%20部署兼容性.md)；这不是 NAS 真实 E2E 通过声明。
+
+极空间 Z4 Pro 从 GitHub 安装控制面、配置 NAS 目标并部署首个 OCI 镜像的逐步流程见[极空间 Z4 Pro 从 GitHub 部署 Launchly](docs/basic/极空间Z4Pro从GitHub部署Launchly.md)。
+
 ## 项目状态
 
-Launchly 当前处于 **Beta 阶段**。核心部署链路、CLI 安装器、Web 工作台已可用，正在准备小范围早期试用。
+Launchly 处于**架构重构前的基线阶段**，不是可对外承诺自动部署、生产回滚或 Cloud SaaS 的 Beta 成品。
 
-**已完成**：
+已存在的可复用基线包括 Vue/NestJS/Prisma/CLI、项目/环境/部署/测试/Issue/Release/审计模块，以及一次基础 SSH/Compose 尝试。它们尚未通过真实 GitHub、Docker Registry、PostgreSQL、SSH 目标机和 HTTPS 的 E2E 验收。
 
-- 产品设计文档归档与架构设计
-- 基础 monorepo 目录结构
-- Web/API/Worker/CLI 核心模块骨架
-- JWT 鉴权与 Owner 初始化主流程
-- 部署任务链路（clone/build/deploy/health check）与阶段日志
-- 测试用例、Issue、Release、门禁、回滚基础链路
-- Docker Compose 本地构建部署模板
-- DeployTarget API 与前端部署目标管理页
-- Worker BYOS（SSH 远程执行，本机构建镜像 + SSH 下发远端 compose）
-- CLI 安装器（install/up/down/status/logs/doctor/backup/restore/upgrade/uninstall）
-- UI 导航收敛（顶栏 + 水平胶囊导航，运行态 Dashboard）
-- 全局错误提示、空状态 CTA、响应式适配
-- `triggeredByName` 触发人展示
-- Viewer 权限控制（隐藏写操作按钮）
-- 项目列表卡片化（卡片+最近部署状态）
-- 成员管理页面（列表、角色变更、移除）
-- Component 多发布单元数据模型
-- 审计日志 CSV 导出
-- 设计系统 token 落地（Element Plus 主色 #0D9488）
-- EDITION 开关（cloud/selfhost 模式）
-- Zero-Config Node 推断（自动检测 package.json）
-- 完整测试体系（API Jest 42 测试 + 前端 Vitest 22 测试 + CLI Vitest 15 测试）
-
-**未开始**：
-
-- SaaS 控制面（注册、计费、多租户）
-- AI 增值功能（报告、异常归因、安全监控）
-- 第三方通知绑定
+当前阻断项包括：GitHub App 与 webhook、独立 Worker、隔离 BuildKit、digest 固定 OCI 制品、节点隔离、域名/HTTPS、真实自动回滚、密钥轮换、Agent、Cloud 多租户，以及空白 Ubuntu 安装验证。详见[交付验收规范](docs/basic/交付验收规范.md)。
 
 ## 设计理念
 
@@ -115,14 +92,14 @@ Launchly 当前处于 **Beta 阶段**。核心部署链路、CLI 安装器、Web
 
 ## 系统架构
 
-Launchly 第一阶段采用"模块化单体（NestJS）+ 内置后台任务执行器 + CLI 一键部署"的架构。v0.2 起 API 与 Worker 合并为单一 NestJS 进程。
+目标架构采用 NestJS 控制面、独立 Worker/Scheduler、PostgreSQL 可靠任务队列、隔离 BuildKit 和 BYOS Agent/加固 SSH 执行面。当前仓库仍为历史单进程 Worker 基线，正在按 P1–P7 迁移，不能据此认定目标架构已经交付。
 
 ```text
-launchly CLI
-  -> Docker Compose
-      -> launchly-app      Web UI + API + Worker（单进程）
-      -> launchly-postgres 内置 PostgreSQL
-      -> launchly-data     本地文件、日志、附件和截图
+Git provider/webhook
+  -> Web UI + API control plane
+      -> PostgreSQL + durable queue
+      -> Worker/Scheduler -> isolated BuildKit -> OCI Registry
+      -> BYOS Agent / hardened SSH -> proxy + isolated Compose runtime
 ```
 
 核心模块：
@@ -131,12 +108,14 @@ launchly CLI
 | --- | --- |
 | Web UI | 工作台、项目、部署、测试、Issue、Release 页面 |
 | API Server | 认证、Workspace、项目、环境、部署、测试、权限等业务接口（NestJS） |
-| Worker | 后台任务执行器（内嵌于 API 进程，基于 PostgreSQL 轮询） |
+| Worker | 独立进程的可靠任务执行器；当前实现尚未完成迁移 |
 | CLI | 管理安装、启动、停止、升级、备份、恢复和诊断 |
 | PostgreSQL | 内置数据库，默认随安装启动 |
-| Docker Compose | 第一阶段自托管交付方式 |
+| Docker Compose | Self-Host 控制面与节点运行时之一；必须使用项目/环境/部署隔离 |
 
 ## 功能规划
+
+> 下列历史表格只保留为旧版信息架构与商业设想，**不是当前能力矩阵**；其中 webhook、自动回滚、Cloud 与 Pro 等能力均以[交付验收规范](docs/basic/交付验收规范.md)的阶段状态为准，当前不得视为可用。
 
 ### 核心引擎
 
@@ -195,11 +174,11 @@ launchly CLI
 
 ```text
 apps/web                 Vue 3 + Element Plus Web UI
-services/api             NestJS API Server + Worker（单进程）
+services/api             NestJS API（API 进程）+ Worker（独立进程）
 cli                      TypeScript CLI（commander.js）
 deploy/compose           自托管 Docker Compose 模板
 examples                 示例项目（用于验证部署流程）
-docs/basic               产品设计规范 / 技术架构规范 / UI与交互规范（权威）
+docs/basic               产品设计规范 / 技术架构规范 / 交付验收规范 / UI与交互规范（权威）
 docs/work                planning.md（全局 16 周，本地协作，未随仓库上传）
 docs/archive             历史文档 v1 归档（本地，未随仓库上传）
 docs/prototypes          静态 HTML 交互原型（本地，未随仓库上传）
@@ -345,6 +324,8 @@ pnpm test:cli      # 仅运行 CLI 测试（Vitest）
 
 ## 项目进展
 
+> 本表是历史模块清单，不是发布验收结论。任何“已完成”仅表示代码/页面骨架曾存在；自动部署、真实回滚、Cloud 与生产可用性均以[交付验收规范](docs/basic/交付验收规范.md)为准。
+
 | 项目 | 状态 |
 | --- | --- |
 | **已完成** | |
@@ -376,12 +357,13 @@ pnpm test:cli      # 仅运行 CLI 测试（Vitest）
 
 ## 权威文档
 
-公开仓库只保留以下 **三份基线规范**。总体规划、工作日志、历史归档和静态原型为本地协作文档，README 保留链接是为了维护者本地跳转；这些目录默认不上传远端。
+公开仓库保留以下基线规范。总体规划、工作日志、历史归档和静态原型为本地协作文档，README 保留链接是为了维护者本地跳转；这些目录默认不上传远端。
 
 | 文档 | 路径 | 说明 |
 | --- | --- | --- |
 | **产品设计规范** | [docs/basic/产品设计规范.md](docs/basic/产品设计规范.md) | 定位、模型、权限、流程 |
 | **技术架构规范** | [docs/basic/技术架构规范.md](docs/basic/技术架构规范.md) | 技术栈、架构、模块、安全 |
+| **交付验收规范** | [docs/basic/交付验收规范.md](docs/basic/交付验收规范.md) | 真实 E2E、阶段退出与完成证据 |
 | **UI 与交互规范** | [docs/basic/UI与交互规范.md](docs/basic/UI与交互规范.md) | 页面、交互、原型索引 |
 | **总体规划（本地）** | `docs/work/planning.md` | 本地协作入口；未随仓库上传 |
 

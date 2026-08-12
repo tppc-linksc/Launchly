@@ -21,16 +21,15 @@
         <el-table-column prop="host" label="主机" />
         <el-table-column prop="port" label="端口" />
         <el-table-column prop="username" label="用户" />
+        <el-table-column prop="workRoot" label="工作目录" min-width="180" show-overflow-tooltip />
         <el-table-column prop="authMethod" label="认证">
           <template #default="{ row }">
-            <el-tag :type="row.authMethod === 'KEY' ? 'primary' : 'warning'">
-              {{ row.authMethod === 'KEY' ? '密钥' : '密码' }}
-            </el-tag>
+            <el-tag type="primary">密钥</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="状态">
           <template #default="{ row }">
-            <el-tag :type="row.status === 'CONNECTED' ? 'success' : row.status === 'FAILED' ? 'danger' : 'warning'" size="small">
+            <el-tag :type="row.status === 'VERIFIED' || row.status === 'CONNECTED' ? 'success' : row.status === 'FAILED' ? 'danger' : 'warning'" size="small">
               {{ statusMap[row.status] || row.status }}
             </el-tag>
           </template>
@@ -66,9 +65,7 @@
         </el-form-item>
         <el-form-item label="类型" required>
           <el-select v-model="form.type">
-            <el-option value="BYOS_SSH">BYOS SSH (推荐)</el-option>
-            <el-option value="BYOS_DOCKER_CONTEXT">BYOS Docker Context</el-option>
-            <el-option value="BYOS_K8S">BYOS Kubernetes</el-option>
+            <el-option value="SSH">BYOS SSH</el-option>
           </el-select>
         </el-form-item>
         <el-form-item label="主机地址" required>
@@ -78,25 +75,14 @@
           <el-input-number v-model="form.port" :min="1" :max="65535" style="width: 100%;" />
         </el-form-item>
         <el-form-item label="用户名" required>
-          <el-input v-model="form.username" placeholder="root" />
+          <el-input v-model="form.username" placeholder="deploy（禁止使用 root）" />
         </el-form-item>
-        <el-form-item label="认证方式" required>
-          <el-radio-group v-model="form.authMethod">
-            <el-radio value="KEY">SSH 密钥</el-radio>
-            <el-radio value="PASSWORD">密码</el-radio>
-          </el-radio-group>
+        <el-form-item label="Launchly 工作目录">
+          <el-input v-model="form.workRoot" placeholder="/var/lib/launchly" />
+          <span style="font-size: 11px; color: #8c8c8c;">Linux 默认目录。NAS 请填写已创建且 SSH 用户与 Docker 都能读写的共享目录，例如挂载卷中的 <code>/volume1/launchly</code>；不使用临时目录。</span>
         </el-form-item>
-        <el-form-item :label="form.authMethod === 'KEY' ? 'SSH 私钥' : '密码'">
+        <el-form-item label="SSH 私钥">
           <el-input
-            v-if="form.authMethod === 'PASSWORD'"
-            v-model="form.privateKey"
-            type="password"
-            show-password
-            placeholder="输入 SSH 密码"
-            autocomplete="new-password"
-          />
-          <el-input
-            v-else
             v-model="form.privateKey"
             type="textarea"
             placeholder="粘贴 SSH 私钥内容（PEM 格式）"
@@ -105,6 +91,9 @@
             autocomplete="off"
           />
           <span v-if="editingId" style="font-size: 11px; color: #8c8c8c;">留空则不修改已有凭据</span>
+        </el-form-item>
+        <el-form-item label="服务器 Host Key" required>
+          <el-input v-model="form.hostKey" type="textarea" :rows="2" placeholder="例如：ssh-ed25519 AAAA..." spellcheck="false" />
         </el-form-item>
       </el-form>
       <el-alert v-if="errorMsg" :title="errorMsg" type="error" show-icon style="margin-top: 8px;" />
@@ -143,12 +132,14 @@ const errorMsg = ref('')
 
 const form = reactive({
   name: '',
-  type: 'BYOS_SSH',
+  type: 'SSH',
   host: '',
   port: 22,
-  username: 'root',
+  username: 'deploy',
+  workRoot: '/var/lib/launchly',
   authMethod: 'KEY',
   privateKey: '',
+  hostKey: '',
 })
 
 const typeMap: Record<string, string> = {
@@ -159,6 +150,7 @@ const typeMap: Record<string, string> = {
 
 const statusMap: Record<string, string> = {
   UNVERIFIED: '未验证',
+  VERIFIED: '已验证',
   CONNECTED: '已连接',
   FAILED: '连接失败',
 }
@@ -191,12 +183,14 @@ function openCreate() {
   }
   editingId.value = null
   form.name = ''
-  form.type = 'BYOS_SSH'
+  form.type = 'SSH'
   form.host = ''
   form.port = 22
-  form.username = 'root'
+  form.username = 'deploy'
+  form.workRoot = '/var/lib/launchly'
   form.authMethod = 'KEY'
   form.privateKey = ''
+  form.hostKey = ''
   errorMsg.value = ''
   modalOpen.value = true
 }
@@ -208,8 +202,10 @@ function openEdit(record: any) {
   form.host = record.host
   form.port = record.port
   form.username = record.username
+  form.workRoot = record.workRoot || '/var/lib/launchly'
   form.authMethod = record.authMethod
   form.privateKey = ''
+  form.hostKey = ''
   errorMsg.value = ''
   modalOpen.value = true
 }
@@ -220,12 +216,16 @@ async function doSave() {
     errorMsg.value = '缺少项目上下文，请从项目详情进入本页面'
     return
   }
-  if (!form.name || !form.host || !form.username) {
-    errorMsg.value = '名称、主机地址、用户名为必填项'
+  if (!form.name || !form.host || !form.username || !form.hostKey) {
+    errorMsg.value = '名称、主机地址、用户名和 Host Key 为必填项'
+    return
+  }
+  if (form.username === 'root') {
+    errorMsg.value = '禁止使用 root，请使用最小权限部署用户'
     return
   }
   if (!editingId.value && (!form.privateKey || !String(form.privateKey).trim())) {
-    errorMsg.value = form.authMethod === 'KEY' ? '请粘贴 SSH 私钥' : '请填写 SSH 密码'
+    errorMsg.value = '请粘贴 SSH 私钥'
     return
   }
 
@@ -237,7 +237,9 @@ async function doSave() {
       host: form.host,
       port: form.port,
       username: form.username,
+      workRoot: form.workRoot,
       authMethod: form.authMethod,
+      hostKey: form.hostKey,
     }
     if (form.privateKey) {
       data.privateKey = form.privateKey
@@ -273,10 +275,10 @@ async function verify(record: any) {
   try {
     const res = await verifyDeployTarget(record.id)
     const r = res.data
-    if (r.status === 'CONNECTED') {
-      ElMessage.success(`连接成功 | Docker: ${r.dockerVersion || '未知'}`)
+    if (r.success) {
+      ElMessage.success(r.message || '连接成功')
     } else {
-      ElMessage.error(`连接失败: ${r.error || '未知错误'}`)
+      ElMessage.error(r.message || '连接失败')
     }
     await loadTargets()
   } catch (e: any) {

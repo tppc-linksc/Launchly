@@ -97,9 +97,13 @@ describe('composeTemplate', () => {
     expect(tpl).toContain('postgres:16-alpine')
   })
 
-  it('contains app service', () => {
+  it('contains migration, API, and isolated worker services', () => {
     const tpl = composeTemplate()
-    expect(tpl).toContain('launchly-app:')
+    expect(tpl).toContain('launchly-migrate:')
+    expect(tpl).toContain('launchly-api:')
+    expect(tpl).toContain('launchly-worker:')
+    expect(tpl).toContain('service_completed_successfully')
+    expect(tpl).not.toContain('/var/run/docker.sock')
     expect(tpl).toContain('LAUNCHLY_DATABASE_URL')
   })
 

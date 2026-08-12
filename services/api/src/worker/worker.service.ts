@@ -1,18 +1,33 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { Cron, Interval } from '@nestjs/schedule';
+import { hostname } from 'os';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RunnerFactory } from './runners/runner.factory';
 import { CommandExecutor } from './runners/command.executor';
 
 @Injectable()
-export class WorkerService {
+export class WorkerService implements OnModuleInit {
   private readonly logger = new Logger(WorkerService.name);
   private readonly taskTimeoutMinutes = parseInt(process.env.LAUNCHLY_WORKER_TIMEOUT_MINUTES || '30');
+  private readonly workerId = process.env.LAUNCHLY_WORKER_ID || `${hostname()}:${process.pid}`;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly runnerFactory: RunnerFactory,
   ) {}
+
+  async onModuleInit() {
+    await this.heartbeat();
+  }
+
+  @Interval(15000)
+  async heartbeat() {
+    await this.prisma.workerHeartbeat.upsert({
+      where: { workerId: this.workerId },
+      create: { workerId: this.workerId, status: 'READY', details: JSON.stringify({ pid: process.pid }) },
+      update: { status: 'READY', details: JSON.stringify({ pid: process.pid }) },
+    });
+  }
 
   @Interval(parseInt(process.env.LAUNCHLY_WORKER_POLL_INTERVAL_MS || '3000'))
   async poll() {
@@ -49,6 +64,8 @@ export class WorkerService {
           status: 'FAILED',
           errorMessage: `任务超时：已运行超过 ${this.taskTimeoutMinutes} 分钟`,
           finishedAt: new Date(),
+          leaseOwner: null,
+          leaseExpiresAt: null,
         },
       });
 
@@ -66,7 +83,7 @@ export class WorkerService {
       const tasks = await tx.$queryRaw<any[]>`
         SELECT *
         FROM tasks
-        WHERE status = 'PENDING'
+        WHERE (status = 'PENDING' OR (status = 'RUNNING' AND lease_expires_at < NOW()))
           AND attempts < max_attempts
         ORDER BY created_at ASC
         FOR UPDATE SKIP LOCKED
@@ -80,8 +97,10 @@ export class WorkerService {
         where: { id: task.id },
         data: {
           status: 'RUNNING',
-          startedAt: new Date(),
-          attempts: { increment: 1 },
+          startedAt: task.started_at || new Date(),
+          ...(task.status === 'PENDING' ? { attempts: { increment: 1 } } : {}),
+          leaseOwner: this.workerId,
+          leaseExpiresAt: new Date(Date.now() + this.taskTimeoutMinutes * 60 * 1000),
         },
       });
     });
@@ -95,7 +114,7 @@ export class WorkerService {
     if (!stage) {
       await this.prisma.task.update({
         where: { id: task.id },
-        data: { status: 'SUCCEEDED', finishedAt: new Date() },
+        data: { status: 'SUCCEEDED', finishedAt: new Date(), leaseOwner: null, leaseExpiresAt: null },
       });
       return;
     }
@@ -107,11 +126,6 @@ export class WorkerService {
         where: { id: deploymentId },
         data: { status: 'RUNNING', startedAt: new Date() },
       });
-    }
-
-    // Skip BUILD stage for Docker Compose deployments
-    if (task.taskType === 'PROJECT_DEPLOY') {
-      await this.markBuildStageSkipped(deploymentId);
     }
 
     // Write stage log RUNNING
@@ -136,10 +150,14 @@ export class WorkerService {
     if (result.success) {
       await this.prisma.task.update({
         where: { id: task.id },
-        data: { status: 'SUCCEEDED', finishedAt: new Date() },
+        data: { status: 'SUCCEEDED', finishedAt: new Date(), leaseOwner: null, leaseExpiresAt: null },
       });
       await this.enqueueNextStage(task);
-      await this.checkAndUpdateDeployment(deploymentId);
+      if (task.taskType === 'ROLLBACK_DEPLOY') {
+        await this.prisma.deployment.update({ where: { id: deploymentId }, data: { status: 'ROLLED_BACK', finishedAt: new Date() } });
+      } else {
+        await this.checkAndUpdateDeployment(deploymentId);
+      }
     } else {
       await this.handleTaskFailure(task, result.errorMessage);
     }
@@ -161,7 +179,7 @@ export class WorkerService {
 
       await this.prisma.task.update({
         where: { id: task.id },
-        data: { status: 'FAILED', errorMessage, finishedAt: new Date() },
+        data: { status: 'FAILED', errorMessage, finishedAt: new Date(), leaseOwner: null, leaseExpiresAt: null },
       });
 
       await this.failDeployment(task.refId, errorMessage);
@@ -176,14 +194,20 @@ export class WorkerService {
         errorMessage: null,
         startedAt: null,
         finishedAt: null,
+        leaseOwner: null,
+        leaseExpiresAt: null,
       },
     });
   }
 
   private async enqueueNextStage(completedTask: any) {
     const nextType: Record<string, string> = {
-      REPO_CLONE: 'PROJECT_DEPLOY',
-      PROJECT_DEPLOY: 'HEALTH_CHECK',
+      REPO_CLONE: 'PROJECT_BUILD',
+      PROJECT_IMAGE_PREPARE: 'PROJECT_DEPLOY',
+      TEMPLATE_SOURCE: 'PROJECT_BUILD',
+      PROJECT_BUILD: 'PROJECT_DEPLOY',
+      PROJECT_DEPLOY: this.parsePayload(completedTask.payload).bootstrapAdminEnabled ? 'PROJECT_BOOTSTRAP' : 'HEALTH_CHECK',
+      PROJECT_BOOTSTRAP: 'HEALTH_CHECK',
     };
     const next = nextType[completedTask.taskType];
     if (!next) return;
@@ -193,18 +217,7 @@ export class WorkerService {
         taskType: next,
         refId: completedTask.refId,
         payload: completedTask.payload,
-      },
-    });
-  }
-
-  private async markBuildStageSkipped(deploymentId: string) {
-    await this.prisma.deploymentStageLog.updateMany({
-      where: { deploymentId, stage: 'BUILD', status: 'PENDING' },
-      data: {
-        status: 'SKIPPED',
-        log: 'Skipped: Docker Compose handles the build',
-        startedAt: new Date(),
-        finishedAt: new Date(),
+        idempotencyKey: `${next}:${completedTask.refId}`,
       },
     });
   }
@@ -283,14 +296,49 @@ export class WorkerService {
       where: { id: deploymentId },
       data: { status: 'FAILED', errorMessage, finishedAt: new Date() },
     });
+    await this.scheduleAutomaticRollback(deploymentId, errorMessage);
+  }
+
+  private async scheduleAutomaticRollback(deploymentId: string, errorMessage: string) {
+    const failed = await this.prisma.deployment.findUnique({ where: { id: deploymentId } });
+    if (!failed?.deployTargetId) return;
+    const environment = await this.prisma.environment.findUnique({ where: { id: failed.environmentId } });
+    const previousId = environment?.currentDeploymentId;
+    if (!previousId || previousId === deploymentId) return;
+    const previous = await this.prisma.deployment.findUnique({ where: { id: previousId } });
+    if (!previous || previous.status !== 'SUCCEEDED' || previous.deployTargetId !== failed.deployTargetId) return;
+    const exists = await this.prisma.task.findFirst({ where: { taskType: 'ROLLBACK_DEPLOY', refId: deploymentId } });
+    if (exists) return;
+    await this.prisma.$transaction(async tx => {
+      await tx.deploymentStageLog.create({
+        data: { deploymentId, stage: 'ROLLBACK', stepOrder: 5, status: 'PENDING', log: `Automatic rollback scheduled after: ${errorMessage}` },
+      });
+      await tx.task.create({
+        data: {
+          taskType: 'ROLLBACK_DEPLOY',
+          refId: deploymentId,
+          idempotencyKey: `rollback:${deploymentId}`,
+          payload: JSON.stringify({
+            projectId: failed.projectId,
+            environmentId: failed.environmentId,
+            deployTargetId: failed.deployTargetId,
+            rollbackDeploymentId: previousId,
+          }),
+        },
+      });
+    });
   }
 
   private mapTaskTypeToStage(taskType: string): string | null {
     const map: Record<string, string> = {
       REPO_CLONE: 'CLONE',
+      PROJECT_IMAGE_PREPARE: 'BUILD',
+      TEMPLATE_SOURCE: 'CLONE',
       PROJECT_BUILD: 'BUILD',
       PROJECT_DEPLOY: 'DEPLOY',
+      PROJECT_BOOTSTRAP: 'BOOTSTRAP',
       HEALTH_CHECK: 'HEALTH_CHECK',
+      ROLLBACK_DEPLOY: 'ROLLBACK',
     };
     return map[taskType] || null;
   }

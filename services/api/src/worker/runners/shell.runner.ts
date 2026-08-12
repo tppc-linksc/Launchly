@@ -13,11 +13,11 @@ export class ShellRunner {
 
   async execute(ctx: RunnerContext): Promise<RunnerResult> {
     const workDir = path.join(BUILD_ROOT, ctx.refId);
-    const { installCommand, buildCommand, startCommand, testCommand, healthCheckPath, host, port = 3000 } = ctx.payload;
+    const { installCommand, buildCommand, startCommand, testCommand, healthCheckPath, host, port = 3000, healthPort = port } = ctx.payload;
 
     // Health check mode
     if (ctx.taskType === 'HEALTH_CHECK') {
-      return this.executeHealthCheck(ctx, host || 'localhost', port);
+      return this.executeHealthCheck(ctx, host || 'localhost', healthPort);
     }
 
     // Build mode

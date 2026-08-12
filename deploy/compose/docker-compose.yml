@@ -1,48 +1,86 @@
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: launchly-postgres
     environment:
       POSTGRES_DB: ${LAUNCHLY_DB_NAME:-launchly}
       POSTGRES_USER: ${LAUNCHLY_DB_USER:-launchly}
-      POSTGRES_PASSWORD: ${LAUNCHLY_DB_PASSWORD:-launchly_dev_password}
+      POSTGRES_PASSWORD: ${LAUNCHLY_DB_PASSWORD:?LAUNCHLY_DB_PASSWORD is required}
     volumes:
       - launchly-postgres-data:/var/lib/postgresql/data
     ports:
       - "${LAUNCHLY_DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    mem_limit: ${LAUNCHLY_POSTGRES_MEMORY_LIMIT:-512m}
 
-  # v0.2: API + Worker merged into single NestJS service
-  app:
+  migrate:
     image: ${LAUNCHLY_APP_IMAGE:-launchly-app:local}
-    platform: linux/amd64
     build:
       context: ../..
       dockerfile: services/api/Dockerfile
-    container_name: launchly-app
-    depends_on:
-      - postgres
-    environment:
-      LAUNCHLY_DB_HOST: postgres
-      LAUNCHLY_DB_PORT: 5432
-      LAUNCHLY_DB_NAME: ${LAUNCHLY_DB_NAME:-launchly}
-      LAUNCHLY_DB_USER: ${LAUNCHLY_DB_USER:-launchly}
-      LAUNCHLY_DB_PASSWORD: ${LAUNCHLY_DB_PASSWORD:-launchly_dev_password}
-      LAUNCHLY_DATABASE_URL: postgresql://${LAUNCHLY_DB_USER:-launchly}:${LAUNCHLY_DB_PASSWORD:-launchly_dev_password}@postgres:5432/${LAUNCHLY_DB_NAME:-launchly}
-      LAUNCHLY_JWT_SECRET: ${LAUNCHLY_JWT_SECRET:-compose-local-only-jwt-hmac-key-min-48-chars-please-override}
-      LAUNCHLY_ENCRYPTION_KEY: ${LAUNCHLY_ENCRYPTION_KEY:-compose-local-only-enc-seed-min-48-chars-override-for-prod}
+    environment: &launchly-env
+      LAUNCHLY_DATABASE_URL: postgresql://${LAUNCHLY_DB_USER:-launchly}:${LAUNCHLY_DB_PASSWORD:?LAUNCHLY_DB_PASSWORD is required}@postgres:5432/${LAUNCHLY_DB_NAME:-launchly}
+      LAUNCHLY_JWT_SECRET: ${LAUNCHLY_JWT_SECRET:?LAUNCHLY_JWT_SECRET is required}
+      LAUNCHLY_ENCRYPTION_KEY: ${LAUNCHLY_ENCRYPTION_KEY:?LAUNCHLY_ENCRYPTION_KEY is required}
       LAUNCHLY_EDITION: ${LAUNCHLY_EDITION:-selfhost}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
+    restart: "no"
+
+  api:
+    image: ${LAUNCHLY_APP_IMAGE:-launchly-app:local}
+    build:
+      context: ../..
+      dockerfile: services/api/Dockerfile
+    environment: *launchly-env
     ports:
       - "${LAUNCHLY_APP_PORT:-8080}:8080"
     volumes:
       - launchly-data:/var/lib/launchly
-      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8080/api/health"]
-      interval: 5s
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/health"]
+      interval: 10s
       timeout: 5s
-      retries: 18
-      start_period: 30s
+      retries: 12
+      start_period: 10s
+    restart: unless-stopped
+    mem_limit: ${LAUNCHLY_API_MEMORY_LIMIT:-384m}
+
+  worker:
+    image: ${LAUNCHLY_APP_IMAGE:-launchly-app:local}
+    build:
+      context: ../..
+      dockerfile: services/api/Dockerfile
+    environment:
+      <<: *launchly-env
+      LAUNCHLY_PROCESS_ROLE: worker
+      LAUNCHLY_BUILDKIT_ADDR: tcp://buildkit:1234
+    volumes:
+      - launchly-worker-data:/var/lib/launchly-worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    mem_limit: ${LAUNCHLY_WORKER_MEMORY_LIMIT:-384m}
+
+  buildkit:
+    image: moby/buildkit:v0.16.0-rootless
+    command: ["buildkitd", "--addr", "tcp://0.0.0.0:1234"]
+    security_opt:
+      - no-new-privileges:true
+    restart: unless-stopped
+    profiles: ["builder"]
+    mem_limit: ${LAUNCHLY_BUILDKIT_MEMORY_LIMIT:-1024m}
 
 volumes:
   launchly-postgres-data:
   launchly-data:
+  launchly-worker-data:

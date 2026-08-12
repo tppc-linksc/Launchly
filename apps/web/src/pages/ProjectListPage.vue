@@ -3,9 +3,9 @@
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
       <div>
         <h2 style="margin: 0;">项目</h2>
-        <p style="color: #8c8c8c; margin: 4px 0 0;">管理项目、绑定 Git 仓库、配置构建与部署参数。</p>
+        <p style="color: #8c8c8c; margin: 4px 0 0;">管理应用、静态站点、镜像、数据库与服务栈资源。</p>
       </div>
-      <el-button v-if="canWrite" type="primary" @click="$router.push('/projects/create')">创建项目</el-button>
+      <el-button v-if="canWrite" type="primary" @click="$router.push('/resources/new')">新建资源</el-button>
     </div>
 
     <div v-loading="loading">
@@ -36,8 +36,8 @@
       </div>
     </div>
 
-    <el-empty v-if="!loading && projects.length === 0" description="暂无项目">
-      <el-button v-if="canWrite" type="primary" @click="$router.push('/projects/create')">创建第一个项目</el-button>
+    <el-empty v-if="!loading && projects.length === 0" description="暂无资源">
+      <el-button v-if="canWrite" type="primary" @click="$router.push('/resources/new')">创建第一个资源</el-button>
     </el-empty>
   </div>
 </template>

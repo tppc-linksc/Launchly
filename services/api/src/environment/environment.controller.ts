@@ -1,11 +1,13 @@
 import { Controller, Get, Put, Param, Body, Query, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
+import { EnvironmentService } from './environment.service';
+import { UpdateEnvironmentDto } from './dto/update-environment.dto';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 
 @Controller('environments')
 export class EnvironmentController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, private readonly environmentService: EnvironmentService) {}
 
   @Get()
   async listByProject(@Query('projectId') projectId: string) {
@@ -17,7 +19,7 @@ export class EnvironmentController {
 
   @Roles('DEVELOPER')
   @Put(':id')
-  async update(@Param('id') id: string, @Body() body: any, @CurrentUser() user: AuthPrincipal) {
+  async update(@Param('id') id: string, @Body() body: UpdateEnvironmentDto, @CurrentUser() user: AuthPrincipal) {
     const env = await this.prisma.environment.findUnique({ where: { id } });
     if (!env) throw new ForbiddenException('环境不存在');
 
@@ -27,20 +29,6 @@ export class EnvironmentController {
       throw new ForbiddenException('无权更新此环境');
     }
 
-    return this.prisma.environment.update({
-      where: { id },
-      data: {
-        ...(body.name !== undefined && { name: body.name }),
-        ...(body.url !== undefined && { url: body.url }),
-        ...(body.deployMode !== undefined && { deployMode: body.deployMode }),
-        ...(body.host !== undefined && { host: body.host }),
-        ...(body.sshUser !== undefined && { sshUser: body.sshUser }),
-        ...(body.deployDir !== undefined && { deployDir: body.deployDir }),
-        ...(body.localWorkRoot !== undefined && { localWorkRoot: body.localWorkRoot }),
-        ...(body.externalPort !== undefined && { externalPort: body.externalPort }),
-        ...(body.dataStrategy !== undefined && { dataStrategy: body.dataStrategy }),
-        ...(body.enabled !== undefined && { enabled: body.enabled }),
-      },
-    });
+    return this.environmentService.update(id, body, user.workspaceId!);
   }
 }

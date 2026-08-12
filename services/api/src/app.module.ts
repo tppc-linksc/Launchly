@@ -13,10 +13,13 @@ import { ReleaseModule } from './release/release.module';
 import { NotificationModule } from './notification/notification.module';
 import { AuditModule } from './audit/audit.module';
 import { WorkerModule } from './worker/worker.module';
+import { GitModule } from './git/git.module';
+
+const isWorkerProcess = process.env.LAUNCHLY_PROCESS_ROLE === 'worker';
 
 @Module({
   imports: [
-    ScheduleModule.forRoot(),
+    ...(isWorkerProcess ? [ScheduleModule.forRoot()] : []),
     CommonModule,
     AuthModule,
     WorkspaceModule,
@@ -29,7 +32,8 @@ import { WorkerModule } from './worker/worker.module';
     ReleaseModule,
     NotificationModule,
     AuditModule,
-    WorkerModule,
+    GitModule,
+    ...(isWorkerProcess ? [WorkerModule] : []),
   ],
 })
 export class AppModule {}

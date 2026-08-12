@@ -11,18 +11,18 @@
 <h1 align="center">Launchly</h1>
 
 <p align="center">
-  <strong>Lightweight code auto-deployment platform · Dual delivery (SaaS + open-source self-host, same codebase)</strong>
+  <strong>BYOS automated application runtime platform · release governance for small teams</strong>
 </p>
 
 <p align="center">
-  Built for 5-20 person teams and individual developers, centered on a single pipeline: "connect repo → build → deploy → health check → rollback". Dual delivery: Launchly Cloud (SaaS, sign up and go) and Launchly Self-Host (open-source, deploy yourself).
+  Built for 5-20 person teams and individual developers. The target pipeline is "Git Push → verified webhook → isolated build → immutable image → BYOS deployment → HTTPS/health checks → traffic switch or rollback", governed by tests, issues, release gates, and audit events.
 </p>
 
 <p align="center">
   <a href="README.md">中文文档</a>
 </p>
 
-> **2026-05 Direction Pivot**: Launchly has been refocused to a **dual-delivery lightweight code auto-deployment platform**. Decisions and historical materials have been archived; **the current product authority is the [Product Design Spec](docs/basic/产品设计规范.md)**. Archive index: `docs/archive/v1-2026-05/README.md` (local archive, not uploaded). New direction is being developed on the `refactor/dual-mode-deploy` branch.
+> **2026-07 architecture correction**: Launchly is targeting a BYOS automated application runtime platform plus release governance. Configurable webhook deployments supersede the old manual-only direction. The current repository remains a pre-refactor baseline: GitHub App/webhooks, separate workers, BuildKit/immutable OCI artifacts, domains/HTTPS, real rollback, Agent, and Cloud multitenancy are not completed. The Chinese [Product](docs/basic/产品设计规范.md), [Architecture](docs/basic/技术架构规范.md), and [Acceptance](docs/basic/交付验收规范.md) specifications are authoritative.
 >
 > **Documentation upload note**: only the three baseline specs under `docs/basic/` are tracked in the public repository. `docs/work/`, `docs/archive/`, and `docs/prototypes/` are local collaboration docs and prototypes, added to `.gitignore`; README links to those paths are kept for maintainer-local navigation and are not guaranteed to resolve on GitHub.
 
@@ -137,6 +137,8 @@ Core modules:
 | Docker Compose | First-stage self-hosted delivery method |
 
 ## Planned Features
+
+> The historical tables below are not a current capability matrix. Webhooks, automatic rollback, Cloud, and Pro capabilities are unavailable until the relevant stage in the [Acceptance Spec](docs/basic/交付验收规范.md) has real E2E evidence.
 
 ### Core Engine
 
@@ -345,6 +347,8 @@ Development principles:
 
 ## Project Progress
 
+> This is a historical module inventory, not a release acceptance result. “Completed” only means a code or UI scaffold existed; automatic deployment, real rollback, Cloud, and production readiness require the [Acceptance Spec](docs/basic/交付验收规范.md).
+
 | Item | Status |
 | --- | --- |
 | **Completed** | |
@@ -376,12 +380,13 @@ Development principles:
 
 ## Authoritative Documentation
 
-Only the three **Chinese baseline specs** below are tracked in the public repository. The master plan, work logs, archived notes, and static prototypes are local collaboration documents; README links are kept for maintainer-local navigation and are not guaranteed to resolve on GitHub.
+The baseline specifications below are tracked in the public repository. The master plan, work logs, archived notes, and static prototypes are local collaboration documents; README links are kept for maintainer-local navigation and are not guaranteed to resolve on GitHub.
 
 | Doc | Path | Notes |
 | --- | --- | --- |
 | Product spec | [docs/basic/产品设计规范.md](docs/basic/产品设计规范.md) | Positioning, models, permissions, flows |
 | Technical spec | [docs/basic/技术架构规范.md](docs/basic/技术架构规范.md) | Stack, architecture, modules, security |
+| Acceptance spec | [docs/basic/交付验收规范.md](docs/basic/交付验收规范.md) | Real E2E, stage exits, and completion evidence |
 | UI & interaction spec | [docs/basic/UI与交互规范.md](docs/basic/UI与交互规范.md) | Pages, interactions, prototype index |
 | Master plan (local) | `docs/work/planning.md` | Local collaboration entry; not uploaded |
 

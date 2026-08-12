@@ -24,8 +24,8 @@
           <el-tag :type="row.deployMode === 'remote' ? 'warning' : ''">{{ deployModeMap[row.deployMode] || row.deployMode }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="externalPort" label="端口" width="80" />
-      <el-table-column prop="url" label="URL" show-overflow-tooltip />
+      <el-table-column prop="externalPort" label="回退端口" width="100" />
+      <el-table-column prop="domain" label="域名（Nginx）" show-overflow-tooltip />
       <el-table-column prop="status" label="状态" width="80">
         <template #default="{ row }">
           <el-tag :type="row.status === 'active' ? 'success' : 'info'" size="small">{{ row.status === 'active' ? '活跃' : '未激活' }}</el-tag>
@@ -34,6 +34,11 @@
       <el-table-column prop="enabled" label="启用" width="70">
         <template #default="{ row }">
           <el-tag :type="row.enabled !== false ? 'success' : 'info'" size="small">{{ row.enabled !== false ? '已启用' : '已禁用' }}</el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column prop="autoDeploy" label="自动部署" width="100">
+        <template #default="{ row }">
+          <el-tag :type="row.autoDeploy ? 'success' : 'info'" size="small">{{ row.autoDeploy ? '已启用' : '手动' }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="操作" width="120">
@@ -85,11 +90,12 @@
             <el-radio value="remote" disabled>已弃用</el-radio>
           </el-radio-group>
         </el-form-item>
-        <el-form-item label="外部端口">
+        <el-form-item label="回退访问端口">
           <el-input-number v-model="editForm.externalPort" :min="1" :max="65535" style="width: 100%;" />
         </el-form-item>
-        <el-form-item label="访问地址 URL">
-          <el-input v-model="editForm.url" placeholder="例如 http://localhost:3001" />
+        <el-form-item label="域名（自动 Nginx 路由）">
+          <el-input v-model="editForm.domain" placeholder="例如 api.example.com，不填写则只使用回退端口" />
+          <div style="color:#909399;font-size:12px;margin-top:6px">填写域名后，目标机自动运行共享 Nginx 代理容器并路由至此环境；多个项目可共用 80 端口。</div>
         </el-form-item>
         <el-form-item label="本地构建目录（可选）">
           <el-input v-model="editForm.localWorkRoot" placeholder="留空则使用 Worker 默认" />
@@ -103,6 +109,16 @@
         </el-form-item>
         <el-form-item label="启用状态">
           <el-switch v-model="editForm.enabled" active-text="启用" inactive-text="禁用" inline-prompt />
+        </el-form-item>
+        <el-divider content-position="left">Git 自动部署</el-divider>
+        <el-form-item label="收到匹配 Push 时自动部署">
+          <el-switch v-model="editForm.autoDeploy" active-text="启用" inactive-text="关闭" inline-prompt />
+        </el-form-item>
+        <el-form-item label="匹配分支">
+          <el-input v-model="editForm.branchPattern" placeholder="例如 develop 或 main" />
+        </el-form-item>
+        <el-form-item label="CI 门禁">
+          <el-switch v-model="editForm.requireCi" active-text="必须通过" inactive-text="暂不要求" inline-prompt />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -154,7 +170,7 @@ const adding = ref(false)
 const editModalOpen = ref(false)
 const editing = ref(false)
 const editForm = reactive({
-  name: '', url: '', deployMode: 'local', localWorkRoot: '', externalPort: null as number | null, dataStrategy: 'isolated', enabled: true,
+  name: '', url: '', domain: '', deployMode: 'local', localWorkRoot: '', externalPort: null as number | null, dataStrategy: 'isolated', enabled: true, autoDeploy: false, branchPattern: '', requireCi: false,
 })
 
 async function openVarModal(env: any) {
@@ -188,11 +204,15 @@ function openEditModal(env: any) {
   selectedEnv.value = env
   editForm.name = env.name || ''
   editForm.url = env.url || ''
+  editForm.domain = env.domain || ''
   editForm.deployMode = env.deployMode === 'remote' ? 'local' : (env.deployMode || 'local')
   editForm.localWorkRoot = env.localWorkRoot || ''
   editForm.externalPort = env.externalPort || null
   editForm.dataStrategy = env.dataStrategy || 'isolated'
   editForm.enabled = env.enabled !== false
+  editForm.autoDeploy = env.autoDeploy === true
+  editForm.branchPattern = env.branchPattern || (env.type === 'TEST' ? 'develop' : env.type === 'PRODUCTION' ? 'main' : '')
+  editForm.requireCi = env.requireCi === true
   editModalOpen.value = true
 }
 

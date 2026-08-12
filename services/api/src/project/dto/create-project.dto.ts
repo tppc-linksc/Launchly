@@ -1,4 +1,36 @@
-import { IsString, IsOptional, IsInt } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsObject, IsBoolean, ValidateNested, MinLength, IsEmail } from 'class-validator';
+import { Type } from 'class-transformer';
+
+export class RepositoryCredentialDto {
+  @IsString()
+  privateKey!: string;
+
+  @IsString()
+  hostKey!: string;
+}
+
+export class BootstrapAdminDto {
+  @IsBoolean()
+  enabled!: boolean;
+
+  @IsString()
+  @IsOptional()
+  command?: string;
+
+  @IsString()
+  @IsOptional()
+  username?: string;
+
+  @IsEmail()
+  @IsOptional()
+  email?: string;
+
+  /** Accepted only to encrypt; it is never returned in a project response. */
+  @IsString()
+  @MinLength(8)
+  @IsOptional()
+  password?: string;
+}
 
 export class CreateProjectDto {
   @IsString()
@@ -14,6 +46,30 @@ export class CreateProjectDto {
 
   @IsString()
   @IsOptional()
+  resourceKind?: string;
+
+  @IsString()
+  @IsOptional()
+  sourceType?: string;
+
+  @IsString()
+  @IsOptional()
+  runtimeMode?: string;
+
+  @IsString()
+  @IsOptional()
+  templateId?: string;
+
+  @IsString()
+  @IsOptional()
+  imageReference?: string;
+
+  @IsObject()
+  @IsOptional()
+  resourceConfig?: Record<string, unknown>;
+
+  @IsString()
+  @IsOptional()
   repositoryUrl?: string;
 
   @IsString()
@@ -23,6 +79,14 @@ export class CreateProjectDto {
   @IsString()
   @IsOptional()
   gitProvider?: string;
+
+  @IsString()
+  @IsOptional()
+  githubInstallationId?: string;
+
+  @IsString()
+  @IsOptional()
+  registryRepository?: string;
 
   @IsString()
   @IsOptional()
@@ -47,4 +111,15 @@ export class CreateProjectDto {
   @IsInt()
   @IsOptional()
   defaultPort?: number;
+
+  /** Only accepted for an SSH deploy-key source and encrypted before persistence. */
+  @ValidateNested()
+  @Type(() => RepositoryCredentialDto)
+  @IsOptional()
+  repositoryCredential?: RepositoryCredentialDto;
+
+  @ValidateNested()
+  @Type(() => BootstrapAdminDto)
+  @IsOptional()
+  bootstrapAdmin?: BootstrapAdminDto;
 }

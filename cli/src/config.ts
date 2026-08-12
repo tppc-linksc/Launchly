@@ -26,7 +26,11 @@ export function generateEnv(port: string = '8080'): string {
     `LAUNCHLY_DB_PASSWORD=${randomString(24)}`,
     `LAUNCHLY_JWT_SECRET=${randomString(32)}`,
     `LAUNCHLY_ENCRYPTION_KEY=${randomString(32)}`,
+    'LAUNCHLY_APP_IMAGE=ghcr.io/tppc-linksc/launchly:latest',
     `LAUNCHLY_APP_PORT=${port}`,
+    '# Lite mode is the default: deploy existing OCI images without a local BuildKit daemon.',
+    '# Set COMPOSE_PROFILES=builder on a 2 vCPU / 4 GB+ server to enable local source builds.',
+    'COMPOSE_PROFILES=',
     '',
   ].join('\n')
 }
@@ -50,30 +54,71 @@ export function composeTemplate(): string {
       interval: 5s
       timeout: 3s
       retries: 5
+    mem_limit: \${LAUNCHLY_POSTGRES_MEMORY_LIMIT:-512m}
 
-  launchly-app:
-    image: \${LAUNCHLY_APP_IMAGE:-ghcr.io/launchly/launchly-app:latest}
-    container_name: launchly-app
-    ports:
-      - "\${LAUNCHLY_APP_PORT:-8080}:8080"
+  launchly-migrate:
+    image: \${LAUNCHLY_APP_IMAGE:-ghcr.io/tppc-linksc/launchly:latest}
     environment:
       LAUNCHLY_DATABASE_URL: postgresql://launchly:\${LAUNCHLY_DB_PASSWORD}@launchly-postgres:5432/launchly
-      LAUNCHLY_DB_HOST: launchly-postgres
-      LAUNCHLY_DB_PORT: "5432"
-      LAUNCHLY_DB_NAME: launchly
-      LAUNCHLY_DB_USER: launchly
-      LAUNCHLY_DB_PASSWORD: \${LAUNCHLY_DB_PASSWORD}
       LAUNCHLY_JWT_SECRET: \${LAUNCHLY_JWT_SECRET}
       LAUNCHLY_ENCRYPTION_KEY: \${LAUNCHLY_ENCRYPTION_KEY}
-    volumes:
-      - launchly-data:/var/lib/launchly
-      - /var/run/docker.sock:/var/run/docker.sock
+    command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
     networks:
       - launchly-net
     depends_on:
       launchly-postgres:
         condition: service_healthy
+    restart: "no"
+
+  launchly-api:
+    image: \${LAUNCHLY_APP_IMAGE:-ghcr.io/tppc-linksc/launchly:latest}
+    ports:
+      - "\${LAUNCHLY_APP_PORT:-8080}:8080"
+    environment: &launchly-env
+      LAUNCHLY_DATABASE_URL: postgresql://launchly:\${LAUNCHLY_DB_PASSWORD}@launchly-postgres:5432/launchly
+      LAUNCHLY_JWT_SECRET: \${LAUNCHLY_JWT_SECRET}
+      LAUNCHLY_ENCRYPTION_KEY: \${LAUNCHLY_ENCRYPTION_KEY}
+    volumes:
+      - launchly-data:/var/lib/launchly
+    networks:
+      - launchly-net
+    depends_on:
+      launchly-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
     restart: unless-stopped
+    mem_limit: \${LAUNCHLY_API_MEMORY_LIMIT:-384m}
+
+  launchly-worker:
+    image: \${LAUNCHLY_APP_IMAGE:-ghcr.io/tppc-linksc/launchly:latest}
+    environment:
+      <<: *launchly-env
+      LAUNCHLY_PROCESS_ROLE: worker
+      LAUNCHLY_BUILDKIT_ADDR: tcp://launchly-buildkit:1234
+    volumes:
+      - launchly-worker-data:/var/lib/launchly-worker
+    networks:
+      - launchly-net
+    depends_on:
+      launchly-migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    mem_limit: \${LAUNCHLY_WORKER_MEMORY_LIMIT:-384m}
+
+  launchly-buildkit:
+    image: moby/buildkit:v0.16.0-rootless
+    command: ["buildkitd", "--addr", "tcp://0.0.0.0:1234"]
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - launchly-net
+    restart: unless-stopped
+    profiles: ["builder"]
+    mem_limit: \${LAUNCHLY_BUILDKIT_MEMORY_LIMIT:-1024m}
 
 networks:
   launchly-net:
@@ -82,5 +127,6 @@ networks:
 volumes:
   launchly-postgres-data:
   launchly-data:
+  launchly-worker-data:
 `
 }

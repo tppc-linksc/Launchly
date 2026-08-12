@@ -139,6 +139,10 @@ export function fetchProjects() {
   return api.get('/projects')
 }
 
+export function fetchResourceCatalog() {
+  return api.get('/projects/catalog')
+}
+
 export function fetchProject(id: string) {
   return api.get(`/projects/${id}`)
 }

@@ -1,0 +1,45 @@
+import { createHmac } from 'crypto';
+import { ServiceUnavailableException } from '@nestjs/common';
+import { WebhookService } from './webhook.service';
+
+describe('WebhookService', () => {
+  const secret = 'webhook-test-secret';
+  const body = { ref: 'refs/heads/develop', after: 'a'.repeat(40), repository: { clone_url: 'https://github.com/acme/app.git' } };
+  const rawBody = Buffer.from(JSON.stringify(body));
+  const signature = `sha256=${createHmac('sha256', secret).update(rawBody).digest('hex')}`;
+  let prisma: any;
+  let deployments: any;
+  let githubApp: any;
+  let service: WebhookService;
+
+  beforeEach(() => {
+    process.env.LAUNCHLY_GITHUB_WEBHOOK_SECRET = secret;
+    prisma = {
+      gitWebhookDelivery: { create: jest.fn(), update: jest.fn() },
+      project: { findMany: jest.fn().mockResolvedValue([]) },
+      environment: { findFirst: jest.fn() },
+    };
+    deployments = { createAutomated: jest.fn() };
+    githubApp = { isConfigured: jest.fn().mockReturnValue(false), commitChecksPassed: jest.fn() };
+    service = new WebhookService(prisma, deployments, githubApp);
+  });
+
+  afterEach(() => { delete process.env.LAUNCHLY_GITHUB_WEBHOOK_SECRET; });
+
+  it('rejects webhook processing when no secret is configured', async () => {
+    delete process.env.LAUNCHLY_GITHUB_WEBHOOK_SECRET;
+    await expect(service.receiveGithub({ deliveryId: 'd1', event: 'push', signature, rawBody, body })).rejects.toThrow(ServiceUnavailableException);
+  });
+
+  it('deduplicates a previously recorded provider delivery', async () => {
+    prisma.gitWebhookDelivery.create.mockRejectedValue({ code: 'P2002' });
+    await expect(service.receiveGithub({ deliveryId: 'd1', event: 'push', signature, rawBody, body }))
+      .resolves.toEqual({ accepted: true, duplicate: true });
+  });
+
+  it('does not create deployments for repositories that are not connected to Launchly', async () => {
+    await expect(service.receiveGithub({ deliveryId: 'd1', event: 'push', signature, rawBody, body }))
+      .resolves.toEqual({ accepted: true, ignored: true });
+    expect(deployments.createAutomated).not.toHaveBeenCalled();
+  });
+});

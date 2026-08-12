@@ -94,11 +94,9 @@ describe('DeploymentService.create', () => {
     await expect(service.create(baseDto, userId, workspaceId)).rejects.toThrow(NotFoundException);
   });
 
-  it('should allow creating deployment without deployTargetId (local Docker)', async () => {
+  it('should reject a deployment without a BYOS target', async () => {
     const dto = { ...baseDto, deployTargetId: undefined };
-    const result = await service.create(dto, userId, workspaceId);
-    expect(result).toBeDefined();
-    expect(result.id).toBe('deploy-1');
+    await expect(service.create(dto, userId, workspaceId)).rejects.toThrow(BadRequestException);
   });
 
   it('should create deployment with complete worker payload', async () => {
