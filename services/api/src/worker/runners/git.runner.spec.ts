@@ -1,0 +1,728 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import * as fs from 'fs';
+import { Logger } from '@nestjs/common';
+import { GitRunner } from './git.runner';
+import { RunnerContext } from './runner.factory';
+
+// ─── fs mock (per-method, default safe values; test installs stricter impls) ─
+// We mock only the methods GitRunner uses. The default returns safe values so
+// Prisma's own module initialization can call fs.existsSync etc. without
+// throwing. Each test installs specific mock implementations as needed.
+
+jest.mock('fs', () => {
+  const real = jest.requireActual('fs');
+  const safe = () => jest.fn();
+  const overrides: any = {
+    existsSync: safe(),
+    rmSync: safe(),
+    mkdirSync: safe(),
+    writeFileSync: safe(),
+    unlinkSync: safe(),
+  };
+  (real as any).__launchlyFsOverrides = overrides;
+  return new Proxy(real, {
+    get(target, prop) {
+      if (prop in overrides) return overrides[prop as string];
+      return (target as any)[prop];
+    },
+  });
+});
+
+const fsMock = ((fs as any).__launchlyFsOverrides as {
+  existsSync: jest.Mock;
+  rmSync: jest.Mock;
+  mkdirSync: jest.Mock;
+  writeFileSync: jest.Mock;
+  unlinkSync: jest.Mock;
+});
+
+const unexpectedSync = (name: string) => (...args: unknown[]) => {
+  throw new Error(`Unexpected unconfigured fs.${name} call: ${JSON.stringify(args)}`);
+};
+
+let warnSpy: jest.SpyInstance;
+
+beforeEach(() => {
+  for (const fn of Object.values(fsMock)) {
+    fn.mockReset();
+  }
+  fsMock.existsSync.mockImplementation(unexpectedSync('existsSync'));
+  fsMock.rmSync.mockImplementation(unexpectedSync('rmSync'));
+  fsMock.mkdirSync.mockImplementation(unexpectedSync('mkdirSync'));
+  fsMock.writeFileSync.mockImplementation(unexpectedSync('writeFileSync'));
+  fsMock.unlinkSync.mockImplementation(unexpectedSync('unlinkSync'));
+  warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+});
+
+afterEach(() => {
+  warnSpy.mockRestore();
+});
+
+// ─── Test double builders ──────────────────────────────────────────────────
+
+function makeContext(over: Partial<RunnerContext> = {}): RunnerContext {
+  return {
+    taskType: 'REPO_CLONE',
+    refId: 'deploy-1',
+    payload: { projectId: 'proj-1', repositoryUrl: 'https://github.com/acme/app.git', branch: 'main' },
+    stageLogCallback: jest.fn(async () => undefined),
+    ...over,
+  };
+}
+
+function makeDeps(over: any = {}) {
+  const unexpectedAsync = (name: string) => jest.fn(async (...args: unknown[]) => {
+    throw new Error(`Unexpected unconfigured ${name} call: ${JSON.stringify(args)}`);
+  });
+  const executor: any = { execFile: unexpectedAsync('executor.execFile') };
+  const prisma: any = {
+    project: { findUnique: unexpectedAsync('prisma.project.findUnique') },
+    repositoryCredential: { findUnique: unexpectedAsync('prisma.repositoryCredential.findUnique') },
+  };
+  const secrets: any = {
+    decrypt: jest.fn((...args: unknown[]) => {
+      throw new Error(`Unexpected unconfigured secrets.decrypt call: ${JSON.stringify(args)}`);
+    }),
+  };
+  const githubApp: any = { installationToken: unexpectedAsync('githubApp.installationToken') };
+  return { executor, prisma, secrets, githubApp, ...over };
+}
+
+function makeRunner(deps: any) {
+  return new GitRunner(deps.executor, deps.prisma, deps.secrets, deps.githubApp);
+}
+
+const PUBLIC_URL = 'https://github.com/acme/app.git';
+
+// ─── A. Input gate ────────────────────────────────────────────────────────
+
+describe('GitRunner.execute - input gate rejects before any side effect', () => {
+  it('rejects when repositoryUrl is missing and touches no fs/Prisma/secret/githubApp/executor', async () => {
+    const deps = makeDeps();
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', branch: 'main' } }));
+    expect(result.success).toBe(false);
+    expect(result.exitCode).toBe(-1);
+    expect(result.errorMessage).toBe('Repository URL, branch, or commit reference is invalid');
+    expect(result.stderr).toBe('Repository URL, branch, or commit reference is invalid');
+    expect(fsMock.existsSync).not.toHaveBeenCalled();
+    expect(fsMock.rmSync).not.toHaveBeenCalled();
+    expect(fsMock.mkdirSync).not.toHaveBeenCalled();
+    expect(fsMock.writeFileSync).not.toHaveBeenCalled();
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+    expect(deps.prisma.project.findUnique).not.toHaveBeenCalled();
+    expect(deps.prisma.repositoryCredential.findUnique).not.toHaveBeenCalled();
+    expect(deps.secrets.decrypt).not.toHaveBeenCalled();
+    expect(deps.githubApp.installationToken).not.toHaveBeenCalled();
+  });
+
+  it('rejects when branch contains a NUL byte', async () => {
+    const deps = makeDeps();
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main\0bad' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('invalid');
+    expect(fsMock.mkdirSync).not.toHaveBeenCalled();
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects when branch contains CR or LF (current behavior)', async () => {
+    const deps = makeDeps();
+    const runner = makeRunner(deps);
+    const r1 = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'ma\rbad' } }));
+    const r2 = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'ma\nbad' } }));
+    expect(r1.success).toBe(false);
+    expect(r2.success).toBe(false);
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects when branch is exactly 256 chars and accepts 255', async () => {
+    const deps = makeDeps();
+    const runner = makeRunner(deps);
+    // 255 chars → accepted
+    fsMock.existsSync.mockReturnValue(false);
+    fsMock.mkdirSync.mockImplementation(() => undefined);
+    deps.executor.execFile.mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
+    const ok = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'a'.repeat(255) } }));
+    expect(ok).toEqual({ success: true, stdout: '', stderr: '', exitCode: 0, errorMessage: '' });
+    expect(deps.executor.execFile).toHaveBeenCalledTimes(1);
+    // 256 chars → rejected
+    const bad = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'a'.repeat(256) } }));
+    expect(bad.success).toBe(false);
+    expect(bad.errorMessage).toContain('invalid');
+    expect(fsMock.mkdirSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects when commitSha contains NUL/CR/LF or exceeds 255 chars', async () => {
+    const deps = makeDeps();
+    const runner = makeRunner(deps);
+    for (const bad of ['abc\0def', 'abc\rdef', 'abc\ndef', 'a'.repeat(256)]) {
+      const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: bad } }));
+      expect(result.success).toBe(false);
+      expect(result.errorMessage).toContain('invalid');
+    }
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects when sourceType is not GIT_PUBLIC / GITHUB_APP / DEPLOY_KEY (after creating the workDir)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false); // workDir missing
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', sourceType: 'WAT' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('Unsupported Git source type: WAT');
+    // workDir rm + mkdir were called; clone was not
+    expect(fsMock.mkdirSync).toHaveBeenCalledTimes(1);
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+    expect(deps.prisma.project.findUnique).not.toHaveBeenCalled();
+  });
+
+  it('uses the default main branch and empty projectId fallback when both fields are omitted', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
+    const runner = makeRunner(deps);
+
+    const result = await runner.execute(makeContext({ payload: { repositoryUrl: PUBLIC_URL } }));
+
+    expect(result.success).toBe(true);
+    expect(deps.executor.execFile.mock.calls[0][1]).toEqual([
+      'clone', '--depth', '1', '--branch', 'main', PUBLIC_URL, '.',
+    ]);
+  });
+});
+
+// ─── B. GIT_PUBLIC ─────────────────────────────────────────────────────────
+
+describe('GitRunner.execute - GIT_PUBLIC path', () => {
+  it('when workDir does not exist: skips rm, calls mkdir(0700), clones with exact argv', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockResolvedValueOnce({ stdout: 'cloned ok', stderr: '', exitCode: 0 });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext());
+    expect(result.success).toBe(true);
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toBe('cloned ok');
+    expect(result.stderr).toBe('');
+    expect(fsMock.rmSync).not.toHaveBeenCalled();
+    expect(fsMock.mkdirSync).toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1', { recursive: true, mode: 0o700 });
+    const call = deps.executor.execFile.mock.calls[0];
+    expect(call[0]).toBe('git');
+    expect(call[1]).toEqual(['clone', '--depth', '1', '--branch', 'main', PUBLIC_URL, '.']);
+    expect(call[2]).toEqual({ cwd: '/tmp/launchly-builds/deploy-1', timeout: 300, env: undefined });
+  });
+
+  it('when workDir exists: rm then mkdir, no executor env (current GIT_PUBLIC contract)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(true);
+    fsMock.rmSync.mockReturnValueOnce(undefined);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext());
+    expect(result.success).toBe(true);
+    expect(fsMock.rmSync).toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1', { recursive: true, force: true });
+    expect(fsMock.mkdirSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('sanitizes stdout/stderr from a successful clone (CommandExecutor.sanitize is real)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockResolvedValueOnce({ stdout: 'connected with password=hunter2', stderr: 'leaked token=ghp_abcdefghijklmnopqrstuvwxyz', exitCode: 0 });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext());
+    expect(result.success).toBe(true);
+    expect(result.stdout).not.toContain('hunter2');
+    expect(result.stdout).toContain('[REDACTED]');
+    expect(result.stderr).not.toContain('ghp_abcdefghijklmnopqrstuvwxyz');
+    expect(result.stderr).toContain('[REDACTED]');
+  });
+
+  it('non-zero exit: returns failure with sanitized stdout/stderr and propagates exit code', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockResolvedValueOnce({ stdout: 'auth fail password=hunter2', stderr: 'remote: bad token=ghp_zzzzzzzzzzzzzzzzzzzzz', exitCode: 128 });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext());
+    expect(result.success).toBe(false);
+    expect(result.exitCode).toBe(128);
+    expect(result.errorMessage).toBe('Git clone failed');
+    expect(result.stdout).not.toContain('hunter2');
+    expect(result.stderr).not.toContain('ghp_zzzzzzzzzzzzzzzzzzzzz');
+  });
+
+  it('executor throws: returns failure with the original error message', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockRejectedValueOnce(new Error('ENOSPC: no space left on device'));
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext());
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('ENOSPC: no space left on device');
+  });
+
+  it('executor throws a value without a message: uses the generic clone failure', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockRejectedValueOnce({ code: 'UNKNOWN' });
+    const runner = makeRunner(deps);
+
+    const result = await runner.execute(makeContext());
+
+    expect(result).toEqual({
+      success: false,
+      stdout: '',
+      stderr: 'Git clone failed',
+      exitCode: -1,
+      errorMessage: 'Git clone failed',
+    });
+  });
+
+  it('sanitizes stderr but leaves a sensitive thrown message in errorMessage (current behavior)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockRejectedValueOnce(new Error('token=plain-secret'));
+    const runner = makeRunner(deps);
+
+    const result = await runner.execute(makeContext());
+
+    expect(result.stderr).toBe('[REDACTED]');
+    expect(result.errorMessage).toBe('token=plain-secret');
+  });
+
+  it('commitSha present: fetch and checkout are called in order with exact argv, timeout 120', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile
+      .mockResolvedValueOnce({ stdout: 'cloned', stderr: '', exitCode: 0 }) // clone
+      .mockResolvedValueOnce({ stdout: 'fetched', stderr: '', exitCode: 0 }) // fetch
+      .mockResolvedValueOnce({ stdout: 'switched', stderr: '', exitCode: 0 }); // checkout
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: 'abc1234' } }));
+    expect(result.success).toBe(true);
+    expect(deps.executor.execFile).toHaveBeenCalledTimes(3);
+    expect(deps.executor.execFile.mock.calls[1][0]).toBe('git');
+    expect(deps.executor.execFile.mock.calls[1][1]).toEqual(['fetch', '--depth', '1', 'origin', 'abc1234']);
+    expect(deps.executor.execFile.mock.calls[1][2]).toEqual({ cwd: '/tmp/launchly-builds/deploy-1', timeout: 120, env: undefined });
+    expect(deps.executor.execFile.mock.calls[2][0]).toBe('git');
+    expect(deps.executor.execFile.mock.calls[2][1]).toEqual(['checkout', '--detach', 'abc1234']);
+    expect(deps.executor.execFile.mock.calls[2][2]).toEqual({ cwd: '/tmp/launchly-builds/deploy-1', timeout: 120, env: undefined });
+  });
+
+  it('commitSha fetch non-zero: no checkout, still returns success (current behavior)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile
+      .mockResolvedValueOnce({ stdout: 'cloned', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: '', stderr: 'no such ref', exitCode: 1 });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: 'deadbee' } }));
+    expect(result.success).toBe(true);
+    expect(deps.executor.execFile).toHaveBeenCalledTimes(2);
+    expect(warnSpy).toHaveBeenCalledWith('Unable to fetch requested revision for deployment deploy-1; using branch head');
+  });
+
+  it('commitSha checkout non-zero: success overall, checkout warn swallowed (current behavior)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 })
+      .mockResolvedValueOnce({ stdout: '', stderr: 'cannot switch', exitCode: 1 });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: 'badcafe' } }));
+    expect(result.success).toBe(true);
+    expect(result.exitCode).toBe(0);
+    expect(deps.executor.execFile).toHaveBeenCalledTimes(3);
+    expect(warnSpy).toHaveBeenCalledWith('Unable to checkout requested revision for deployment deploy-1');
+  });
+});
+
+// ─── C. GITHUB_APP ────────────────────────────────────────────────────────
+
+describe('GitRunner.execute - GITHUB_APP source', () => {
+  it('rejects when project does not exist', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.project.findUnique.mockResolvedValueOnce(null);
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'https://github.com/acme/app.git', branch: 'main', sourceType: 'GITHUB_APP' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('GitHub App source requires an installation ID');
+    expect(deps.githubApp.installationToken).not.toHaveBeenCalled();
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects when project exists but githubInstallationId is missing', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: null });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'https://github.com/acme/app.git', branch: 'main', sourceType: 'GITHUB_APP' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('GitHub App source requires an installation ID');
+  });
+
+  it('rejects non-HTTPS repository URLs (http://)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: 'inst-1' });
+    deps.githubApp.installationToken.mockResolvedValueOnce('ghs_TESTSECRET123');
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'http://github.com/acme/app.git', branch: 'main', sourceType: 'GITHUB_APP' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('GitHub App source requires an HTTPS github.com repository URL');
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+  });
+
+  it('rejects HTTPS but non-github.com host', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: 'inst-1' });
+    deps.githubApp.installationToken.mockResolvedValueOnce('ghs_TESTSECRET123');
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'https://gitlab.com/acme/app.git', branch: 'main', sourceType: 'GITHUB_APP' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('GitHub App source requires an HTTPS github.com repository URL');
+  });
+
+  it('rejects github.com.evil.com subdomain hijack attempt', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: 'inst-1' });
+    deps.githubApp.installationToken.mockResolvedValueOnce('ghs_TESTSECRET123');
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'https://github.com.evil.com/acme/app.git', branch: 'main', sourceType: 'GITHUB_APP' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('GitHub App source requires an HTTPS github.com repository URL');
+  });
+
+  it('rejects completely invalid URLs (URL constructor throws, error propagates as failure)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: 'inst-1' });
+    deps.githubApp.installationToken.mockResolvedValueOnce('ghs_TESTSECRET123');
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'not a url at all', branch: 'main', sourceType: 'GITHUB_APP' } }));
+    expect(result.success).toBe(false);
+    // `new URL('not a url at all')` throws "Invalid URL"; the GitRunner's catch forwards the original message.
+    expect(result.errorMessage).toBe('Invalid URL');
+  });
+
+  it('on success: passes x-access-token URL to execFile but does not leak the token in stdout/stderr', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: 'inst-1' });
+    deps.githubApp.installationToken.mockResolvedValueOnce('ghs_TESTSECRET123');
+    deps.executor.execFile.mockResolvedValueOnce({
+      stdout: 'remote https://x-access-token:ghs_TESTSECRET123@github.com/acme/app.git',
+      stderr: 'token=ghs_TESTSECRET123',
+      exitCode: 0,
+    });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'https://github.com/acme/app.git', branch: 'main', sourceType: 'GITHUB_APP' } }));
+    expect(result.success).toBe(true);
+    const urlPassed = deps.executor.execFile.mock.calls[0][1][5];
+    expect(urlPassed).toBe('https://x-access-token:ghs_TESTSECRET123@github.com/acme/app.git');
+    expect(result.stdout).not.toContain('ghs_TESTSECRET123');
+    expect(result.stderr).not.toContain('ghs_TESTSECRET123');
+    expect(JSON.stringify(result)).not.toContain('ghs_TESTSECRET123');
+    expect(result.stdout).toContain('[REDACTED]');
+    expect(result.stderr).toContain('[REDACTED]');
+  });
+
+  it('installationToken throws: failure propagates the original message', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: 'inst-1' });
+    deps.githubApp.installationToken.mockRejectedValueOnce(new Error('Unable to obtain GitHub installation token'));
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'https://github.com/acme/app.git', branch: 'main', sourceType: 'GITHUB_APP' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('Unable to obtain GitHub installation token');
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+  });
+});
+
+// ─── D. DEPLOY_KEY ─────────────────────────────────────────────────────────
+
+describe('GitRunner.execute - DEPLOY_KEY source', () => {
+  const HOST = 'github.com';
+  const HOST_KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIABCDEFGHIJKLMNOPQRSTUVWXYZ trusted-nas';
+  const PRIVATE_KEY_DECRYPTED = '-----BEGIN OPENSSH PRIVATE KEY-----\nMIIE...testkey...ABC\n-----END OPENSSH PRIVATE KEY-----';
+
+  it('rejects when repositoryCredential row is missing', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce(null);
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('Deploy Key source requires a project deploy key and pinned host key');
+    expect(deps.secrets.decrypt).not.toHaveBeenCalled();
+  });
+
+  it('rejects when credentialType is not DEPLOY_KEY', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'OAUTH', encryptedValue: 'v2:enc', hostKey: HOST_KEY });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('Deploy Key source requires a project deploy key and pinned host key');
+  });
+
+  it('rejects when hostKey is missing', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'DEPLOY_KEY', encryptedValue: 'v2:enc', hostKey: null });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('Deploy Key source requires a project deploy key and pinned host key');
+  });
+
+  it('rejects HTTPS URLs (DEPLOY_KEY only supports SSH)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'DEPLOY_KEY', encryptedValue: 'v2:enc', hostKey: HOST_KEY });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'https://github.com/acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('Deploy Key source requires an SSH repository URL');
+    expect(deps.secrets.decrypt).not.toHaveBeenCalled();
+  });
+
+  it('rejects unparseable SSH URL', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'DEPLOY_KEY', encryptedValue: 'v2:enc', hostKey: HOST_KEY });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: '://broken', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('Deploy Key source requires an SSH repository URL');
+  });
+
+  it('scp-style URL: writes private key + known_hosts, passes env with full GIT_SSH_COMMAND (current public behavior)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'DEPLOY_KEY', encryptedValue: 'v2:ciphertext', hostKey: HOST_KEY });
+    deps.secrets.decrypt.mockImplementation((enc: string) => {
+      if (enc !== 'v2:ciphertext') throw new Error('unknown ciphertext');
+      return PRIVATE_KEY_DECRYPTED;
+    });
+    fsMock.writeFileSync.mockReturnValueOnce(undefined).mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockResolvedValueOnce({ stdout: 'cloned', stderr: '', exitCode: 0 });
+    fsMock.unlinkSync.mockReturnValue(undefined);
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(true);
+    // decrypt receives the encryptedValue, not the plaintext
+    expect(deps.secrets.decrypt).toHaveBeenCalledWith('v2:ciphertext');
+    // writeFileSync called twice with mode 0600
+    expect(fsMock.writeFileSync).toHaveBeenCalledTimes(2);
+    expect(fsMock.writeFileSync.mock.calls[0]).toEqual(['/tmp/launchly-builds/repo-key-deploy-1', PRIVATE_KEY_DECRYPTED, { mode: 0o600 }]);
+    expect(fsMock.writeFileSync.mock.calls[1]).toEqual(['/tmp/launchly-builds/repo-known-hosts-deploy-1', `${HOST} ${HOST_KEY.trim()}\n`, { mode: 0o600 }]);
+    // execFile called with git clone and the SSH env
+    const call = deps.executor.execFile.mock.calls[0];
+    expect(call[0]).toBe('git');
+    expect(call[1]).toEqual(['clone', '--depth', '1', '--branch', 'main', 'git@github.com:acme/app.git', '.']);
+    const env = call[2].env;
+    expect(env.GIT_SSH_COMMAND).toContain('IdentitiesOnly=yes');
+    expect(env.GIT_SSH_COMMAND).toContain('BatchMode=yes');
+    expect(env.GIT_SSH_COMMAND).toContain('PasswordAuthentication=no');
+    expect(env.GIT_SSH_COMMAND).toContain('StrictHostKeyChecking=yes');
+    expect(env.GIT_SSH_COMMAND).toContain(`/tmp/launchly-builds/repo-known-hosts-deploy-1`);
+    expect(env.GIT_SSH_COMMAND).toContain('/tmp/launchly-builds/repo-key-deploy-1');
+    expect(call[2].timeout).toBe(300);
+  });
+
+  it('ssh:// URL: same credential + known_hosts + env, host parsed from URL', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'DEPLOY_KEY', encryptedValue: 'v2:ciphertext', hostKey: HOST_KEY });
+    deps.secrets.decrypt.mockReturnValueOnce(PRIVATE_KEY_DECRYPTED);
+    fsMock.writeFileSync.mockReturnValueOnce(undefined).mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
+    fsMock.unlinkSync.mockReturnValue(undefined);
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'ssh://git@github.com/acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(true);
+    expect(fsMock.writeFileSync.mock.calls[1][1]).toBe(`${HOST} ${HOST_KEY.trim()}\n`);
+  });
+
+  it('secrets.decrypt throws: failure propagates and no execFile call', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'DEPLOY_KEY', encryptedValue: 'v2:ciphertext', hostKey: HOST_KEY });
+    deps.secrets.decrypt.mockImplementationOnce(() => { throw new Error('Encrypted value is malformed'); });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('Encrypted value is malformed');
+    expect(fsMock.writeFileSync).not.toHaveBeenCalled();
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+    expect(fsMock.unlinkSync).not.toHaveBeenCalled();
+  });
+
+  it('first writeFileSync (private key) throws: failure, no known_hosts, no clone', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'DEPLOY_KEY', encryptedValue: 'v2:ciphertext', hostKey: HOST_KEY });
+    deps.secrets.decrypt.mockReturnValueOnce(PRIVATE_KEY_DECRYPTED);
+    fsMock.writeFileSync.mockImplementationOnce(() => { throw new Error('EACCES'); });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('EACCES');
+    expect(fsMock.writeFileSync).toHaveBeenCalledTimes(1);
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+    expect(fsMock.unlinkSync).not.toHaveBeenCalled();
+  });
+
+  it('second writeFileSync (known_hosts) throws: private key left on disk, no clone (current behavior)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'DEPLOY_KEY', encryptedValue: 'v2:ciphertext', hostKey: HOST_KEY });
+    deps.secrets.decrypt.mockReturnValueOnce(PRIVATE_KEY_DECRYPTED);
+    fsMock.writeFileSync.mockReturnValueOnce(undefined).mockImplementationOnce(() => { throw new Error('ENOSPC'); });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('ENOSPC');
+    expect(fsMock.writeFileSync).toHaveBeenCalledTimes(2);
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+    expect(fsMock.unlinkSync).not.toHaveBeenCalled();
+  });
+
+  it('executor execFile rejects during clone: failure propagates, unlink is NOT reached because privateKeyPath assignment happens after the throw (current behavior is a candidate defect)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'DEPLOY_KEY', encryptedValue: 'v2:ciphertext', hostKey: HOST_KEY });
+    deps.secrets.decrypt.mockReturnValueOnce(PRIVATE_KEY_DECRYPTED);
+    fsMock.writeFileSync.mockReturnValueOnce(undefined).mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockRejectedValueOnce(new Error('spawn ENOENT git'));
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toBe('spawn ENOENT git');
+    // Current behavior: outer privateKeyPath is never assigned (the throw happens before
+    // `privateKeyPath = clone.privateKeyPath`), so the finally loop is a no-op.
+    // This means the private key and known_hosts files ARE left on disk.
+    expect(fsMock.unlinkSync).not.toHaveBeenCalled();
+    expect(fsMock.writeFileSync).toHaveBeenCalledTimes(2); // private key + known_hosts were written
+  });
+
+  it('unlink failure during cleanup does not change the success result', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'DEPLOY_KEY', encryptedValue: 'v2:ciphertext', hostKey: HOST_KEY });
+    deps.secrets.decrypt.mockReturnValueOnce(PRIVATE_KEY_DECRYPTED);
+    fsMock.writeFileSync.mockReturnValueOnce(undefined).mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockResolvedValueOnce({ stdout: 'cloned', stderr: '', exitCode: 0 });
+    fsMock.unlinkSync.mockImplementationOnce(() => { throw new Error('EACCES unlink'); });
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(true);
+    expect(result.exitCode).toBe(0);
+    expect(fsMock.unlinkSync).toHaveBeenCalledTimes(2);
+  });
+
+  it('successful DEPLOY_KEY result: never leaks private key, host key, or token in result or serialized form', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'DEPLOY_KEY', encryptedValue: 'v2:ciphertext', hostKey: HOST_KEY });
+    deps.secrets.decrypt.mockReturnValueOnce(PRIVATE_KEY_DECRYPTED);
+    fsMock.writeFileSync.mockReturnValueOnce(undefined).mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockResolvedValueOnce({
+      stdout: PRIVATE_KEY_DECRYPTED,
+      stderr: 'token=ghp_abcdefghijklmnopqrstuvwxyz',
+      exitCode: 0,
+    });
+    fsMock.unlinkSync.mockReturnValue(undefined);
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
+    expect(result.success).toBe(true);
+    const serialized = JSON.stringify(result);
+    expect(serialized).not.toContain(PRIVATE_KEY_DECRYPTED);
+    expect(serialized).not.toContain('v2:ciphertext');
+    expect(serialized).not.toContain(HOST_KEY.trim());
+    expect(serialized).not.toContain('ssh-ed25519');
+    expect(serialized).not.toContain('ghp_abcdefghijklmnopqrstuvwxyz');
+    expect(result.stdout).toContain('[REDACTED]');
+    expect(result.stderr).toContain('[REDACTED]');
+    expect(fsMock.unlinkSync.mock.calls).toEqual([
+      ['/tmp/launchly-builds/repo-key-deploy-1'],
+      ['/tmp/launchly-builds/repo-known-hosts-deploy-1'],
+    ]);
+  });
+});
+
+// ─── E. Path boundary (refId-based path escape) ────────────────────────────
+
+describe('GitRunner.execute - refId path boundary (current behavior is a candidate defect)', () => {
+  it('workDir is computed via path.join with BUILD_ROOT and the unvalidated refId (path.join normalizes ..)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
+    const runner = makeRunner(deps);
+    await runner.execute(makeContext({ refId: '../escape-1' }));
+    // path.join normalizes ../, so the workDir escapes BUILD_ROOT (a candidate defect).
+    expect(fsMock.mkdirSync).toHaveBeenCalledWith('/tmp/escape-1', { recursive: true, mode: 0o700 });
+    expect(deps.executor.execFile.mock.calls[0][2].cwd).toBe('/tmp/escape-1');
+  });
+
+  it('DEPLOY_KEY privateKeyPath and knownHostsPath also resolve through path.join (candidate defect)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.repositoryCredential.findUnique.mockResolvedValueOnce({ id: 'cred-1', projectId: 'proj-1', credentialType: 'DEPLOY_KEY', encryptedValue: 'v2:ciphertext', hostKey: 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIABCDEFGHIJKLMNOPQRSTUVWXYZ trusted-nas' });
+    deps.secrets.decrypt.mockReturnValueOnce('FAKEKEY');
+    fsMock.writeFileSync.mockReturnValueOnce(undefined).mockReturnValueOnce(undefined);
+    deps.executor.execFile.mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
+    fsMock.unlinkSync.mockReturnValue(undefined);
+    const runner = makeRunner(deps);
+    await runner.execute(makeContext({
+      refId: 'subdir/../../etc',
+      payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' },
+    }));
+    // path.join normalizes the entire path; the `repo-key-${refId}` segment is collapsed by `..` and the
+    // files land outside BUILD_ROOT entirely (current behavior is a candidate defect).
+    expect(fsMock.writeFileSync.mock.calls[0][0]).toBe('/tmp/etc');
+    expect(fsMock.writeFileSync.mock.calls[1][0]).toBe('/tmp/etc');
+  });
+});
