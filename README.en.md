@@ -20,7 +20,7 @@
   <a href="README.md">中文文档</a>
 </p>
 
-> **Current status (2026-08-13)**: Launchly is being rebooted from baseline `86cd3f9` and is in **R0 trusted-baseline repair**, not Beta. The current code is reusable groundwork, but production image, startup, authorization, and real deployment paths remain blocked. No capability is complete without a reproducible acceptance record.
+> **Current status (2026-08-13)**: Launchly is being rebooted from baseline `a2f7b5b` and is in **R0 trusted-baseline repair**, not Beta. The current code is reusable groundwork, but production image, startup, authorization, and real deployment paths remain blocked. No capability is complete without a reproducible acceptance record.
 
 ## What Launchly is
 
@@ -111,11 +111,11 @@ Core invariants:
 
 ## Honest current state
 
-Baseline `86cd3f9` includes Vue/NestJS/Prisma/CLI and project, environment, deployment, test, issue, release, and audit modules, plus partial Webhook, Worker, BuildKit, OCI, and SSH paths.
+Baseline `a2f7b5b` includes Vue/NestJS/Prisma/CLI and project, environment, deployment, test, issue, release, and audit modules, plus partial Webhook, Worker, BuildKit, OCI, and SSH paths.
 
 Independently verified:
 
-- 481 existing API unit tests pass.
+- 570 existing API unit tests pass.
 - 22 existing Web unit tests pass.
 - 15 existing CLI unit tests pass.
 - API, Web, and CLI compile.
@@ -126,7 +126,8 @@ Independently verified:
 - TEST-API-04 passed independent Codex review with 58 new tests for ReleaseService, NotificationService, and TestService.
 - TEST-API-05 passed independent Codex review with 91 tests for DeployTargetService and no real SSH connection.
 - TEST-API-06 passed independent Codex review with 87 tests for WorkerService and no real Schedule, database, process, network, or SSH execution.
-- API coverage is 43.77% statements, 43.47% branches, 40.95% functions, and 42.85% lines.
+- TEST-API-07A passed independent Codex review with 89 tests for RunnerFactory, CommandExecutor, DockerRunner, and OciImageRunner; TEST-API-07 as a whole remains in progress.
+- API coverage is 46.59% statements, 45.98% branches, 46.27% functions, and 45.86% lines.
 - Web coverage is 5.65% statements, 39.13% branches, 5.61% functions, and 5.65% lines.
 - CLI coverage is 10.13% statements, 87.50% branches, 83.33% functions, and 10.13% lines.
 
