@@ -20,7 +20,7 @@
   <a href="README.md">中文文档</a>
 </p>
 
-> **Current status (2026-08-13)**: Launchly is being rebooted from baseline `873bbd6` and is in **R0 trusted-baseline repair**, not Beta. The current code is reusable groundwork, but production image, startup, authorization, and real deployment paths remain blocked. No capability is complete without a reproducible acceptance record.
+> **Current status (2026-08-13)**: Launchly is being rebooted from baseline `8fd41b0` and is in **R0 trusted-baseline repair**, not Beta. The current code is reusable groundwork, but production image, startup, authorization, and real deployment paths remain blocked. No capability is complete without a reproducible acceptance record.
 
 ## What Launchly is
 
@@ -111,17 +111,18 @@ Core invariants:
 
 ## Honest current state
 
-Baseline `873bbd6` includes Vue/NestJS/Prisma/CLI and project, environment, deployment, test, issue, release, and audit modules, plus partial Webhook, Worker, BuildKit, OCI, and SSH paths.
+Baseline `8fd41b0` includes Vue/NestJS/Prisma/CLI and project, environment, deployment, test, issue, release, and audit modules, plus partial Webhook, Worker, BuildKit, OCI, and SSH paths.
 
 Independently verified:
 
-- 82 existing API unit tests pass.
+- 125 existing API unit tests pass.
 - 22 existing Web unit tests pass.
 - 15 existing CLI unit tests pass.
 - API, Web, and CLI compile.
 - TEST-000 has passed independent Codex review: API, Web, and CLI now emit text and JSON summaries using a full-production-source denominator.
 - TEST-API-01 passed independent Codex review with 30 new tests for SecretValue, EditionConfig, and GlobalExceptionFilter.
-- API coverage is 15.04% statements, 16.66% branches, 13.82% functions, and 15.39% lines.
+- TEST-API-02 passed independent Codex review with 43 new tests for EnvironmentService and EnvironmentVariableService.
+- API coverage is 18.81% statements, 19.87% branches, 16.48% functions, and 18.66% lines.
 - Web coverage is 5.65% statements, 39.13% branches, 5.61% functions, and 5.65% lines.
 - CLI coverage is 10.13% statements, 87.50% branches, 83.33% functions, and 10.13% lines.
 
