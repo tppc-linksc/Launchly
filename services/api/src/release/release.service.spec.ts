@@ -1,0 +1,369 @@
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ReleaseService } from './release.service';
+import { GateCheckService } from './gate-check.service';
+import { createPrismaMock, MockPrismaService } from '../../test/helpers/prisma-mock';
+
+const FIXED_PUBLISH_TIME = new Date('2026-08-13T06:00:00.000Z');
+
+describe('ReleaseService', () => {
+  let service: ReleaseService;
+  let prisma: MockPrismaService;
+  let gateCheck: { checkGates: jest.Mock };
+
+  const projectId = 'proj-1';
+  const userId = 'user-1';
+  const releaseId = 'rel-1';
+
+  const baseRelease = {
+    id: releaseId,
+    projectId,
+    environmentId: 'env-1',
+    deploymentId: 'deploy-1',
+    version: '1.0.0',
+    notes: 'initial notes',
+    status: 'DRAFT',
+    gateStatus: null,
+    releasedBy: null,
+    releasedAt: null,
+    createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  };
+
+  beforeEach(() => {
+    prisma = createPrismaMock();
+    gateCheck = { checkGates: jest.fn() };
+    service = new ReleaseService(prisma as any, gateCheck as unknown as GateCheckService);
+  });
+
+  describe('createRelease', () => {
+    it('persists the exact DTO fields plus releasedBy=userId', async () => {
+      const created = { ...baseRelease, id: 'rel-new' };
+      prisma.release.create.mockResolvedValue(created);
+
+      const result = await service.createRelease(
+        projectId,
+        { environmentId: 'env-1', deploymentId: 'deploy-1', version: '1.0.0', notes: 'ship it' },
+        userId,
+      );
+
+      expect(prisma.release.create).toHaveBeenCalledWith({
+        data: {
+          projectId,
+          environmentId: 'env-1',
+          deploymentId: 'deploy-1',
+          version: '1.0.0',
+          notes: 'ship it',
+          releasedBy: userId,
+        },
+      });
+      expect(result).toBe(created);
+    });
+
+    it('persists notes as undefined when not provided (current source forwards the raw value)', async () => {
+      const created = { ...baseRelease, id: 'rel-new', notes: undefined };
+      prisma.release.create.mockResolvedValue(created);
+
+      const result = await service.createRelease(
+        projectId,
+        { environmentId: 'env-1', deploymentId: 'deploy-1', version: '1.0.0' /* notes omitted */ },
+        userId,
+      );
+
+      expect(prisma.release.create).toHaveBeenCalledWith({
+        data: {
+          projectId,
+          environmentId: 'env-1',
+          deploymentId: 'deploy-1',
+          version: '1.0.0',
+          notes: undefined,
+          releasedBy: userId,
+        },
+      });
+      expect(result).toBe(created);
+    });
+  });
+
+  describe('listReleases', () => {
+    it('queries by projectId only and orders by createdAt desc', async () => {
+      const rows = [{ id: 'r1' }, { id: 'r2' }];
+      prisma.release.findMany.mockResolvedValue(rows);
+
+      const result = await service.listReleases(projectId);
+
+      expect(prisma.release.findMany).toHaveBeenCalledWith({
+        where: { projectId },
+        orderBy: { createdAt: 'desc' },
+      });
+      expect(result).toBe(rows);
+    });
+  });
+
+  describe('getRelease', () => {
+    it('returns the release when found', async () => {
+      prisma.release.findUnique.mockResolvedValue(baseRelease);
+      const result = await service.getRelease(releaseId);
+      expect(prisma.release.findUnique).toHaveBeenCalledWith({ where: { id: releaseId } });
+      expect(result).toBe(baseRelease);
+    });
+
+    it('throws NotFoundException with the exact "Release not found" message when missing', async () => {
+      prisma.release.findUnique.mockResolvedValue(null);
+
+      const rejection = service.getRelease(releaseId);
+      await expect(rejection).rejects.toThrow(NotFoundException);
+      await expect(rejection).rejects.toThrow('Release not found');
+    });
+  });
+
+  describe('getGateStatus', () => {
+    it('returns the GateCheckService result for the given release id', async () => {
+      const gateResult = { gates: [{ name: 'x', passed: true, message: 'ok' }], allPassed: true };
+      gateCheck.checkGates.mockResolvedValue(gateResult);
+
+      const result = await service.getGateStatus(releaseId);
+
+      expect(gateCheck.checkGates).toHaveBeenCalledWith(releaseId);
+      expect(result).toBe(gateResult);
+    });
+  });
+
+  describe('publish', () => {
+    beforeEach(() => {
+      jest.useFakeTimers().setSystemTime(FIXED_PUBLISH_TIME);
+      prisma.release.findUnique.mockResolvedValue(baseRelease);
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it('throws NotFoundException without consulting GateCheckService or exemptions or update', async () => {
+      prisma.release.findUnique.mockResolvedValue(null);
+
+      const rejection = service.publish(releaseId, userId);
+      await expect(rejection).rejects.toThrow(NotFoundException);
+      await expect(rejection).rejects.toThrow('Release not found');
+      expect(gateCheck.checkGates).not.toHaveBeenCalled();
+      expect(prisma.gateExemption.findMany).not.toHaveBeenCalled();
+      expect(prisma.release.update).not.toHaveBeenCalled();
+    });
+
+    it('publishes when all gates pass: status=PUBLISHED, gateStatus=PASSED, releasedBy=userId, releasedAt=fixed time', async () => {
+      gateCheck.checkGates.mockResolvedValue({
+        gates: [
+          { name: 'staging_deploy', passed: true, message: 'ok' },
+          { name: 'health_check',   passed: true, message: 'ok' },
+          { name: 'p0_tests',       passed: true, message: 'ok' },
+          { name: 'open_issues',    passed: true, message: 'ok' },
+        ],
+        allPassed: true,
+      });
+      prisma.gateExemption.findMany.mockResolvedValue([]);
+      prisma.release.update.mockResolvedValue({ ...baseRelease, status: 'PUBLISHED' });
+
+      const result = await service.publish(releaseId, userId);
+
+      expect(prisma.release.update).toHaveBeenCalledWith({
+        where: { id: releaseId },
+        data: {
+          status: 'PUBLISHED',
+          gateStatus: 'PASSED',
+          releasedBy: userId,
+          releasedAt: FIXED_PUBLISH_TIME,
+        },
+      });
+      expect(prisma.gateExemption.findMany).toHaveBeenCalledWith({ where: { releaseId } });
+      expect(result.status).toBe('PUBLISHED');
+    });
+
+    it('blocks publish with ForbiddenException when one gate fails and no exemption exists', async () => {
+      gateCheck.checkGates.mockResolvedValue({
+        gates: [
+          { name: 'staging_deploy', passed: true,  message: 'ok' },
+          { name: 'health_check',   passed: false, message: 'health check failed' },
+          { name: 'p0_tests',       passed: true,  message: 'ok' },
+          { name: 'open_issues',    passed: true,  message: 'ok' },
+        ],
+        allPassed: false,
+      });
+      prisma.gateExemption.findMany.mockResolvedValue([]);
+
+      const rejection = service.publish(releaseId, userId);
+      await expect(rejection).rejects.toThrow(ForbiddenException);
+      await expect(rejection).rejects.toMatchObject({ message: '门禁检查未通过: health check failed' });
+      expect(prisma.release.update).not.toHaveBeenCalled();
+    });
+
+    it('concatenates failing messages in gate order when multiple gates fail and none are exempt', async () => {
+      gateCheck.checkGates.mockResolvedValue({
+        gates: [
+          { name: 'staging_deploy', passed: true,  message: 'preflight ok' },
+          { name: 'health_check',   passed: false, message: 'health check failed' },
+          { name: 'p0_tests',       passed: false, message: 'p0 test failed' },
+          { name: 'open_issues',    passed: true,  message: 'no issues' },
+        ],
+        allPassed: false,
+      });
+      prisma.gateExemption.findMany.mockResolvedValue([]);
+
+      await expect(service.publish(releaseId, userId)).rejects.toMatchObject({
+        message: '门禁检查未通过: health check failed, p0 test failed',
+      });
+      expect(prisma.release.update).not.toHaveBeenCalled();
+    });
+
+    it('publishes as EXEMPTED when every failing gate has a matching exemption', async () => {
+      gateCheck.checkGates.mockResolvedValue({
+        gates: [
+          { name: 'staging_deploy', passed: true,  message: 'ok' },
+          { name: 'health_check',   passed: false, message: 'h' },
+          { name: 'p0_tests',       passed: false, message: 'p' },
+          { name: 'open_issues',    passed: true,  message: 'ok' },
+        ],
+        allPassed: false,
+      });
+      prisma.gateExemption.findMany.mockResolvedValue([
+        { gateName: 'health_check' },
+        { gateName: 'p0_tests' },
+      ]);
+      prisma.release.update.mockResolvedValue({ ...baseRelease, status: 'PUBLISHED' });
+
+      await service.publish(releaseId, userId);
+
+      expect(prisma.release.update).toHaveBeenCalledWith({
+        where: { id: releaseId },
+        data: {
+          status: 'PUBLISHED',
+          gateStatus: 'EXEMPTED',
+          releasedBy: userId,
+          releasedAt: FIXED_PUBLISH_TIME,
+        },
+      });
+    });
+
+    it('still blocks when only some failing gates are exempt (error only lists unexempt gates)', async () => {
+      gateCheck.checkGates.mockResolvedValue({
+        gates: [
+          { name: 'health_check', passed: false, message: 'h' },
+          { name: 'p0_tests',     passed: false, message: 'p' },
+        ],
+        allPassed: false,
+      });
+      // Only health_check is exempt
+      prisma.gateExemption.findMany.mockResolvedValue([{ gateName: 'health_check' }]);
+
+      const rejection = service.publish(releaseId, userId);
+      await expect(rejection).rejects.toThrow(ForbiddenException);
+      await expect(rejection).rejects.toMatchObject({ message: '门禁检查未通过: p' });
+      expect(prisma.release.update).not.toHaveBeenCalled();
+    });
+
+    it('exemptions for unrelated gate names do not bypass failing gates', async () => {
+      gateCheck.checkGates.mockResolvedValue({
+        gates: [
+          { name: 'health_check', passed: false, message: 'h' },
+          { name: 'p0_tests',     passed: false, message: 'p' },
+        ],
+        allPassed: false,
+      });
+      prisma.gateExemption.findMany.mockResolvedValue([{ gateName: 'staging_deploy' }]);
+
+      await expect(service.publish(releaseId, userId)).rejects.toThrow(ForbiddenException);
+      expect(prisma.release.update).not.toHaveBeenCalled();
+    });
+
+    it('duplicate exemption records do not change Set-based deduplication', async () => {
+      gateCheck.checkGates.mockResolvedValue({
+        gates: [
+          { name: 'health_check', passed: false, message: 'h' },
+          { name: 'p0_tests',     passed: false, message: 'p' },
+        ],
+        allPassed: false,
+      });
+      prisma.gateExemption.findMany.mockResolvedValue([
+        { gateName: 'health_check' },
+        { gateName: 'health_check' },   // duplicate
+        { gateName: 'p0_tests' },
+      ]);
+      prisma.release.update.mockResolvedValue({ ...baseRelease, status: 'PUBLISHED' });
+
+      await service.publish(releaseId, userId);
+
+      expect(prisma.release.update).toHaveBeenCalledWith(expect.objectContaining({
+        data: expect.objectContaining({ status: 'PUBLISHED', gateStatus: 'EXEMPTED' }),
+      }));
+    });
+
+    it('empty gates list with allPassed=false still publishes (CURRENT production behaviour — candidate fail-open defect)', async () => {
+      // NOTE: This documents the actual production code path. When GateCheckService
+      // returns { gates: [], allPassed: false }, the publish flow:
+      //   1. unresolvedFailures = [].filter(...) === []
+      //   2. length === 0 → no throw
+      //   3. update with status=PUBLISHED, gateStatus='EXEMPTED'
+      // This is a candidate production defect — "no gates" is treated as
+      // "everything exempt". Reporting only; not modifying production code.
+      gateCheck.checkGates.mockResolvedValue({ gates: [], allPassed: false });
+      prisma.gateExemption.findMany.mockResolvedValue([]);
+      prisma.release.update.mockResolvedValue({ ...baseRelease, status: 'PUBLISHED' });
+
+      const result = await service.publish(releaseId, userId);
+
+      expect(prisma.release.update).toHaveBeenCalledWith({
+        where: { id: releaseId },
+        data: {
+          status: 'PUBLISHED',
+          gateStatus: 'EXEMPTED',
+          releasedBy: userId,
+          releasedAt: FIXED_PUBLISH_TIME,
+        },
+      });
+      expect(result.status).toBe('PUBLISHED');
+    });
+  });
+
+  describe('exemptGate', () => {
+    it('persists releaseId, gateName, exemptedBy=userId, reason=string', async () => {
+      prisma.gateExemption.create.mockResolvedValue({ id: 'ex-1' });
+
+      const result = await service.exemptGate(releaseId, 'health_check', { reason: 'ops override' }, userId);
+
+      expect(prisma.gateExemption.create).toHaveBeenCalledWith({
+        data: {
+          releaseId,
+          gateName: 'health_check',
+          exemptedBy: userId,
+          reason: 'ops override',
+        },
+      });
+      expect(result).toEqual({ id: 'ex-1' });
+    });
+
+    it('persists reason=undefined when not provided (current source forwards the raw value)', async () => {
+      const created = { id: 'ex-2' };
+      prisma.gateExemption.create.mockResolvedValue(created);
+
+      const result = await service.exemptGate(releaseId, 'health_check', {}, userId);
+
+      expect(prisma.gateExemption.create).toHaveBeenCalledWith({
+        data: {
+          releaseId,
+          gateName: 'health_check',
+          exemptedBy: userId,
+          reason: undefined,
+        },
+      });
+      expect(result).toBe(created);
+    });
+  });
+
+  describe('getExemptions', () => {
+    it('queries by releaseId only and returns Prisma result', async () => {
+      const rows = [{ id: 'ex-1' }, { id: 'ex-2' }];
+      prisma.gateExemption.findMany.mockResolvedValue(rows);
+
+      const result = await service.getExemptions(releaseId);
+
+      expect(prisma.gateExemption.findMany).toHaveBeenCalledWith({ where: { releaseId } });
+      expect(result).toBe(rows);
+    });
+  });
+});
