@@ -269,14 +269,15 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     app = moduleRef.createNestApplication({ logger: false });
     app.setGlobalPrefix('api');
     validationPipe = new NestValidationPipe({
-      // The codebase ships several DTOs without class-validator decorators
-      // (e.g. UpdateEnvironmentDto) and several controllers declare
-      // `@Body() body: any`. Strict whitelist would reject every property
-      // because no property is decorated. We turn it off so we can exercise
-      // the decorators that DO exist (@IsNotEmpty, @Min, @Max, @Matches) and
-      // independently document KI-005 as a separate reproduction.
-      whitelist: false,
-      forbidNonWhitelisted: false,
+      // TEST-API-09: KI-004/005 fix — every typed DTO (CreateDeploymentDto,
+      // CreateReleaseDto, CreateIssueDto, TestCaseRequestDto,
+      // UpdateTestRunCaseDto, CreateEnvironmentVariableDto,
+      // CreateDeployTargetDto, UpdateEnvironmentDto, UpdateIssueDto,
+      // IssueTransitionDto) now carries @IsOptional/@IsString/.../etc
+      // metadata, so we turn the global ValidationPipe into strict mode.
+      // Undeclared fields are rejected; missing required fields are rejected.
+      whitelist: true,
+      forbidNonWhitelisted: true,
       transform: true,
       transformOptions: { enableImplicitConversion: false },
     });
@@ -606,30 +607,24 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expectBadRequest(res);
     });
 
-    it('POST variable 400 for undeclared field (forbidNonWhitelisted is disabled in this suite)', async () => {
+    it('POST variable 400 for undeclared field — KI-005 fixed: forbidNonWhitelisted rejects `privilege`', async () => {
       stub('environment.findUnique', { projectId: PROJECT_A });
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
       stub('project.findUnique', { id: PROJECT_A, workspaceId: WORKSPACE_A });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_DEVELOPER, role: 'VIEWER' });
-      stub('environmentVariable.create', (() => ({
-        id: 'new-var',
-        environmentId: ENVIRONMENT_A,
-        key: 'K',
-        maskedValue: '****',
-        sensitive: false,
-        description: null,
-      })) as any);
 
       const res = await request('POST', `/environments/${ENVIRONMENT_A}/variables`, {
         token: tokens.aDeveloper,
         body: { key: 'K', value: 'v', privilege: 'leak-this-property' },
       });
-      // with current suite-wide validation settings, whitelist/forbid are closed-loop
-      // off, so we only assert the value can still be persisted.
-      expect(res.status).toBe(201);
-      const callArgs = (prisma.environmentVariable.create as jest.Mock).mock.calls[0]?.[0];
-      expect(callArgs?.data?.key).toBe('K');
+      // Strict ValidationPipe (whitelist + forbidNonWhitelisted) rejects
+      // `privilege` because it is not declared in CreateEnvironmentVariableDto.
+      expectBadRequest(res);
+      const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
+      expect(messages.some((m: string) => m.includes('privilege'))).toBe(true);
+      // The undeclared field must not reach the persistence layer.
+      expect((prisma.environmentVariable.create as jest.Mock).mock.calls.length).toBe(0);
     });
 
     it('POST variable 400 for empty body (DTO @IsNotEmpty)', async () => {
@@ -782,7 +777,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expectValidation(res, 'projectId');
     });
 
-    it('POST /deployments 400 for extra (undeclared) body field — currently NOT rejected (KI-005 reproduction)', async () => {
+    it('POST /deployments 400 for extra (undeclared) body field — KI-005 fixed: forbidNonWhitelisted rejects `backdoor`', async () => {
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
       stub('project.findUnique', { id: PROJECT_A, workspaceId: WORKSPACE_A, repositoryUrl: 'https://github.com/x/y.git' });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
@@ -800,12 +795,42 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
         token: tokens.aDeveloper,
         body: { projectId: PROJECT_A, environmentId: ENVIRONMENT_A, backdoor: true },
       });
-      // KI-005: The CreateDeploymentDto does NOT use @IsOptional or @Allow for
-      // every property, AND the global ValidationPipe in this test is not in
-      // forbidNonWhitelisted mode. The extra `backdoor: true` slips through.
-      // Document current behavior: status 201 means the backdoor property
-      // survived the entire request.
+      // CreateDeploymentDto does not declare `backdoor`; strict pipe rejects.
+      expectBadRequest(res);
+      const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
+      expect(messages.some((m: string) => m.includes('backdoor'))).toBe(true);
+      // The undeclared field must not reach the persistence layer.
+      expect((prisma.deployment.create as jest.Mock).mock.calls.length).toBe(0);
+    });
+
+    it('POST /deployments 400 for empty body (DTO @IsNotEmpty on projectId/environmentId)', async () => {
+      const res = await request('POST', '/deployments', {
+        token: tokens.aDeveloper,
+        body: {},
+      });
+      expect(res.status).toBe(400);
+    });
+
+    it('POST /deployments 201 success path is not blocked by strict DTO', async () => {
+      stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
+      stub('project.findUnique', { id: PROJECT_A, workspaceId: WORKSPACE_A, repositoryUrl: 'https://github.com/x/y.git' });
+      stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
+      stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_DEVELOPER, role: 'VIEWER' });
+      stub('environment.findUnique', { id: ENVIRONMENT_A, projectId: PROJECT_A, enabled: true, deployTargetId: DEPLOY_TARGET_A, externalPort: 3000 });
+      stub('deployTarget.findUnique', { id: DEPLOY_TARGET_A, projectId: PROJECT_A });
+      stub('deployment.findFirst', null);
+      stub('deployment.create', (() => ({ id: DEPLOYMENT_A, projectId: PROJECT_A, environmentId: ENVIRONMENT_A, deployTargetId: DEPLOY_TARGET_A, status: 'PENDING', branch: 'main', commitSha: 'sha1', triggeredBy: USER_A_DEVELOPER, createdAt: new Date() })) as any);
+      stub('deploymentStageLog.createMany', undefined);
+      stub('task.create', (() => ({ id: TASK_A })) as any);
+      stub('user.findUnique', null);
+      stub('auditLog.create', undefined);
+
+      const res = await request('POST', '/deployments', {
+        token: tokens.aDeveloper,
+        body: { projectId: PROJECT_A, environmentId: ENVIRONMENT_A, branch: 'main', commitSha: 'sha1' },
+      });
       expect(res.status).toBe(201);
+      expect(res.body).toMatchObject({ projectId: PROJECT_A, environmentId: ENVIRONMENT_A });
     });
 
     it('POST /deployments 401 without token', async () => {
@@ -955,19 +980,49 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expect(prisma.release.create).not.toHaveBeenCalled();
     });
 
-    it('POST /projects/A/releases with body environmentId belonging to PROJECT_X is rejected (KI-004 fixed)', async () => {
+    it('POST /projects/A/releases 400 for environmentId belonging to PROJECT_X — KI-004 fixed: cross-project resource rejected', async () => {
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_DEVELOPER, role: 'VIEWER' });
+      // ENVIRONMENT_X is in PROJECT_X; CreateReleaseDto + service rejects this
+      // mismatch before the release is persisted.
       stub('environment.findUnique', { id: ENVIRONMENT_X, projectId: PROJECT_X });
       stub('deployment.findUnique', { id: DEPLOYMENT_A, projectId: PROJECT_A });
       stub('release.create', (() => ({ id: RELEASE_A, projectId: PROJECT_A })) as any);
 
       const res = await request('POST', '/projects/' + PROJECT_A + '/releases', {
         token: tokens.aDeveloper,
-        body: { environmentId: ENVIRONMENT_X, version: 'v1' }, // env-X is in PROJECT_X
+        body: { environmentId: ENVIRONMENT_X, deploymentId: DEPLOYMENT_A, version: 'v1' },
       });
       expectBadRequest(res);
+      const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
+      expect(messages.some((m: string) => m.includes('项目'))).toBe(true);
+      expect((prisma.release.create as jest.Mock).mock.calls.length).toBe(0);
+    });
+
+    it('POST /projects/A/releases 400 for deploymentId belonging to PROJECT_X — KI-004 fixed', async () => {
+      stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
+      stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
+      stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_DEVELOPER, role: 'VIEWER' });
+      stub('environment.findUnique', { id: ENVIRONMENT_A, projectId: PROJECT_A });
+      stub('deployment.findUnique', { id: DEPLOYMENT_X, projectId: PROJECT_X });
+      stub('release.create', (() => ({ id: RELEASE_A, projectId: PROJECT_A })) as any);
+
+      const res = await request('POST', '/projects/' + PROJECT_A + '/releases', {
+        token: tokens.aDeveloper,
+        body: { environmentId: ENVIRONMENT_A, deploymentId: DEPLOYMENT_X, version: 'v1' },
+      });
+      expectBadRequest(res);
+      const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
+      expect(messages.some((m: string) => m.includes('项目'))).toBe(true);
+    });
+
+    it('POST /projects/A/releases 400 for missing required body fields (DTO @IsNotEmpty)', async () => {
+      const res = await request('POST', '/projects/' + PROJECT_A + '/releases', {
+        token: tokens.aDeveloper,
+        body: {},
+      });
+      expect(res.status).toBe(400);
     });
 
     it('GET /projects/:projectId/releases 200 for VIEWER', async () => {
@@ -1044,7 +1099,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expect(res.body).toMatchObject({ status: 'OPEN' });
     });
 
-    it('POST /projects/A/issues with body environmentId belonging to PROJECT_X is rejected (KI-004 fixed)', async () => {
+    it('POST /projects/A/issues 400 for body environmentId belonging to PROJECT_X — KI-004 fixed: cross-project resource rejected', async () => {
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_TESTER, role: 'TESTER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_TESTER, role: 'VIEWER' });
@@ -1053,9 +1108,38 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
 
       const res = await request('POST', '/projects/' + PROJECT_A + '/issues', {
         token: tokens.aTester,
-        body: { title: 'cross', environmentId: ENVIRONMENT_X }, // ENVIRONMENT_X belongs to PROJECT_X
+        body: { title: 'cross', environmentId: ENVIRONMENT_X },
       });
       expectBadRequest(res);
+      const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
+      expect(messages.some((m: string) => m.includes('项目'))).toBe(true);
+      expect((prisma.issue.create as jest.Mock).mock.calls.length).toBe(0);
+    });
+
+    it('POST /projects/A/issues 400 for missing required `title` (DTO @IsNotEmpty)', async () => {
+      stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
+      stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_TESTER, role: 'TESTER' });
+      stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_TESTER, role: 'VIEWER' });
+
+      const res = await request('POST', '/projects/' + PROJECT_A + '/issues', {
+        token: tokens.aTester,
+        body: { description: 'no title' },
+      });
+      expectValidation(res, '标题');
+    });
+
+    it('POST /projects/A/issues 400 for undeclared field `leak` — KI-005 fixed: forbidNonWhitelisted', async () => {
+      stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
+      stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_TESTER, role: 'TESTER' });
+      stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_TESTER, role: 'VIEWER' });
+
+      const res = await request('POST', '/projects/' + PROJECT_A + '/issues', {
+        token: tokens.aTester,
+        body: { title: 't', leak: 'should-not-pass' },
+      });
+      expectBadRequest(res);
+      const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
+      expect(messages.some((m: string) => m.includes('leak'))).toBe(true);
     });
 
     it('GET /projects/:projectId/issues 200 for VIEWER', async () => {
@@ -1396,7 +1480,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
 
   // ─── TestCaseController ─────────────────────────────────────────────
   describe('TestCaseController', () => {
-    it('POST /projects/:projectId/test-cases 201 for TESTER (KI-005: no DTO, any body accepted)', async () => {
+    it('POST /projects/:projectId/test-cases 201 for TESTER (all declared fields)', async () => {
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_TESTER, role: 'TESTER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_TESTER, role: 'VIEWER' });
@@ -1409,21 +1493,50 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expect(res.status).toBe(201);
     });
 
-    it('POST /projects/A/test-cases with body fields unrelated to A is currently NOT rejected (KI-004/005 reproduction)', async () => {
+    it('POST /projects/A/test-cases 400 for missing required `title` (DTO @IsNotEmpty)', async () => {
+      stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
+      stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_TESTER, role: 'TESTER' });
+      stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_TESTER, role: 'VIEWER' });
+
+      const res = await request('POST', '/projects/' + PROJECT_A + '/test-cases', {
+        token: tokens.aTester,
+        body: { description: 'no title' },
+      });
+      expectValidation(res, '标题');
+    });
+
+    it('POST /projects/A/test-cases 400 for body.projectId (undeclared) — KI-004/005 fixed: forbidNonWhitelisted rejects foreign projectId', async () => {
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_TESTER, role: 'TESTER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_TESTER, role: 'VIEWER' });
       stub('testCase.create', (() => ({ id: TEST_CASE_A, projectId: PROJECT_A })) as any);
 
-      // TestCase has no foreign-key cross-check; pass projectId in body and see it is ignored
+      // TestCaseRequestDto does not declare `projectId`; the URL projectId
+      // is the only authoritative source. The strict pipe rejects the body's
+      // attempt to override it, which closes KI-004 for this controller.
       const res = await request('POST', '/projects/' + PROJECT_A + '/test-cases', {
         token: tokens.aTester,
         body: { title: 't', projectId: 'OVERRIDE-PROJECT' },
       });
-      expect(res.status).toBe(201);
-      // The TestCaseService.createTestCase uses URL projectId, ignoring body's projectId
-      const callArgs = (prisma.testCase.create as jest.Mock).mock.calls[0]?.[0];
-      expect(callArgs?.data?.projectId).toBe(PROJECT_A);
+      expectBadRequest(res);
+      const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
+      expect(messages.some((m: string) => m.includes('projectId'))).toBe(true);
+      // The undeclared `projectId` must not reach the persistence layer.
+      expect((prisma.testCase.create as jest.Mock).mock.calls.length).toBe(0);
+    });
+
+    it('POST /projects/A/test-cases 400 for undeclared field `leak` — KI-005 fixed', async () => {
+      stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
+      stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_TESTER, role: 'TESTER' });
+      stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_TESTER, role: 'VIEWER' });
+
+      const res = await request('POST', '/projects/' + PROJECT_A + '/test-cases', {
+        token: tokens.aTester,
+        body: { title: 't', leak: 'should-not-pass' },
+      });
+      expectBadRequest(res);
+      const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
+      expect(messages.some((m: string) => m.includes('leak'))).toBe(true);
     });
 
     it('GET /projects/:projectId/test-cases 200', async () => {
@@ -1514,7 +1627,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expect(res.status).toBe(200);
     });
 
-    it('PUT /test-runs/:id/cases/:caseId 200 with valid result (KI-005 reproduction: any result accepted)', async () => {
+    it('PUT /test-runs/:id/cases/:caseId 200 with valid result (PASSED, FAILED, SKIPPED, PENDING accepted)', async () => {
       stub('testRun.findUnique', { id: TEST_RUN_A, projectId: PROJECT_A });
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_TESTER, role: 'TESTER' });
@@ -1531,7 +1644,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expect(res.status).toBe(200);
     });
 
-    it('PUT /test-runs/:id/cases/:caseId rejects invalid result string (KI-005 fixed)', async () => {
+    it('PUT /test-runs/:id/cases/:caseId 400 for invalid result string — KI-005 fixed: @IsIn rejects non-enum', async () => {
       stub('testRun.findUnique', { id: TEST_RUN_A, projectId: PROJECT_A });
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_TESTER, role: 'TESTER' });
@@ -1543,6 +1656,24 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
         body: { result: 'WUT' },
       });
       expectBadRequest(res);
+      const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
+      expect(messages.some((m: string) => m.includes('PENDING') || m.includes('PASSED') || m.includes('FAILED') || m.includes('SKIPPED'))).toBe(true);
+    });
+
+    it('PUT /test-runs/:id/cases/:caseId 400 for undeclared field — KI-005 fixed: forbidNonWhitelisted', async () => {
+      stub('testRun.findUnique', { id: TEST_RUN_A, projectId: PROJECT_A });
+      stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
+      stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_TESTER, role: 'TESTER' });
+      stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_TESTER, role: 'VIEWER' });
+      stub('testRunCase.findFirst', { id: TEST_RUN_CASE_A, testRunId: TEST_RUN_A, result: 'PENDING' });
+
+      const res = await request('PUT', `/test-runs/${TEST_RUN_A}/cases/${TEST_RUN_CASE_A}`, {
+        token: tokens.aTester,
+        body: { result: 'PASSED', override: 'should-not-pass' },
+      });
+      expectBadRequest(res);
+      const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
+      expect(messages.some((m: string) => m.includes('override'))).toBe(true);
     });
   });
 

@@ -3,7 +3,7 @@ import { IssueService } from './issue.service';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ProjectResourceAccessPolicy } from '../common/access/project-resource-access-policy';
-import { CreateIssueDto } from './dto/create-issue.dto';
+import { CreateIssueDto, UpdateIssueDto, IssueTransitionDto } from './dto';
 
 @Controller('projects/:projectId/issues')
 export class IssueController {
@@ -52,14 +52,14 @@ export class IssueController {
 
   @Roles('DEVELOPER')
   @Put(':id')
-  async update(@Param('id') id: string, @Body() body: any, @CurrentUser() user: AuthPrincipal) {
+  async update(@Param('id') id: string, @Body() body: UpdateIssueDto, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireIssue(id, user.userId, user.workspaceId!, 'DEVELOPER');
     return this.issueService.updateIssue(id, body);
   }
 
   @Roles('TESTER')
   @Put(':id/status')
-  async transition(@Param('id') id: string, @Body() body: { toStatus: string }, @CurrentUser() user: AuthPrincipal) {
+  async transition(@Param('id') id: string, @Body() body: IssueTransitionDto, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireIssue(id, user.userId, user.workspaceId!, 'TESTER');
     return this.issueService.transition(id, body, user.userId);
   }

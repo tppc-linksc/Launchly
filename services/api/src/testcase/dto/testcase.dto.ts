@@ -6,6 +6,10 @@ export class TestCaseRequestDto {
   title: string;
 
   @IsOptional()
+  @IsString({ message: '描述必须是字符串' })
+  description?: string;
+
+  @IsOptional()
   @IsString({ message: '模块名必须是字符串' })
   module?: string;
 
@@ -28,6 +32,10 @@ export class TestCaseRequestDto {
   @IsOptional()
   @IsString({ message: '负责人 ID 必须是字符串' })
   ownerId?: string;
+
+  @IsOptional()
+  @IsString({ message: '备注必须是字符串' })
+  notes?: string;
 }
 
 export class UpdateTestRunCaseDto {
