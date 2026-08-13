@@ -3,6 +3,7 @@ import { IssueService } from './issue.service';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ProjectResourceAccessPolicy } from '../common/access/project-resource-access-policy';
+import { CreateIssueDto } from './dto/create-issue.dto';
 
 @Controller('projects/:projectId/issues')
 export class IssueController {
@@ -13,7 +14,7 @@ export class IssueController {
 
   @Roles('TESTER')
   @Post()
-  async create(@Param('projectId') projectId: string, @Body() body: any, @CurrentUser() user: AuthPrincipal) {
+  async create(@Param('projectId') projectId: string, @Body() body: CreateIssueDto, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireProject(projectId, user.userId, user.workspaceId!, 'TESTER');
     return this.issueService.createIssue(projectId, body, user.userId);
   }

@@ -3,6 +3,7 @@ import { TestService } from './test.service';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ProjectResourceAccessPolicy } from '../common/access/project-resource-access-policy';
+import { UpdateTestRunCaseDto } from './dto';
 
 @Controller()
 export class TestRunController {
@@ -46,7 +47,7 @@ export class TestRunController {
   async updateCase(
     @Param('testRunId') testRunId: string,
     @Param('caseId') caseId: string,
-    @Body() body: any,
+    @Body() body: UpdateTestRunCaseDto,
     @CurrentUser() user: AuthPrincipal,
   ) {
     await this.accessPolicy.requireTestRun(testRunId, user.userId, user.workspaceId!, 'TESTER');

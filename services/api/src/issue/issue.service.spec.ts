@@ -100,6 +100,7 @@ describe('IssueService', () => {
   describe('createIssue', () => {
     it('should create an issue with default priority P2', async () => {
       const created = { id: 'i1', priority: 'P2', title: 'Test Bug' };
+      prisma.environment.findUnique.mockResolvedValue({ projectId: 'p1' });
       prisma.issue.create.mockResolvedValue(created);
 
       const result = await service.createIssue('p1', { title: 'Test Bug' }, 'u1');
@@ -116,6 +117,7 @@ describe('IssueService', () => {
     });
 
     it('should use provided priority when specified', async () => {
+      prisma.environment.findUnique.mockResolvedValue({ projectId: 'p1' });
       prisma.issue.create.mockResolvedValue({ id: 'i1', priority: 'P0' });
 
       await service.createIssue('p1', { title: 'Critical', priority: 'P0' }, 'u1');
@@ -123,6 +125,12 @@ describe('IssueService', () => {
       expect(prisma.issue.create).toHaveBeenCalledWith({
         data: expect.objectContaining({ priority: 'P0' }),
       });
+    });
+
+    it('should reject issue creation when environmentId belongs to another project', async () => {
+      prisma.environment.findUnique.mockResolvedValue({ projectId: 'other-project' });
+
+      await expect(service.createIssue('p1', { title: '跨项目', environmentId: 'env-x' }, 'u1')).rejects.toThrow(BadRequestException);
     });
   });
 });

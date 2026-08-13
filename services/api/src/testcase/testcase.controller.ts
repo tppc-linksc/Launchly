@@ -3,6 +3,7 @@ import { TestService } from './test.service';
 import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
 import { ProjectResourceAccessPolicy } from '../common/access/project-resource-access-policy';
+import { TestCaseRequestDto } from './dto';
 
 @Controller('projects/:projectId/test-cases')
 export class TestCaseController {
@@ -13,7 +14,7 @@ export class TestCaseController {
 
   @Roles('TESTER')
   @Post()
-  async create(@Param('projectId') projectId: string, @Body() body: any, @CurrentUser() user: AuthPrincipal) {
+  async create(@Param('projectId') projectId: string, @Body() body: TestCaseRequestDto, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireProject(projectId, user.userId, user.workspaceId!, 'TESTER');
     return this.testService.createTestCase(projectId, body);
   }

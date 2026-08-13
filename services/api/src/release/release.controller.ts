@@ -3,6 +3,7 @@ import { ReleaseService } from './release.service';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ProjectResourceAccessPolicy } from '../common/access/project-resource-access-policy';
+import { CreateReleaseDto } from './dto/create-release.dto';
 
 @Controller('projects/:projectId/releases')
 export class ReleaseController {
@@ -13,7 +14,7 @@ export class ReleaseController {
 
   @Roles('DEVELOPER')
   @Post()
-  async create(@Param('projectId') projectId: string, @Body() body: any, @CurrentUser() user: AuthPrincipal) {
+  async create(@Param('projectId') projectId: string, @Body() body: CreateReleaseDto, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireProject(projectId, user.userId, user.workspaceId!, 'DEVELOPER');
     return this.releaseService.createRelease(projectId, body, user.userId);
   }

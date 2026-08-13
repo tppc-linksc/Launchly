@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 @Injectable()
@@ -50,6 +50,25 @@ export class TestService {
   }
 
   async createTestRun(deploymentId: string, projectId: string, environmentId: string, userId: string) {
+    const deployment = await this.prisma.deployment.findUnique({
+      where: { id: deploymentId },
+      select: { id: true, projectId: true, environmentId: true },
+    });
+    if (!deployment) {
+      throw new NotFoundException('部署不存在');
+    }
+    if (deployment.projectId !== projectId) {
+      throw new BadRequestException('部署不属于当前项目');
+    }
+
+    const targetEnvironmentId = environmentId || deployment.environmentId;
+    if (!targetEnvironmentId) {
+      throw new BadRequestException('环境不能为空');
+    }
+    if (environmentId && environmentId !== deployment.environmentId) {
+      throw new BadRequestException('环境不属于当前部署');
+    }
+
     const testCases = await this.prisma.testCase.findMany({
       where: { projectId, status: 'ACTIVE' },
     });
@@ -59,7 +78,7 @@ export class TestService {
         data: {
           deploymentId,
           projectId,
-          environmentId,
+          environmentId: targetEnvironmentId,
           totalCases: testCases.length,
           triggeredBy: userId,
         },

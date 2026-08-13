@@ -200,6 +200,11 @@ describe('TestService', () => {
         testRun: { create: jest.fn().mockResolvedValue(run) },
         testRunCase: { createMany: jest.fn().mockResolvedValue({ count: 2 }) },
       };
+      prisma.deployment.findUnique.mockResolvedValue({
+        id: deploymentId,
+        projectId,
+        environmentId,
+      });
       prisma.testCase.findMany.mockResolvedValue(cases);
       prisma.$transaction.mockImplementation(async (fn: any) => fn(tx));
 
@@ -237,6 +242,11 @@ describe('TestService', () => {
         testRun: { create: jest.fn().mockResolvedValue(run) },
         testRunCase: { createMany: jest.fn() },
       };
+      prisma.deployment.findUnique.mockResolvedValue({
+        id: deploymentId,
+        projectId,
+        environmentId,
+      });
       prisma.testCase.findMany.mockResolvedValue([]);
       prisma.$transaction.mockImplementation(async (fn: any) => fn(tx));
 
@@ -256,6 +266,33 @@ describe('TestService', () => {
       expect('finishedAt' in createData).toBe(false);
       expect(tx.testRunCase.createMany).not.toHaveBeenCalled();
       expect(result).toBe(run);
+    });
+
+    it('rejects when deployment is not found', async () => {
+      prisma.deployment.findUnique.mockResolvedValue(null);
+
+      await expect(service.createTestRun(deploymentId, projectId, environmentId, userId)).rejects.toThrow(NotFoundException);
+    });
+
+    it('rejects when deployment does not belong to target project', async () => {
+      prisma.deployment.findUnique.mockResolvedValue({
+        id: deploymentId,
+        projectId: 'other-project',
+        environmentId,
+      });
+
+      await expect(service.createTestRun(deploymentId, projectId, environmentId, userId)).rejects.toThrowError('部署不属于当前项目');
+    });
+
+    it('rejects when environmentId is provided but not equal to deployment environment', async () => {
+      const otherEnv = 'env-other';
+      prisma.deployment.findUnique.mockResolvedValue({
+        id: deploymentId,
+        projectId,
+        environmentId,
+      });
+
+      await expect(service.createTestRun(deploymentId, projectId, otherEnv, userId)).rejects.toThrowError('环境不属于当前部署');
     });
   });
 

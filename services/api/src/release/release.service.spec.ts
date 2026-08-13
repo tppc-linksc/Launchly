@@ -1,4 +1,4 @@
-import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ReleaseService } from './release.service';
 import { GateCheckService } from './gate-check.service';
 import { createPrismaMock, MockPrismaService } from '../../test/helpers/prisma-mock';
@@ -36,6 +36,8 @@ describe('ReleaseService', () => {
 
   describe('createRelease', () => {
     it('persists the exact DTO fields plus releasedBy=userId', async () => {
+      prisma.environment.findUnique.mockResolvedValue({ projectId });
+      prisma.deployment.findUnique.mockResolvedValue({ projectId });
       const created = { ...baseRelease, id: 'rel-new' };
       prisma.release.create.mockResolvedValue(created);
 
@@ -59,6 +61,8 @@ describe('ReleaseService', () => {
     });
 
     it('persists notes as undefined when not provided (current source forwards the raw value)', async () => {
+      prisma.environment.findUnique.mockResolvedValue({ projectId });
+      prisma.deployment.findUnique.mockResolvedValue({ projectId });
       const created = { ...baseRelease, id: 'rel-new', notes: undefined };
       prisma.release.create.mockResolvedValue(created);
 
@@ -79,6 +83,28 @@ describe('ReleaseService', () => {
         },
       });
       expect(result).toBe(created);
+    });
+
+    it('rejects when environmentId does not belong to the URL projectId', async () => {
+      prisma.environment.findUnique.mockResolvedValue({ projectId: 'other-project' });
+      prisma.deployment.findUnique.mockResolvedValue({ projectId });
+
+      await expect(service.createRelease(
+        projectId,
+        { environmentId: 'env-x', deploymentId: 'deploy-1', version: '1.0.0' },
+        userId,
+      )).rejects.toThrow(BadRequestException);
+    });
+
+    it('rejects when deploymentId does not belong to the URL projectId', async () => {
+      prisma.environment.findUnique.mockResolvedValue({ projectId });
+      prisma.deployment.findUnique.mockResolvedValue({ projectId: 'other-project' });
+
+      await expect(service.createRelease(
+        projectId,
+        { environmentId: 'env-1', deploymentId: 'deploy-x', version: '1.0.0' },
+        userId,
+      )).rejects.toThrow(BadRequestException);
     });
   });
 

@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -15,6 +15,32 @@ export class IssueService {
   constructor(private readonly prisma: PrismaService) {}
 
   async createIssue(projectId: string, data: any, userId: string) {
+    if (data.environmentId) {
+      const environment = await this.prisma.environment.findUnique({
+        where: { id: data.environmentId },
+        select: { projectId: true },
+      });
+      if (!environment) {
+        throw new BadRequestException('环境不存在');
+      }
+      if (environment.projectId !== projectId) {
+        throw new BadRequestException('环境不属于当前项目');
+      }
+    }
+
+    if (data.deploymentId) {
+      const deployment = await this.prisma.deployment.findUnique({
+        where: { id: data.deploymentId },
+        select: { projectId: true },
+      });
+      if (!deployment) {
+        throw new BadRequestException('部署不存在');
+      }
+      if (deployment.projectId !== projectId) {
+        throw new BadRequestException('部署不属于当前项目');
+      }
+    }
+
     return this.prisma.issue.create({
       data: {
         projectId,
