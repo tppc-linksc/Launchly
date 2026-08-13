@@ -2,9 +2,14 @@
 .idea
 .vscode
 .claude
+.env
+**/.env
 node_modules
+**/node_modules
 apps/web/node_modules
 apps/web/dist
+**/dist
+**/coverage
 services/api/target
 services/worker/target
 cli/launchly
