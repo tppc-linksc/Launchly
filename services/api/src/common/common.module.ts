@@ -7,6 +7,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import { SystemController, HealthController } from './controllers/system.controller';
+import { ProjectResourceAccessPolicy } from './access/project-resource-access-policy';
 
 const JWT_SECRET = process.env.LAUNCHLY_JWT_SECRET;
 if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
@@ -25,10 +26,11 @@ if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
   controllers: [SystemController, HealthController],
   providers: [
     EditionConfig,
+    ProjectResourceAccessPolicy,
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
   ],
-  exports: [JwtModule, EditionConfig, PrismaModule],
+  exports: [JwtModule, EditionConfig, PrismaModule, ProjectResourceAccessPolicy],
 })
 export class CommonModule {}
