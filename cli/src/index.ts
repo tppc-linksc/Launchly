@@ -15,6 +15,19 @@ import {
   ENV_FILE,
 } from './config.js'
 
+function confirmPrompt(message: string): boolean {
+  const buf = Buffer.alloc(256)
+  const fd = fs.openSync('/dev/stdin', 'r')
+  try {
+    process.stdout.write(message)
+    const bytes = fs.readSync(fd, buf, 0, 256, null)
+    const answer = buf.toString('utf-8', 0, bytes).trim().toLowerCase()
+    return answer === 'yes'
+  } finally {
+    fs.closeSync(fd)
+  }
+}
+
 function runCompose(dataDir: string, args: string[]): void {
   const base = ['compose', '-f', path.join(dataDir, COMPOSE_FILE)]
   const envPath = path.join(dataDir, ENV_FILE)
@@ -214,12 +227,19 @@ function cmdBackup() {
   const envSrc = path.join(dataDir, ENV_FILE)
   if (fileExists(envSrc)) fs.copyFileSync(envSrc, path.join(tmpDir, ENV_FILE))
 
+  for (const dir of ['launchly-data', 'launchly-worker-data']) {
+    const volumeSrc = path.join(dataDir, dir)
+    if (fileExists(volumeSrc) && fs.statSync(volumeSrc).isDirectory()) {
+      fs.cpSync(volumeSrc, path.join(tmpDir, dir), { recursive: true })
+    }
+  }
+
   execSync(`tar -czf ${backupFile} -C ${tmpDir} .`)
   fs.rmSync(tmpDir, { recursive: true, force: true })
   console.log(`Backup created: ${backupFile}`)
 }
 
-function cmdRestore(backupFile: string) {
+function cmdRestore(backupFile: string, options: { force?: boolean } = {}) {
   if (!backupFile) {
     console.error('Usage: launchly restore <backup-file>')
     process.exit(1)
@@ -232,9 +252,11 @@ function cmdRestore(backupFile: string) {
   const dataDir = getDataDir()
   console.log(`Restoring from: ${backupFile}`)
   console.log('Warning: This will overwrite existing data.')
-  process.stdout.write('Continue? [y/N] ')
+  if (!options.force && !confirmPrompt('Continue? [y/N] ')) {
+    console.log('Aborted.')
+    return
+  }
 
-  // In non-interactive mode, just proceed
   const restoreDir = path.join(dataDir, 'restore_tmp')
   fs.rmSync(restoreDir, { recursive: true, force: true })
   fs.mkdirSync(restoreDir, { recursive: true })
@@ -250,6 +272,17 @@ function cmdRestore(backupFile: string) {
         `docker compose -f ${path.join(dataDir, COMPOSE_FILE)} exec -T launchly-postgres psql -U launchly -d launchly`,
         { input: data, stdio: ['pipe', 'inherit', 'inherit'] }
       )
+    }
+    const restoredEnv = path.join(restoreDir, ENV_FILE)
+    if (fileExists(restoredEnv)) {
+      fs.copyFileSync(restoredEnv, path.join(dataDir, ENV_FILE))
+    }
+    for (const dir of ['launchly-data', 'launchly-worker-data']) {
+      const volumeDir = path.join(restoreDir, dir)
+      if (fileExists(volumeDir) && fs.statSync(volumeDir).isDirectory()) {
+        fs.rmSync(path.join(dataDir, dir), { recursive: true, force: true })
+        fs.cpSync(volumeDir, path.join(dataDir, dir), { recursive: true })
+      }
     }
     console.log('Restore complete.')
   } finally {
@@ -275,21 +308,19 @@ function cmdUninstall(opts: { force?: boolean; keepData?: boolean }) {
     if (!opts.keepData) {
       console.log('         All data will be deleted (use --keep-data to preserve).')
     }
-    // Simple stdin read for confirmation
-    console.log("Type 'yes' to confirm: ")
-    const buf = Buffer.alloc(256)
-    const fd = fs.openSync('/dev/stdin', 'r')
-    const bytes = fs.readSync(fd, buf, 0, 256, null)
-    fs.closeSync(fd)
-    const answer = buf.toString('utf-8', 0, bytes).trim()
-    if (answer !== 'yes') {
+    if (!confirmPrompt("Type 'yes' to confirm: ")) {
       console.log('Aborted.')
       return
     }
   }
 
   console.log('Stopping services ...')
-  try { runCompose(dataDir, ['down', '-v']) } catch { /* ignore */ }
+  const downArgs = opts.keepData ? ['down'] : ['down', '-v']
+  try {
+    runCompose(dataDir, downArgs)
+  } catch {
+    /* ignore */
+  }
 
   if (!opts.keepData) {
     console.log('Removing data directory ...')
@@ -335,6 +366,7 @@ program.command('backup').description('备份数据库和数据').action(cmdBack
 program
   .command('restore <file>')
   .description('从备份恢复')
+  .option('--force', '跳过确认提示')
   .action(cmdRestore)
 
 program
