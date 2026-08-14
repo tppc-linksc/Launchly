@@ -20,7 +20,7 @@
   <a href="README.en.md">English Documentation</a>
 </p>
 
-> **当前状态（2026-08-13）**：项目正在以 `a60ae26` 为基线重启，处于 **R0 可信基线修复**，不是 Beta。现有代码可作为复用基础，但生产镜像、启动、权限隔离和真实部署仍有阻断；没有对应真实验收记录的能力不得对外称为完成。
+> **当前状态（2026-08-14）**：项目以 `eb8c933` 为当前代码基线，仍处于 **R0 可信基线修复**，不是 Beta。低风险测试工作包已完成包级验收，但 BASE/E2E 真实验收仍未完成；没有对应证据的能力不得对外称为完成。详细状态只看[项目重启路线图](docs/basic/项目重启路线图.md)和[交付验收规范](docs/basic/交付验收规范.md)。
 
 ## Launchly 是什么
 
@@ -111,36 +111,17 @@ GitHub / GitLab + CI Checks
 
 ## 当前真实状态
 
-基线 `a60ae26` 已包含 Vue/NestJS/Prisma/CLI、项目/环境/部署/Test/Issue/Release/审计模块，以及部分 Webhook、Worker、BuildKit、OCI 和 SSH 代码路径。
+基线 `eb8c933` 已包含 Vue/NestJS/Prisma/CLI、项目/环境/部署/Test/Issue/Release/审计模块，以及部分 Webhook、Worker、BuildKit、OCI 和 SSH 代码路径。
 
-独立验证结果：
+最近一次本地覆盖率命令 `pnpm test:coverage` 的结果：
 
-- API 现有 708 个单元测试通过。
-- Web 现有 22 个单元测试通过。
-- CLI 现有 15 个单元测试通过。
-- API/Web/CLI 编译通过。
-- TEST-000 已经 Codex 独立复核：API/Web/CLI 均能按全量生产源码口径输出 text 与 JSON summary。
-- TEST-API-01 已经 Codex 独立复核，SecretValue、EditionConfig 和 GlobalExceptionFilter 的 30 个新增测试通过。
-- TEST-API-02 已经 Codex 独立复核，EnvironmentService 和 EnvironmentVariableService 的 43 个新增测试通过。
-- TEST-API-03 已经 Codex 独立复核，ProjectAccessService、RepositoryHintsService 和 ResourceCatalogService 的 120 个新增测试通过。
-- TEST-API-04 已经 Codex 独立复核，ReleaseService、NotificationService 和 TestService 的 58 个新增测试通过。
-- TEST-API-05 已经 Codex 独立复核，DeployTargetService 的 91 个测试通过，未连接真实 SSH。
-- TEST-API-06 已经 Codex 独立复核，WorkerService 的 87 个测试通过，未启动真实 Schedule、数据库、进程、网络或 SSH。
-- TEST-API-07A 已经 Codex 独立复核，RunnerFactory、CommandExecutor、DockerRunner 和 OciImageRunner 的 89 个测试通过；TEST-API-07 整体仍在进行中。
-- TEST-API-07B 已经 Codex 独立复核，GitRunner、TemplateSourceRunner、BuildkitRunner 和 BuildCleanupService 的 138 个测试通过；下一子批为 07C。
-- API 覆盖率为 Statements 53.40%、Branches 54.31%、Functions 52.12%、Lines 52.82%。
-- Web 覆盖率为 Statements 5.65%、Branches 39.13%、Functions 5.61%、Lines 5.65%。
-- CLI 覆盖率为 Statements 10.13%、Branches 87.50%、Functions 83.33%、Lines 10.13%。
+| 范围 | 测试规模 | Statements | Branches | Functions | Lines |
+| --- | --- | ---: | ---: | ---: | ---: |
+| API | 30 suites / 1008 unit tests；另有 2 suites / 94 startup/access-control E2E | 58.48% | 64.50% | 57.10% | 57.53% |
+| Web | 29 files / 286 tests | 90.45% | 82.89% | 54.49% | 90.45% |
+| CLI | 4 files / 46 tests | 97.92% | 93.10% | 100% | 97.92% |
 
-但 R0 尚未通过：
-
-- 生产构建输出与 `dist/main` 启动入口不一致。
-- Dockerfile 的 Web/BuildKit 构建阶段需要修复。
-- `EnvironmentService` 注入缺失会阻止 Nest 启动。
-- 多个项目子资源接口缺少完整 Workspace/Project 授权。
-- 没有真实 Docker 镜像启动、空库/升级库、GitHub、Registry、BuildKit、SSH、HTTPS 和回滚 E2E。
-
-因此当前没有可对外承诺的部署路径，历史“Beta”“核心流水线可用”“完整测试体系”等表述全部失效。
+这些数字只说明当前自动化测试状态，不等于 BASE-11 通过。API/Web 仍有门槛未达成；双 Workspace、迁移升级、备份恢复、真实 SSH/Registry/GitHub/HTTPS、回滚和故障恢复仍没有完整 E2E 证据。测试工作包、已知问题和验收证据分别见[测试补全任务书](docs/basic/测试补全任务书.md)、[已知问题清单](docs/basic/已知问题清单.md)和[交付验收规范](docs/basic/交付验收规范.md)。
 
 ## 项目路线图
 
@@ -165,7 +146,7 @@ cli                      TypeScript Self-Host CLI
 deploy/compose           Self-Host Compose 模板
 examples                 真实验收用示例应用
 docs/basic               权威产品、架构、UI、验收与路线图
-docs/prototypes          本地原型（默认不上传）
+docs/guides              NAS 和暂停中的环境部署指南
 ```
 
 ## 当前开发命令
@@ -179,7 +160,7 @@ pnpm --dir apps/web build
 pnpm --dir cli build
 ```
 
-历史 `launchly install` 和 Compose 快速开始在 R0/R1 验收前不作为有效安装指南。NAS/极空间文档也只作为待复核环境说明，不能视为安装成功证明。
+历史 `launchly install` 和 Compose 快速开始在 R0/R1 验收前不作为有效安装指南。NAS/极空间文档位于 `docs/guides`，只作为待复核环境说明，不能视为安装成功证明。
 
 ## 项目文档
 
@@ -195,8 +176,8 @@ pnpm --dir cli build
 | [已知问题清单](docs/basic/已知问题清单.md) | 已确认问题、证据、影响和关联任务，不作为排期 |
 | [项目重启路线图](docs/basic/项目重启路线图.md) | 当前基线、任务依赖、进度和下一批工作 |
 | [测试补全任务书](docs/basic/测试补全任务书.md) | 覆盖率基线、完整测试矩阵、MiniMax 工作包和 Codex 复核规则 |
-| [NAS 部署兼容性](docs/basic/NAS%20部署兼容性.md) | R1 兼容性目标，当前不是安装承诺 |
-| [极空间 Z4 Pro 计划稿](docs/basic/极空间Z4Pro从GitHub部署Launchly.md) | 暂停执行，待 R0/R1 真实 E2E 后升级为 Runbook |
+| [NAS 部署兼容性](docs/guides/NAS%20部署兼容性.md) | R1 兼容性目标，当前不是安装承诺 |
+| [极空间 Z4 Pro 计划稿](docs/guides/极空间Z4Pro从GitHub部署Launchly.md) | 暂停执行，待 R0/R1 真实 E2E 后升级为 Runbook |
 
 `KI-###` 是问题、`R#-##` 是实施待办、`TEST-*` 是测试工作包、`BASE/E2E` 是验收证据，四者不得互相代替。文档中的“必须/目标”不等于已实现；路线图状态只能由交付验收证据改变。
 

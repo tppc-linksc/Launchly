@@ -20,7 +20,7 @@
   <a href="README.md">中文文档</a>
 </p>
 
-> **Current status (2026-08-13)**: Launchly is being rebooted from baseline `a60ae26` and is in **R0 trusted-baseline repair**, not Beta. The current code is reusable groundwork, but production image, startup, authorization, and real deployment paths remain blocked. No capability is complete without a reproducible acceptance record.
+> **Current status (2026-08-14)**: Launchly uses `eb8c933` as its current code baseline and remains in **R0 trusted-baseline repair**, not Beta. Low-risk test work packages have package-level acceptance, but BASE/E2E real-environment acceptance is incomplete. No capability is complete without reproducible evidence. See the [Chinese roadmap](docs/basic/项目重启路线图.md) and [delivery acceptance](docs/basic/交付验收规范.md) for the authoritative status.
 
 ## What Launchly is
 
@@ -111,36 +111,17 @@ Core invariants:
 
 ## Honest current state
 
-Baseline `a60ae26` includes Vue/NestJS/Prisma/CLI and project, environment, deployment, test, issue, release, and audit modules, plus partial Webhook, Worker, BuildKit, OCI, and SSH paths.
+Baseline `eb8c933` includes Vue/NestJS/Prisma/CLI and project, environment, deployment, test, issue, release, and audit modules, plus partial Webhook, Worker, BuildKit, OCI, and SSH paths.
 
-Independently verified:
+The latest local `pnpm test:coverage` result is:
 
-- 708 existing API unit tests pass.
-- 22 existing Web unit tests pass.
-- 15 existing CLI unit tests pass.
-- API, Web, and CLI compile.
-- TEST-000 has passed independent Codex review: API, Web, and CLI now emit text and JSON summaries using a full-production-source denominator.
-- TEST-API-01 passed independent Codex review with 30 new tests for SecretValue, EditionConfig, and GlobalExceptionFilter.
-- TEST-API-02 passed independent Codex review with 43 new tests for EnvironmentService and EnvironmentVariableService.
-- TEST-API-03 passed independent Codex review with 120 new tests for ProjectAccessService, RepositoryHintsService, and ResourceCatalogService.
-- TEST-API-04 passed independent Codex review with 58 new tests for ReleaseService, NotificationService, and TestService.
-- TEST-API-05 passed independent Codex review with 91 tests for DeployTargetService and no real SSH connection.
-- TEST-API-06 passed independent Codex review with 87 tests for WorkerService and no real Schedule, database, process, network, or SSH execution.
-- TEST-API-07A passed independent Codex review with 89 tests for RunnerFactory, CommandExecutor, DockerRunner, and OciImageRunner; TEST-API-07 as a whole remains in progress.
-- TEST-API-07B passed independent Codex review with 138 tests for GitRunner, TemplateSourceRunner, BuildkitRunner, and BuildCleanupService; 07C is next.
-- API coverage is 53.40% statements, 54.31% branches, 52.12% functions, and 52.82% lines.
-- Web coverage is 5.65% statements, 39.13% branches, 5.61% functions, and 5.65% lines.
-- CLI coverage is 10.13% statements, 87.50% branches, 83.33% functions, and 10.13% lines.
+| Scope | Test scale | Statements | Branches | Functions | Lines |
+| --- | --- | ---: | ---: | ---: | ---: |
+| API | 30 suites / 1008 unit tests; 2 suites / 94 startup/access-control E2E | 58.48% | 64.50% | 57.10% | 57.53% |
+| Web | 29 files / 286 tests | 90.45% | 82.89% | 54.49% | 90.45% |
+| CLI | 4 files / 46 tests | 97.92% | 93.10% | 100% | 97.92% |
 
-R0 is still blocked:
-
-- Production output does not match the configured `dist/main` entrypoint.
-- Dockerfile Web/BuildKit stages need repair.
-- Missing `EnvironmentService` injection prevents Nest startup.
-- Multiple project child APIs lack complete Workspace/Project authorization.
-- There is no real image startup, empty/upgrade database, GitHub, Registry, BuildKit, SSH, HTTPS, or rollback E2E record.
-
-There is therefore no deploy path that can currently be promised to users. Historical “Beta,” “core pipeline usable,” and “complete test suite” claims are obsolete.
+These numbers describe automated test status only and do not mean BASE-11 has passed. API/Web thresholds are still incomplete; there is no complete E2E evidence for dual-workspace isolation, migrations/upgrades, backup/restore, real SSH/Registry/GitHub/HTTPS, rollback, or failure recovery. See the [test workbook](docs/basic/测试补全任务书.md), [known issues](docs/basic/已知问题清单.md), and [delivery acceptance](docs/basic/交付验收规范.md) for the authoritative details.
 
 ## Roadmap
 
@@ -165,7 +146,7 @@ cli                      TypeScript Self-Host CLI
 deploy/compose           Self-Host Compose template
 examples                 Applications for real acceptance tests
 docs/basic               Authoritative product, architecture, UI, acceptance, and roadmap docs
-docs/prototypes          Local prototypes (ignored by default)
+docs/guides              NAS and suspended environment deployment guides
 ```
 
 ## Current development commands
@@ -179,7 +160,7 @@ pnpm --dir apps/web build
 pnpm --dir cli build
 ```
 
-Historical `launchly install` and Compose quick-start instructions are suspended until R0/R1 acceptance. NAS guides are environment notes, not installation evidence.
+Historical `launchly install` and Compose quick-start instructions are suspended until R0/R1 acceptance. NAS guides live under `docs/guides` and are environment notes, not installation evidence.
 
 ## Project documents
 
@@ -195,8 +176,8 @@ See the Chinese [Document Index](docs/basic/文档索引.md) for categories, rea
 | [Known Issues](docs/basic/已知问题清单.md) | Confirmed facts, evidence, impact, and task links; not scheduling |
 | [Project Reboot Roadmap](docs/basic/项目重启路线图.md) | Baseline, dependencies, progress, next work |
 | [Test Completion Workbook](docs/basic/测试补全任务书.md) | Coverage baseline, scenario matrix, MiniMax work packages, Codex review rules |
-| [NAS Compatibility](docs/basic/NAS%20部署兼容性.md) | R1 compatibility target, not a current installation promise |
-| [ZSpace Z4 Pro Draft](docs/basic/极空间Z4Pro从GitHub部署Launchly.md) | Suspended until R0/R1 real-environment E2E passes |
+| [NAS Compatibility](docs/guides/NAS%20部署兼容性.md) | R1 compatibility target, not a current installation promise |
+| [ZSpace Z4 Pro Draft](docs/guides/极空间Z4Pro从GitHub部署Launchly.md) | Suspended until R0/R1 real-environment E2E passes |
 
 `KI-###` means an issue, `R#-##` an implementation task, `TEST-*` a test work package, and `BASE/E2E` acceptance evidence. They are not interchangeable. “Must” and “target” do not mean implemented; only acceptance evidence can change roadmap status.
 

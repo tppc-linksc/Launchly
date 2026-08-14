@@ -50,5 +50,5 @@ docs/basic/*
 !docs/basic/文档索引.md
 !docs/basic/已知问题清单.md
 !docs/basic/测试补全任务书.md
-!docs/basic/NAS 部署兼容性.md
-!docs/basic/极空间Z4Pro从GitHub部署Launchly.md
+!docs/guides/
+!docs/guides/**
