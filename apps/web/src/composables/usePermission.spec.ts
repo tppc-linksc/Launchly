@@ -5,7 +5,7 @@ import { useAuthStore } from '../stores/auth'
 
 function setRole(role: string | null) {
   const auth = useAuthStore()
-  auth.user = role ? { role } : null
+  auth.user = role ? { id: 'u-test', role } : null
 }
 
 describe('usePermission', () => {

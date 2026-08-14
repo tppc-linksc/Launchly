@@ -108,4 +108,72 @@ describe('router auth guard (KI-009)', () => {
     expect(router).toBeDefined()
     expect((router as any).currentRoute).toBeDefined()
   })
+
+  // ── B.1  Initial state scenarios ─────────────────────────────────────
+  describe('B.1 — runAuthGuard initial state', () => {
+    it('B.1.1 cold start with no tokens at all → redirect to /login', () => {
+      const auth = useAuthStore()
+      const decision = runAuthGuard({ path: '/projects/p1/issues' } as any)
+      expect(decision).toEqual({ path: '/login' })
+      expect(auth.user).toBeNull()
+    })
+
+    it('B.1.2 cold start with a valid JWT → restoreSession hydrates user, guard allows protected route', () => {
+      const token = buildJwt({ uid: 'u-7', wid: 'w-7', role: 'ADMIN' })
+      localStorage.setItem('accessToken', token)
+      localStorage.setItem('refreshToken', 'rt-7')
+
+      const auth = useAuthStore()
+      const decision = runAuthGuard({ path: '/projects/p1' } as any)
+
+      expect(decision).toBe(true)
+      expect(auth.user).toEqual({ id: 'u-7', role: 'ADMIN' })
+      expect(auth.workspace).toEqual({ id: 'w-7' })
+    })
+
+    it('B.1.3 cold start with a JWT lacking `wid` → user is hydrated but workspace stays null', () => {
+      const token = buildJwt({ uid: 'u-9', role: 'DEVELOPER' })
+      localStorage.setItem('accessToken', token)
+
+      const auth = useAuthStore()
+      const decision = runAuthGuard({ path: '/projects' } as any)
+
+      expect(decision).toBe(true)
+      expect(auth.user).toEqual({ id: 'u-9', role: 'DEVELOPER' })
+      expect(auth.workspace).toBeNull()
+    })
+  })
+
+  // ── B.2  Public vs protected boundary ────────────────────────────────
+  describe('B.2 — public vs protected route boundary', () => {
+    it('B.2.1 /login and /init are the only paths that pass through without a user', () => {
+      const loginDecision = runAuthGuard({ path: '/login' } as any)
+      const initDecision = runAuthGuard({ path: '/init' } as any)
+      expect(loginDecision).toBe(true)
+      expect(initDecision).toBe(true)
+    })
+
+    it('B.2.2 a protected path that is not in PUBLIC_PATHS redirects to /login when no user', () => {
+      // Try three different non-public paths to demonstrate the rule.
+      const samples = [
+        '/',
+        '/projects',
+        '/deployments/d1',
+        '/tests/runs',
+        '/settings',
+      ]
+      for (const path of samples) {
+        const decision = runAuthGuard({ path } as any)
+        expect(decision).toEqual({ path: '/login' })
+      }
+    })
+
+    it('B.2.3 an authenticated user on /login is still allowed (no redirect loop)', () => {
+      const token = buildJwt({ uid: 'u-1', wid: 'w-1', role: 'OWNER' })
+      localStorage.setItem('accessToken', token)
+
+      const decision = runAuthGuard({ path: '/login' } as any)
+      expect(decision).toBe(true)
+    })
+  })
 })

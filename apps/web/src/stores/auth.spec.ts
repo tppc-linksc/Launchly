@@ -153,5 +153,62 @@ describe('auth store', () => {
 
       expect(auth.user).toEqual({ id: 'u-1', role: 'VIEWER' })
     })
+
+    it('C.1.1 restoreSession reads the LATEST accessToken from localStorage on every call (token rotation)', () => {
+      const auth = useAuthStore()
+
+      // First restore: initial token.
+      const first = buildJwt({ uid: 'u-1', wid: 'w-1', role: 'OWNER' })
+      localStorage.setItem('accessToken', first)
+      auth.restoreSession()
+      expect(auth.user).toEqual({ id: 'u-1', role: 'OWNER' })
+
+      // Simulate a token rotation: setItem replaces the stored value.
+      const second = buildJwt({ uid: 'u-2', wid: 'w-2', role: 'ADMIN' })
+      localStorage.setItem('accessToken', second)
+      auth.restoreSession()
+
+      expect(auth.user).toEqual({ id: 'u-2', role: 'ADMIN' })
+      expect(auth.workspace).toEqual({ id: 'w-2' })
+    })
+
+    it('C.1.2 restoreSession is idempotent — calling it twice with the same token is a no-op the second time', () => {
+      const token = buildJwt({ uid: 'u-1', wid: 'w-1', role: 'OWNER' })
+      localStorage.setItem('accessToken', token)
+      const auth = useAuthStore()
+
+      const first = auth.restoreSession()
+      const second = auth.restoreSession()
+
+      expect(first).toBe(true)
+      expect(second).toBe(true)
+      expect(auth.user).toEqual({ id: 'u-1', role: 'OWNER' })
+      expect(auth.workspace).toEqual({ id: 'w-1' })
+    })
+
+    it('C.1.3 a JWT with no `exp` claim is treated as not expired and hydrates the user', () => {
+      const token = buildJwt({ uid: 'u-1', wid: 'w-1', role: 'OWNER' })
+      // No exp field — verify the buildJwt indeed omitted it
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      expect(payload.exp).toBeUndefined()
+      localStorage.setItem('accessToken', token)
+
+      const auth = useAuthStore()
+      const ok = auth.restoreSession()
+
+      expect(ok).toBe(true)
+      expect(auth.user).toEqual({ id: 'u-1', role: 'OWNER' })
+      expect(auth.workspace).toEqual({ id: 'w-1' })
+      expect(localStorage.getItem('accessToken')).toBe(token)
+    })
+
+    it('C.1.4 restoreSession on a payload with non-numeric `exp` does not throw and still hydrates the user', () => {
+      const token = buildJwt({ uid: 'u-1', wid: 'w-1', role: 'OWNER', exp: 'soon' as any })
+      localStorage.setItem('accessToken', token)
+
+      const auth = useAuthStore()
+      expect(() => auth.restoreSession()).not.toThrow()
+      expect(auth.user).toEqual({ id: 'u-1', role: 'OWNER' })
+    })
   })
 })
