@@ -17,11 +17,12 @@
 
 import 'reflect-metadata';
 import type { INestApplication } from '@nestjs/common';
-import type { AddressInfo } from 'node:net';
 import { ValidationPipe as NestValidationPipe } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
 import { ModulesContainer } from '@nestjs/core';
+import { IncomingMessage, ServerResponse } from 'node:http';
+import { Socket } from 'node:net';
 import { createPrismaMock, MockPrismaService } from './helpers/prisma-mock';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/common/prisma/prisma.service';
@@ -132,8 +133,8 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
   let prisma: MockPrismaService;
   let jwt: JwtService;
   let tokens: ReturnType<typeof makeTokenMap>;
-  let baseUrl: string;
   let validationPipe: NestValidationPipe;
+  let requestHandler: (req: IncomingMessage, res: ServerResponse) => void;
 
   async function request(
     method: string,
@@ -143,19 +144,56 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     const headers: Record<string, string> = {};
     if (options.token) headers['authorization'] = `Bearer ${options.token}`;
     if (options.body !== undefined) headers['content-type'] = 'application/json';
-    const res = await fetch(`${baseUrl}${url}`, {
-      method,
-      headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    });
-    const text = await res.text();
-    let json: any = undefined;
-    try {
-      json = text.length > 0 ? JSON.parse(text) : undefined;
-    } catch {
-      json = undefined;
+
+    const req = new IncomingMessage(new Socket());
+    req.method = method;
+    req.url = `/api${url}`;
+    req.headers = headers;
+    req.httpVersion = '1.1';
+    req.headers.host = '127.0.0.1';
+
+    if (options.body !== undefined) {
+      const payload = JSON.stringify(options.body);
+      req.headers['content-length'] = String(Buffer.byteLength(payload));
+      req.push(payload);
     }
-    return { status: res.status, body: json ?? text, raw: text };
+    req.push(null);
+
+    const chunks: Buffer[] = [];
+    const result = await new Promise<{ status: number; body: any; raw: string }>((resolve, reject) => {
+      const res = new ServerResponse(req);
+      const originalEnd = res.end.bind(res);
+
+      res.on('error', reject);
+      (res.end as (chunk?: any, encoding?: any, callback?: any) => void) = (chunk: any, encoding?: any, callback?: any) => {
+        if (chunk !== undefined && chunk !== null) {
+          chunks.push(typeof chunk === 'string' ? Buffer.from(chunk, encoding) : Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+
+        const raw = Buffer.concat(chunks).toString('utf8');
+        let json = undefined;
+        try {
+          json = raw.length > 0 ? JSON.parse(raw) : undefined;
+        } catch {
+          json = undefined;
+        }
+
+        resolve({
+          status: res.statusCode ?? 200,
+          body: json ?? raw,
+          raw,
+        });
+
+        return originalEnd(chunk as string | Buffer, encoding as BufferEncoding, callback);
+      };
+
+      try {
+        requestHandler(req, res);
+      } catch (err) {
+        reject(err);
+      }
+    });
+    return result;
   }
 
   function projectMemberRole(projectId: string, userId: string): string | null {
@@ -283,11 +321,8 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     });
     app.useGlobalPipes(validationPipe);
     app.useGlobalFilters(new GlobalExceptionFilter());
-    await app.listen(0, '127.0.0.1');
-    const address = app.getHttpServer().address() as AddressInfo;
-    // setGlobalPrefix('api') is configured on the bootstrap, so all routes
-    // live under `/api`. Include the prefix in baseUrl.
-    baseUrl = `http://127.0.0.1:${address.port}/api`;
+    await app.init();
+    requestHandler = app.getHttpAdapter().getInstance();
 
     jwt = app.get(JwtService);
     tokens = makeTokenMap(jwt);

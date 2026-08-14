@@ -1,8 +1,10 @@
 import type { INestApplication } from '@nestjs/common';
-import type { AddressInfo } from 'node:net';
+import { IncomingMessage, ServerResponse } from 'node:http';
+import { Socket } from 'node:net';
 
 describe('AppModule production startup', () => {
   let app: INestApplication | undefined;
+  let requestHandler: (req: IncomingMessage, res: ServerResponse) => void;
   let prismaMock: { $queryRawUnsafe: jest.Mock };
   let controllerNames: string[] = [];
 
@@ -37,7 +39,8 @@ describe('AppModule production startup', () => {
 
     app = moduleRef.createNestApplication({ logger: false });
     app.setGlobalPrefix('api');
-    await app.listen(0, '127.0.0.1');
+    await app.init();
+    requestHandler = app.getHttpAdapter().getInstance();
 
     const modules = app.get(ModulesContainer);
     controllerNames = [...modules.values()]
@@ -79,11 +82,10 @@ describe('AppModule production startup', () => {
   });
 
   it('serves the production health route with the database dependency isolated', async () => {
-    const address = app!.getHttpServer().address() as AddressInfo;
-    const response = await fetch(`http://127.0.0.1:${address.port}/api/health`);
+    const response = await request('GET', '/api/health');
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    expect(response.body).toEqual({
       status: 'ok',
       database: 'ok',
       timestamp: expect.any(String),
@@ -91,6 +93,68 @@ describe('AppModule production startup', () => {
     expect(prismaMock.$queryRawUnsafe).toHaveBeenCalledTimes(1);
     expect(prismaMock.$queryRawUnsafe).toHaveBeenCalledWith('SELECT 1');
   });
+
+  async function request(
+    method: string,
+    url: string,
+    options: { headers?: Record<string, string>; body?: unknown } = {},
+  ) {
+    const headers = { ...(options.headers ?? {}) };
+    const req = new IncomingMessage(new Socket());
+    req.method = method;
+    req.url = url;
+    req.headers = headers;
+    req.httpVersion = '1.1';
+    req.headers.host = '127.0.0.1';
+
+    if (options.body !== undefined) {
+      req.headers['content-type'] = 'application/json';
+      const payload = JSON.stringify(options.body);
+      req.headers['content-length'] = String(Buffer.byteLength(payload));
+      req.push(payload);
+    }
+    req.push(null);
+
+    const chunks: Buffer[] = [];
+    const result = await new Promise<{ status: number; body: any; raw: string }>((resolve, reject) => {
+      const res = new ServerResponse(req);
+      const originalEnd = res.end.bind(res);
+
+      res.on('error', reject);
+      (res.end as (chunk?: any, encoding?: any, callback?: any) => void) = (
+        chunk: any,
+        encoding?: any,
+        callback?: any,
+      ) => {
+        if (chunk !== undefined && chunk !== null) {
+          chunks.push(typeof chunk === 'string' ? Buffer.from(chunk, encoding) : Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        }
+
+        const raw = Buffer.concat(chunks).toString('utf8');
+        let parsed: string | object | undefined;
+        try {
+          parsed = raw.length > 0 ? JSON.parse(raw) : undefined;
+        } catch {
+          parsed = raw;
+        }
+
+        resolve({
+          status: res.statusCode ?? 200,
+          body: parsed,
+          raw,
+        });
+
+        return originalEnd(chunk as string | Buffer, encoding as BufferEncoding, callback);
+      };
+
+      try {
+        requestHandler(req, res);
+      } catch (err) {
+        reject(err);
+      }
+    });
+    return result;
+  }
 });
 
 function restoreEnv(name: string, value: string | undefined) {
