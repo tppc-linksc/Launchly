@@ -13,7 +13,7 @@
  * - "重新部署" calls createDeployment with the right payload and pushes
  *   the new deployment route.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { createMemoryHistory, createRouter } from 'vue-router'
@@ -99,6 +99,27 @@ const SUCCEEDED_DEPLOY = {
   finishedAt: '2026-01-02',
 }
 
+function makeSseResponse(chunks: string[]) {
+  const encoder = new TextEncoder()
+  const reader = {
+    read: vi.fn(),
+  }
+  let i = 0
+  reader.read.mockImplementation(() => {
+    if (i >= chunks.length) {
+      return Promise.resolve({ done: true, value: undefined })
+    }
+    return Promise.resolve({ done: false, value: encoder.encode(chunks[i++]) })
+  })
+
+  return {
+    ok: true,
+    body: {
+      getReader: () => reader,
+    },
+  } as any
+}
+
 describe('DeploymentDetailPage', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -110,6 +131,10 @@ describe('DeploymentDetailPage', () => {
     elMessageError.mockReset()
     elMessageSuccess.mockReset()
     elMessageBoxConfirm.mockReset()
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
   })
 
   it('DD.1 mount fetches the deployment and its logs in parallel', async () => {
@@ -261,5 +286,84 @@ describe('DeploymentDetailPage', () => {
       commitSha: 'abc12345',
     })
     expect(elMessageSuccess).toHaveBeenCalledWith('已触发重新部署')
+  })
+
+  it('DD.9 a PENDING deployment triggers the SSE stream request', async () => {
+    setRole('OWNER')
+    store.accessToken = 'token-1'
+    vi.mocked(fetchDeployment).mockResolvedValue({ data: { ...FAILED_DEPLOY, status: 'PENDING' } } as any)
+    vi.mocked(fetchDeploymentLogs).mockResolvedValue({ data: [] } as any)
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeSseResponse([]))
+
+    const router = makeRouter()
+    await router.push('/deployments/d1')
+    await router.isReady()
+    mount(DeploymentDetailPage, { global: { plugins: [router, ElementPlus] } })
+    await flushPromises()
+
+    expect(fetch).toHaveBeenCalledWith('/api/deployments/d1/logs/stream', expect.objectContaining({
+      headers: { Authorization: 'Bearer token-1' },
+      signal: expect.any(Object),
+    }))
+  })
+
+  it('DD.10 SSE "logs" event updates the rendered timeline and "status" event updates deployment status then refreshes on terminal states', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployment)
+      .mockResolvedValueOnce({ data: { ...FAILED_DEPLOY, status: 'PENDING' } } as any)
+      .mockResolvedValueOnce({ data: { ...FAILED_DEPLOY, status: 'SUCCEEDED', accessUrl: 'https://app.example.com/new' } } as any)
+    vi.mocked(fetchDeploymentLogs).mockResolvedValue({ data: [] } as any)
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeSseResponse([
+      'event: logs\n',
+      'data: [{"id":"l1","stage":"BUILD","status":"SUCCEEDED","log":"build finished"}]\n',
+      '\n',
+      'event: status\n',
+      'data: {"status":"SUCCEEDED","errorMessage":""}\n',
+      '\n',
+    ]))
+
+    const router = makeRouter()
+    await router.push('/deployments/d1')
+    await router.isReady()
+    const w = mount(DeploymentDetailPage, { global: { plugins: [router, ElementPlus] } })
+    await flushPromises()
+
+    expect(fetchDeployment).toHaveBeenCalledTimes(2)
+    expect(w.text()).toContain('build finished')
+    expect(w.text()).toContain('成功')
+  })
+
+  it('DD.11 unmount calls abortController.abort for the SSE connection', async () => {
+    setRole('OWNER')
+    const originalAbortController = globalThis.AbortController
+    const abortSpy = vi.fn()
+    const token = 'token-2'
+    store.accessToken = token
+
+    class AbortControllerMock {
+      signal = {}
+      abort = abortSpy
+    }
+    globalThis.AbortController = AbortControllerMock as any
+
+    vi.mocked(fetchDeployment).mockResolvedValue({ data: { ...FAILED_DEPLOY, status: 'RUNNING' } } as any)
+    vi.mocked(fetchDeploymentLogs).mockResolvedValue({ data: [] } as any)
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeSseResponse([]))
+
+    try {
+      const router = makeRouter()
+      await router.push('/deployments/d1')
+      await router.isReady()
+      const w = mount(DeploymentDetailPage, { global: { plugins: [router, ElementPlus] } })
+      await flushPromises()
+      expect(fetch).toHaveBeenCalledWith('/api/deployments/d1/logs/stream', expect.objectContaining({
+        headers: { Authorization: `Bearer ${token}` },
+        signal: expect.any(Object),
+      }))
+      w.unmount()
+      expect(abortSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      globalThis.AbortController = originalAbortController
+    }
   })
 })
