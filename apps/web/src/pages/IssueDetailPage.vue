@@ -101,7 +101,7 @@ function statusType(s: string) {
 
 async function doTransition(target: string, commitSha?: string) {
   try {
-    const body: any = { targetStatus: target }
+    const body: any = { toStatus: target }
     if (commitSha) body.fixedCommitSha = commitSha
     const res = await transitionIssue(issue.value.projectId, issue.value.id, body)
     issue.value = res.data

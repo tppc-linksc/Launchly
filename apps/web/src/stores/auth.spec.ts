@@ -21,6 +21,13 @@ vi.mock('../api/client', () => ({
 import { fetchSetupStatus } from '../api/client'
 const mockFetchSetupStatus = vi.mocked(fetchSetupStatus)
 
+// Tiny HS256-style JWT builder used by restoreSession tests.
+function buildJwt(payload: object): string {
+  const header = btoa(JSON.stringify({ alg: 'HS256', typ: 'JWT' }))
+  const body = btoa(JSON.stringify(payload))
+  return `${header}.${body}.signature`
+}
+
 describe('auth store', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
@@ -79,5 +86,72 @@ describe('auth store', () => {
     const auth = useAuthStore()
     await auth.checkSetupStatus()
     expect(auth.initialized).toBe(false)
+  })
+
+  // KI-009: restoreSession — the failure paths were the whole reason this
+  // method exists. The existing "user appears logged out after refresh"
+  // behavior is exactly what these tests guard against.
+  describe('restoreSession (KI-009 — page reload recovery)', () => {
+    it('rehydrates user/workspace from a valid JWT and returns true', () => {
+      const token = buildJwt({ uid: 'u-1', wid: 'w-1', role: 'ADMIN' })
+      localStorage.setItem('accessToken', token)
+      localStorage.setItem('refreshToken', 'rt')
+
+      const auth = useAuthStore()
+      const ok = auth.restoreSession()
+
+      expect(ok).toBe(true)
+      expect(auth.user).toEqual({ id: 'u-1', role: 'ADMIN' })
+      expect(auth.workspace).toEqual({ id: 'w-1' })
+    })
+
+    it('returns false and leaves state untouched when no access token is stored', () => {
+      const auth = useAuthStore()
+      const ok = auth.restoreSession()
+
+      expect(ok).toBe(false)
+      expect(auth.user).toBeNull()
+      expect(auth.workspace).toBeNull()
+    })
+
+    it('ignores a malformed JWT without throwing and leaves state null', () => {
+      localStorage.setItem('accessToken', 'not-a-jwt')
+      const auth = useAuthStore()
+
+      expect(() => auth.restoreSession()).not.toThrow()
+      expect(auth.user).toBeNull()
+      expect(auth.workspace).toBeNull()
+    })
+
+    it('rejects a JWT whose payload is missing the uid and returns false', () => {
+      const token = buildJwt({ wid: 'w-1' })
+      localStorage.setItem('accessToken', token)
+      const auth = useAuthStore()
+
+      expect(auth.restoreSession()).toBe(false)
+      expect(auth.user).toBeNull()
+    })
+
+    it('rejects an expired JWT, clears tokens, and returns false', () => {
+      const past = Math.floor(Date.now() / 1000) - 60
+      const token = buildJwt({ uid: 'u-1', wid: 'w-1', role: 'OWNER', exp: past })
+      localStorage.setItem('accessToken', token)
+      localStorage.setItem('refreshToken', 'rt')
+      const auth = useAuthStore()
+
+      expect(auth.restoreSession()).toBe(false)
+      expect(auth.user).toBeNull()
+      expect(localStorage.getItem('accessToken')).toBeNull()
+      expect(localStorage.getItem('refreshToken')).toBeNull()
+    })
+
+    it('falls back to VIEWER role when the payload omits role', () => {
+      const token = buildJwt({ uid: 'u-1', wid: 'w-1' })
+      localStorage.setItem('accessToken', token)
+      const auth = useAuthStore()
+      auth.restoreSession()
+
+      expect(auth.user).toEqual({ id: 'u-1', role: 'VIEWER' })
+    })
   })
 })

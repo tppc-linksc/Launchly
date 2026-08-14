@@ -250,7 +250,7 @@ export function updateIssue(projectId: string, id: string, data: any) {
   return api.put(`/projects/${projectId}/issues/${id}`, data)
 }
 
-export function transitionIssue(projectId: string, id: string, data: { targetStatus: string; fixedCommitSha?: string }) {
+export function transitionIssue(projectId: string, id: string, data: { toStatus: string; fixedCommitSha?: string }) {
   return api.put(`/projects/${projectId}/issues/${id}/status`, data)
 }
 

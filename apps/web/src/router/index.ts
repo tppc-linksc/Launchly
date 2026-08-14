@@ -1,4 +1,8 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
+
+// Routes that do not require an authenticated session.
+const PUBLIC_PATHS = new Set<string>(['/login', '/init'])
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -43,5 +47,28 @@ const router = createRouter({
     },
   ],
 })
+
+/**
+ * KI-009: global route guard. Without this, an unauthenticated user could
+ * land on any protected route and only see the auth failure once an API
+ * call fired. The guard:
+ *   1. Rehydrates the in-memory auth state from localStorage on every
+ *      navigation, so a hard refresh mid-session does not flash to a
+ *      logged-out state.
+ *   2. Redirects to /login when the resolved state still has no user and
+ *      the target route is not in the public allowlist.
+ *   3. Lets public routes (/login, /init) through unconditionally so the
+ *      bootstrap and sign-in flows remain reachable.
+ */
+export function runAuthGuard(to: { path: string }): true | { path: string } {
+  const auth = useAuthStore()
+  auth.restoreSession()
+
+  if (PUBLIC_PATHS.has(to.path)) return true
+  if (auth.user?.id) return true
+  return { path: '/login' }
+}
+
+router.beforeEach((to) => runAuthGuard(to))
 
 export default router

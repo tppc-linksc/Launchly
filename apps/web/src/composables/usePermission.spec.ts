@@ -60,4 +60,40 @@ describe('usePermission', () => {
     expect(canDeploy.value).toBe(false)
     expect(isViewer.value).toBe(true)
   })
+
+  // Edge cases that previously caused silent privilege downgrades:
+  // a user object without `role` or with an empty string used to keep
+  // `isViewer=true` only when the literal value was missing; this guards
+  // the fail-closed default.
+  describe('workspace role mapping — edge cases', () => {
+    it('user object present but role is undefined → falls back to VIEWER', () => {
+      const auth = useAuthStore()
+      auth.user = { id: 'u-1' } as any
+      const { role, isViewer, canWrite, canDeploy } = usePermission()
+      expect(role.value).toBe('VIEWER')
+      expect(isViewer.value).toBe(true)
+      expect(canWrite.value).toBe(false)
+      expect(canDeploy.value).toBe(false)
+    })
+
+    it('user object present but role is empty string → falls back to VIEWER', () => {
+      const auth = useAuthStore()
+      auth.user = { id: 'u-1', role: '' } as any
+      const { role, isViewer } = usePermission()
+      expect(role.value).toBe('VIEWER')
+      expect(isViewer.value).toBe(true)
+    })
+
+    it('user object present with an unknown role → all role-specific booleans are false (fail-closed)', () => {
+      const auth = useAuthStore()
+      auth.user = { id: 'u-1', role: 'GHOST' } as any
+      const { role, isOwner, isAdmin, canWrite, canDeploy, isViewer } = usePermission()
+      expect(role.value).toBe('GHOST')
+      expect(isOwner.value).toBe(false)
+      expect(isAdmin.value).toBe(false)
+      expect(canWrite.value).toBe(false)
+      expect(canDeploy.value).toBe(false)
+      expect(isViewer.value).toBe(false)
+    })
+  })
 })

@@ -102,7 +102,7 @@ async function handleExemptConfirm() {
     await exemptGate(projectId, route.params.id as string, exemptGateName.value, { reason: exemptReason.value })
     showExemptModal.value = false
     const gatesRes = await fetchReleaseGates(projectId, route.params.id as string)
-    gateResults.value = gatesRes.data.results || []
+    gateResults.value = gatesRes.data.gates || []
   } catch (e) { console.error(e) }
 }
 
@@ -114,7 +114,7 @@ onMounted(async () => {
       fetchReleaseGates(projectId, route.params.id as string),
     ])
     release.value = relRes.data
-    gateResults.value = gatesRes.data.results || []
+    gateResults.value = gatesRes.data.gates || []
   } catch (e) { ElMessage.error('操作失败，请稍后重试') }
 })
 </script>
