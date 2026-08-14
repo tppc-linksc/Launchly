@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { NotificationService } from './notification.service';
 import { createPrismaMock, MockPrismaService } from '../../test/helpers/prisma-mock';
 
@@ -71,6 +72,44 @@ describe('NotificationService', () => {
       prisma.notification.updateMany.mockRejectedValue(dbError);
 
       await expect(service.markAllRead(userId)).rejects.toBe(dbError);
+    });
+  });
+
+  describe('unreadCount', () => {
+    it('counts unread notifications for the caller user only', async () => {
+      prisma.notification.count.mockResolvedValue(3);
+
+      const result = await service.unreadCount(userId);
+
+      expect(prisma.notification.count).toHaveBeenCalledWith({
+        where: { userId, read: false },
+      });
+      expect(result).toEqual({ count: 3 });
+    });
+  });
+
+  describe('markRead', () => {
+    it('marks a user-owned notification as read and returns success', async () => {
+      prisma.notification.findUnique.mockResolvedValue({ userId });
+      prisma.notification.update.mockResolvedValue({ id: 'notif-1', userId, read: true });
+
+      const result = await service.markRead(userId, 'notif-1');
+
+      expect(prisma.notification.findUnique).toHaveBeenCalledWith({
+        where: { id: 'notif-1' },
+        select: { userId: true },
+      });
+      expect(prisma.notification.update).toHaveBeenCalledWith({
+        where: { id: 'notif-1' },
+        data: { read: true },
+      });
+      expect(result).toEqual({ success: true });
+    });
+
+    it('forbids marking a notification that is not owned by caller', async () => {
+      prisma.notification.findUnique.mockResolvedValue({ userId: otherUserId });
+      await expect(service.markRead(userId, 'notif-1')).rejects.toBeInstanceOf(NotFoundException);
+      expect(prisma.notification.update).not.toHaveBeenCalled();
     });
   });
 

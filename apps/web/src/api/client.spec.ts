@@ -109,10 +109,8 @@ describe('API client — control plane contract', () => {
     })
   })
 
-  describe('fetchUnreadCount + markNotificationRead (KI-008 — API gap documented)', () => {
-    // These document the existing web call sites so the contract drift is
-    // visible in test output. The actual fix (API endpoints) is a separate
-    // concern; we assert the web's current behavior so it stays stable.
+  describe('fetchUnreadCount + markNotificationRead (KI-008 — API contract fixed)', () => {
+    // Web contracts now align with the NotificationController routes.
     it('fetchUnreadCount targets /notifications/unread-count', () => {
       fetchUnreadCount()
       expect(mockGet).toHaveBeenCalledWith('/notifications/unread-count')
