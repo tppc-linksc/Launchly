@@ -102,9 +102,9 @@ function maskKeyValues(text: string): string {
   for (const r of replacements) {
     if (r.start < cursor) continue; // 跳过重叠
     result += text.slice(cursor, r.start) + r.text;
-    // 修复：r.end 是原 value 的右边界，但替换文本（REDACTED）长度可能不同；
-    // 应当以替换文本长度为准推进 cursor，避免遗留一个字符（如 "]"）。
-    cursor = r.start + r.text.length;
+    // r.end 是原 value 的右边界，是原始 text 的偏移；
+    // 用 r.end 推进 cursor，保持与原文本同步。
+    cursor = r.end;
   }
   return result + text.slice(cursor);
 }
