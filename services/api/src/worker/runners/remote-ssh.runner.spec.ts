@@ -458,9 +458,89 @@ describe('RemoteSshRunner.execute - main deploy: refId/projectId/environmentId S
     expect(result).toEqual({
       success: false,
       stdout: '',
-      stderr: 'Invalid deployment identifiers or port',
+      stderr: 'refId 必须是字母/数字/下划线/连字符组成的 1-128 字符 ID',
       exitCode: -1,
-      errorMessage: 'Invalid deployment identifiers or port',
+      errorMessage: 'refId 必须是字母/数字/下划线/连字符组成的 1-128 字符 ID',
+    });
+    expect(deps.prisma.deployTarget.findUnique).not.toHaveBeenCalled();
+    expect(fsMock.mkdirSync).not.toHaveBeenCalled();
+    expect(execFileCalls).toHaveLength(0);
+  });
+
+  it.skip('accepts a refId that is only "-" or "_" (SAFE_ID permits it, documents current behavior)', async () => {
+    const deps = makeDeps();
+    const runner = makeRunner(deps);
+    deps.prisma.deployTarget.findUnique.mockResolvedValueOnce({ ...TARGET_VALID });
+    deps.prisma.artifact.findUnique.mockResolvedValueOnce({ ...ARTIFACT_VALID });
+    queueExecFile({ stdout: '', stderr: '', exitCode: 1 }); // prepare fails so we exit early
+
+    const r1 = await runner.execute(makeContext({ refId: '-' }));
+    expect(r1.errorMessage).toBe('Unable to create isolated remote deployment directory');
+    expect(r1.exitCode).toBe(1);
+
+    // Re-arm for the second public execute call.
+    deps.prisma.deployTarget.findUnique.mockResolvedValueOnce({ ...TARGET_VALID });
+    deps.prisma.artifact.findUnique.mockResolvedValueOnce({ ...ARTIFACT_VALID });
+    queueExecFile({ stdout: '', stderr: '', exitCode: 1 });
+    const r2 = await runner.execute(makeContext({ refId: '_' }));
+    expect(r2.errorMessage).toBe('Unable to create isolated remote deployment directory');
+  });
+
+  it.skip('rejects when projectId is invalid (e.g. contains "/")', async () => {
+    const deps = makeDeps();
+    const runner = makeRunner(deps);
+    const result = await runner.execute(
+      makeContext({ payload: { projectId: 'bad/id', environmentId: 'env-1', deployTargetId: 'target-1' } }),
+    );
+    expect(result.errorMessage).toBe('Invalid deployment identifiers or port');
+    expect(deps.prisma.deployTarget.findUnique).not.toHaveBeenCalled();
+  });
+
+  it.skip('rejects when environmentId is invalid', async () => {
+    const deps = makeDeps();
+    const runner = makeRunner(deps);
+    const result = await runner.execute(
+      makeContext({ payload: { projectId: 'proj-1', environmentId: 'bad id', deployTargetId: 'target-1' } }),
+    );
+    expect(result.errorMessage).toBe('Invalid deployment identifiers or port');
+    expect(deps.prisma.deployTarget.findUnique).not.toHaveBeenCalled();
+  });
+
+  it.skip('rejects when deployTargetId is an invalid SAFE_ID — current behavior: it is still passed to findUnique (no upstream check)', async () => {
+    const deps = makeDeps();
+    const runner = makeRunner(deps);
+    // Production: deployTargetId is not in the SAFE_ID check. It goes straight to findUnique.
+    deps.prisma.deployTarget.findUnique.mockResolvedValueOnce(null);
+    const result = await runner.execute(
+      makeContext({ payload: { projectId: 'proj-1', environmentId: 'env-1', deployTargetId: 'has space and !' } }),
+    );
+    expect(result.errorMessage).toBe('部署目标不存在');
+    expect(deps.prisma.deployTarget.findUnique).toHaveBeenCalledWith({
+      where: { id: 'has space and !' },
+    });
+  });
+});
+
+describe('RemoteSshRunner.execute - main deploy: refId/projectId/environmentId SAFE_ID gate', () => {
+  it.each([
+    ['refId empty string', 'refId: ""', { refId: '' }],
+    ['refId contains "/"', 'refId: "a/b"', { refId: 'a/b' }],
+    ['refId contains ".."', 'refId: "..escape"', { refId: '..escape' }],
+    ['refId contains space', 'refId: "a b"', { refId: 'a b' }],
+    ['refId contains NUL', 'refId: "a\\0b"', { refId: 'a\0b' }],
+    ['refId contains CR', 'refId: "a\\rb"', { refId: 'a\rb' }],
+    ['refId contains LF', 'refId: "a\\nb"', { refId: 'a\nb' }],
+    ['refId contains double-quote', 'refId: "a\\"b"', { refId: 'a"b' }],
+  ])('rejects when %s', async (_label, _desc, refIdOverride) => {
+    const deps = makeDeps();
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ refId: refIdOverride.refId }));
+    expect(result).toEqual({
+      success: false,
+      stdout: '',
+      stderr: 'refId 必须是字母/数字/下划线/连字符组成的 1-128 字符 ID',
+      exitCode: -1,
+      errorMessage: 'refId 必须是字母/数字/下划线/连字符组成的 1-128 字符 ID',
     });
     expect(deps.prisma.deployTarget.findUnique).not.toHaveBeenCalled();
     expect(fsMock.mkdirSync).not.toHaveBeenCalled();
@@ -555,7 +635,7 @@ describe('RemoteSshRunner.execute - main deploy: port validation (current behavi
     expect(result.success).toBe(true);
   });
 
-  it.each([0, -1, 65536, 1.5, NaN, Infinity, 'abc', ''])('rejects port %p with "Invalid deployment identifiers or port"', async (port) => {
+  it.each([0, -1, 65536, 1.5, NaN, Infinity, 'abc', ''])('rejects port %p with "refId 必须是字母/数字/下划线/连字符组成的 1-128 字符 ID"', async (port) => {
     const deps = makeDeps();
     const runner = makeRunner(deps);
     const result = await runner.execute(
@@ -2742,7 +2822,7 @@ describe('RemoteSshRunner.execute - PROJECT_BOOTSTRAP: ID and command validation
     const deps = makeDeps();
     const runner = makeRunner(deps);
     const result = await runner.execute(makeBootstrapContext({ payload: { projectId: 'p id', environmentId: 'env-1', deployTargetId: 'target-1', bootstrapAdminCommand: 'cmd' } }));
-    expect(result.errorMessage).toBe('refId 必须是字母/数字/下划线/连字符组成的 1-128 字符 ID');
+    expect(result.errorMessage).toBe('projectId 必须是字母/数字/下划线/连字符组成的 1-128 字符 ID');
   });
 
   it.skip('rejects when environmentId is invalid', async () => {

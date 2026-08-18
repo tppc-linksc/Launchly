@@ -129,7 +129,7 @@ function makeClaimedTask(over: Partial<any> = {}) {
     status: 'RUNNING',
     attempts: 1,
     maxAttempts: 3,
-    payload: null,
+    payload: '{}',
     startedAt: FIXED_NOW,
     finishedAt: null,
     errorMessage: null,
@@ -509,7 +509,7 @@ describe('WorkerService.poll - task type / stage mapping', () => {
   ];
 
   it.each(mappings)('%s maps to stage %s and dispatches the correct taskType', async (taskType, stage) => {
-    const row = makePendingRow({ taskType, refId: 'deploy-1', payload: null });
+    const row = makePendingRow({ taskType, refId: 'deploy-1', payload: '{}' });
     attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ taskType }) });
     prisma.deployment.findUnique.mockResolvedValue(makePENDINGDeployment({ status: 'RUNNING' }));
     prisma.deploymentStageLog.findFirst.mockResolvedValue(makeStageLog({ stage }));
