@@ -854,13 +854,13 @@ describe('WorkerService.poll - next stage queue matrix', () => {
   });
 
   it('TEMPLATE_SOURCE → PROJECT_BUILD', async () => {
-    await runSuccess('TEMPLATE_SOURCE', null);
-    expectEnqueued('PROJECT_BUILD', null);
+    await runSuccess('TEMPLATE_SOURCE','{}');
+    expectEnqueued('PROJECT_BUILD','{}');
   });
 
   it('PROJECT_BUILD → PROJECT_DEPLOY', async () => {
-    await runSuccess('PROJECT_BUILD', null);
-    expectEnqueued('PROJECT_DEPLOY', null);
+    await runSuccess('PROJECT_BUILD','{}');
+    expectEnqueued('PROJECT_DEPLOY','{}');
   });
 
   it('PROJECT_DEPLOY with bootstrapAdminEnabled=true → PROJECT_BOOTSTRAP', async () => {
@@ -874,17 +874,17 @@ describe('WorkerService.poll - next stage queue matrix', () => {
   });
 
   it('PROJECT_DEPLOY with no payload → HEALTH_CHECK', async () => {
-    await runSuccess('PROJECT_DEPLOY', null);
-    expectEnqueued('HEALTH_CHECK', null);
+    await runSuccess('PROJECT_DEPLOY','{}');
+    expectEnqueued('HEALTH_CHECK','{}');
   });
 
   it('PROJECT_BOOTSTRAP → HEALTH_CHECK', async () => {
-    await runSuccess('PROJECT_BOOTSTRAP', null);
-    expectEnqueued('HEALTH_CHECK', null);
+    await runSuccess('PROJECT_BOOTSTRAP','{}');
+    expectEnqueued('HEALTH_CHECK','{}');
   });
 
   it('HEALTH_CHECK success does not enqueue a next stage', async () => {
-    await runSuccess('HEALTH_CHECK', null);
+    await runSuccess('HEALTH_CHECK','{}');
     expect(prisma.task.create).not.toHaveBeenCalled();
   });
 
