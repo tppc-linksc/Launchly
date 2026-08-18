@@ -11,6 +11,7 @@ import {
   DEFAULT_DATA_DIR,
   COMPOSE_FILE,
   ENV_FILE,
+  isValidPort,
 } from '../config'
 
 describe('randomString', () => {
@@ -117,5 +118,72 @@ describe('composeTemplate', () => {
   it('has healthcheck for postgres', () => {
     const tpl = composeTemplate()
     expect(tpl).toContain('pg_isready -U launchly')
+  })
+})
+
+// ── parsePort（KI-041 端口校验） ─────────────────────────────────────────────
+
+describe('isValidPort', () => {
+  it('accepts canonical port numbers', () => {
+    expect(isValidPort('1')).toBe(true)
+    expect(isValidPort('80')).toBe(true)
+    expect(isValidPort('8080')).toBe(true)
+    expect(isValidPort('65535')).toBe(true)
+  })
+
+  it('rejects empty / null / undefined', () => {
+    expect(isValidPort('')).toBe(false)
+    expect(isValidPort('   ')).toBe(false)
+    expect(isValidPort(undefined)).toBe(false)
+    expect(isValidPort(null)).toBe(false)
+  })
+
+  it('rejects out-of-range numbers', () => {
+    expect(isValidPort('0')).toBe(false)
+    expect(isValidPort('65536')).toBe(false)
+    expect(isValidPort('70000')).toBe(false)
+  })
+
+  it('rejects non-numeric / injection payloads (KI-041)', () => {
+    expect(isValidPort('-1')).toBe(false)
+    expect(isValidPort('1.5')).toBe(false)
+    expect(isValidPort('8080\n; rm -rf /')).toBe(false)
+    expect(isValidPort('8080; ls')).toBe(false)
+    expect(isValidPort('8080 foo')).toBe(false)
+    expect(isValidPort('0x1F90')).toBe(false)
+    expect(isValidPort('8080\t')).toBe(true) // 前后空白允许
+  })
+})
+
+describe('parsePort', () => {
+  let exitSpy: ReturnType<typeof vi.spyOn>
+  let stderrSpy: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit(${code})`)
+    }) as any)
+    stderrSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+  })
+
+  afterEach(() => {
+    exitSpy.mockRestore()
+    stderrSpy.mockRestore()
+  })
+
+  it('returns parsed integer for valid input', async () => {
+    const { parsePort } = await import('../parse-port')
+    expect(parsePort('8080')).toBe(8080)
+    expect(parsePort('1')).toBe(1)
+    expect(parsePort('65535')).toBe(65535)
+    expect(exitSpy).not.toHaveBeenCalled()
+  })
+
+  it('exits with code 1 on invalid input', async () => {
+    const { parsePort } = await import('../parse-port')
+    expect(() => parsePort('abc')).toThrow('process.exit(1)')
+    expect(() => parsePort('70000')).toThrow('process.exit(1)')
+    expect(() => parsePort('')).toThrow('process.exit(1)')
+    expect(exitSpy).toHaveBeenCalledWith(1)
   })
 })

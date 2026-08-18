@@ -99,6 +99,7 @@ model Project {
   defaultBranch   String   @default("main") @map("default_branch") @db.VarChar(255)
   gitProvider     String?  @map("git_provider") @db.VarChar(50)
   githubInstallationId String? @map("github_installation_id") @db.VarChar(36)
+  githubRepositoryId   String? @map("github_repository_id") @db.VarChar(36)
   registryRepository String? @map("registry_repository") @db.VarChar(512)
   installCommand  String?  @map("install_command") @db.VarChar(500)
   buildCommand    String?  @map("build_command") @db.VarChar(500)
@@ -256,6 +257,7 @@ model EnvironmentVariable {
 
   environment Environment @relation(fields: [environmentId], references: [id])
 
+  @@unique([environmentId, key])
   @@index([environmentId])
   @@map("environment_variables")
 }

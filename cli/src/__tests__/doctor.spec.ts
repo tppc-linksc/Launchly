@@ -4,17 +4,20 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
-// ─── child_process.execSync mock (command+options match at call time) ────
+// KI-041 修复后：doctor 也改用 execFileSync(file, args, options)。
+// mock 严格按 file/args/options 匹配。
 
 interface ExecPlan {
-  command: string;
-  options: any;
+  file?: string;
+  args?: string[];
+  options?: any;
   stdout?: string;
   throw?: Error;
 }
 
 interface ExecCall {
-  command: string;
+  file: string;
+  args: string[];
   options: any;
 }
 
@@ -23,25 +26,33 @@ let execCalls: ExecCall[] = [];
 let unexpectedCalls: ExecCall[] = [];
 let execContractFailures: string[] = [];
 
+function argsEqual(a: string[], b: string[] | undefined): boolean {
+  if (!b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 vi.mock('child_process', () => ({
-  execSync: vi.fn((command: string, options: any) => {
-    execCalls.push({ command, options });
+  execFileSync: vi.fn((file: string, args: string[], options: any) => {
+    execCalls.push({ file, args, options });
     const plan = execPlans.shift();
     if (!plan) {
-      unexpectedCalls.push({ command, options });
-      throw new Error(`Unexpected execSync call (no plan matched): ${command}`);
+      unexpectedCalls.push({ file, args, options });
+      throw new Error(`Unexpected execFileSync call (no plan matched): ${file} ${JSON.stringify(args)}`);
     }
-    if (plan.command !== command) {
-      const failure =
-        `execSync command mismatch: expected ${JSON.stringify(plan.command)}, ` +
-        `got ${JSON.stringify(command)}`;
+    if (plan.file !== undefined && plan.file !== file) {
+      const failure = `execFileSync file mismatch: expected ${JSON.stringify(plan.file)}, got ${JSON.stringify(file)}`;
       execContractFailures.push(failure);
       throw new Error(failure);
     }
-    if (JSON.stringify(plan.options) !== JSON.stringify(options)) {
-      const failure =
-        `execSync options mismatch for command ${JSON.stringify(command)}: ` +
-        `expected ${JSON.stringify(plan.options)}, got ${JSON.stringify(options)}`;
+    if (plan.args !== undefined && !argsEqual(args, plan.args)) {
+      const failure = `execFileSync args mismatch: expected ${JSON.stringify(plan.args)}, got ${JSON.stringify(args)}`;
+      execContractFailures.push(failure);
+      throw new Error(failure);
+    }
+    if (plan.options !== undefined && JSON.stringify(plan.options) !== JSON.stringify(options)) {
+      const failure = `execFileSync options mismatch: expected ${JSON.stringify(plan.options)}, got ${JSON.stringify(options)}`;
       execContractFailures.push(failure);
       throw new Error(failure);
     }
@@ -55,9 +66,7 @@ function queueExec(p: ExecPlan): void {
 }
 
 const cp = await import('child_process');
-const execSyncMock = cp.execSync as unknown as ReturnType<typeof vi.fn>;
-
-// ─── fs mock (statfsSync only; everything else is real) ──────────────────
+const execFileSyncMock = cp.execFileSync as unknown as ReturnType<typeof vi.fn>;
 
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('fs')>();
@@ -70,8 +79,6 @@ vi.mock('fs', async (importOriginal) => {
 const fsModule = await import('fs');
 const statfsSyncMock = fsModule.statfsSync as unknown as ReturnType<typeof vi.fn>;
 
-// ─── os mock (homedir only; tmpdir() stays real) ──────────────────────────
-
 vi.mock('os', async (importOriginal) => {
   const actual = await importOriginal<typeof import('os')>();
   return {
@@ -82,8 +89,6 @@ vi.mock('os', async (importOriginal) => {
 
 const osModule = await import('os');
 const homedirMock = osModule.homedir as unknown as ReturnType<typeof vi.fn>;
-
-// ─── Test fixture setup / teardown ────────────────────────────────────────
 
 let tmpRoot: string;
 let dataDir: string;
@@ -111,13 +116,12 @@ beforeEach(() => {
   execCalls = [];
   unexpectedCalls = [];
   execContractFailures = [];
-  execSyncMock.mockClear();
+  execFileSyncMock.mockClear();
   statfsSyncMock.mockReset();
   homedirMock.mockReset();
 
   tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'launchly-doctor-test-'));
   dataDir = path.join(tmpRoot, 'data');
-  // Point os.homedir() inside the test tmp root
   homedirMock.mockImplementation(() => tmpRoot);
 
   originalArgv = process.argv;
@@ -145,7 +149,6 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  // Snapshot before mockRestore
   const exitCodesSnapshot = [...capturedExitCodes];
   const unexpectedSnapshot = [...unexpectedCalls];
   const contractFailuresSnapshot = [...execContractFailures];
@@ -172,21 +175,20 @@ afterEach(() => {
     }
   }
 
-  // Strict checks
   if (plansSnapshot.length !== 0) {
     throw new Error(
-      `Test ended with ${plansSnapshot.length} unconsumed execSync plan(s); expected all plans to be exactly consumed`,
+      `Test ended with ${plansSnapshot.length} unconsumed execFileSync plan(s); expected all plans to be exactly consumed`,
     );
   }
   if (unexpectedSnapshot.length !== 0) {
     throw new Error(
-      `Test ended with ${unexpectedSnapshot.length} unexpected execSync call(s): ` +
-        unexpectedSnapshot.map((u) => JSON.stringify(u.command)).join('; '),
+      `Test ended with ${unexpectedSnapshot.length} unexpected execFileSync call(s): ` +
+        unexpectedSnapshot.map((u) => `${u.file} ${JSON.stringify(u.args)}`).join('; '),
     );
   }
   if (contractFailuresSnapshot.length !== 0) {
     throw new Error(
-      `Test ended with ${contractFailuresSnapshot.length} execSync contract failure(s): ` +
+      `Test ended with ${contractFailuresSnapshot.length} execFileSync contract failure(s): ` +
         contractFailuresSnapshot.join('; '),
     );
   }
@@ -204,37 +206,54 @@ async function runDoctor(): Promise<void> {
   await import('../index.js');
 }
 
-// ─── Scenario 1: 主要组件正常 ────────────────────────────────────────────
-
 describe('CLI doctor - scenario 1: all components OK', () => {
   it('docker OK v27.3.1, compose OK v2.29.2, no legacy fallback, ports 8080 IN USE / 5173 FREE / 5432 FREE, 2.0 GB OK, data dir EXISTS, final Doctor complete', async () => {
-    queueExec({ command: 'docker version --format "{{.Server.Version}}"', options: { encoding: 'utf-8' }, stdout: '27.3.1\n' });
-    queueExec({ command: 'docker compose version --short', options: { encoding: 'utf-8' }, stdout: '2.29.2\n' });
-    queueExec({ command: 'lsof -i :8080 -sTCP:LISTEN', options: { encoding: 'utf-8' }, stdout: '...\n' });
-    queueExec({ command: 'lsof -i :5173 -sTCP:LISTEN', options: { encoding: 'utf-8' }, throw: new Error('not in use') });
-    queueExec({ command: 'lsof -i :5432 -sTCP:LISTEN', options: { encoding: 'utf-8' }, throw: new Error('not in use') });
+    queueExec({
+      file: 'docker',
+      args: ['version', '--format', '{{.Server.Version}}'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      stdout: '27.3.1\n',
+    });
+    queueExec({
+      file: 'docker',
+      args: ['compose', 'version', '--short'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      stdout: '2.29.2\n',
+    });
+    queueExec({
+      file: 'lsof',
+      args: ['-i', ':8080', '-sTCP:LISTEN'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      stdout: '...\n',
+    });
+    queueExec({
+      file: 'lsof',
+      args: ['-i', ':5173', '-sTCP:LISTEN'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      throw: new Error('not in use'),
+    });
+    queueExec({
+      file: 'lsof',
+      args: ['-i', ':5432', '-sTCP:LISTEN'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      throw: new Error('not in use'),
+    });
 
     statfsSyncMock.mockImplementation(() => fakeStatfs(2.0));
     fs.mkdirSync(dataDir, { recursive: true });
 
     await runDoctor();
 
-    // Exactly 5 execSync calls in exact order
     expect(execCalls).toHaveLength(5);
-    expect(execCalls.map((c) => c.command)).toEqual([
-      'docker version --format "{{.Server.Version}}"',
-      'docker compose version --short',
-      'lsof -i :8080 -sTCP:LISTEN',
-      'lsof -i :5173 -sTCP:LISTEN',
-      'lsof -i :5432 -sTCP:LISTEN',
+    expect(execCalls.map((c) => `${c.file} ${JSON.stringify(c.args)}`)).toEqual([
+      'docker ["version","--format","{{.Server.Version}}"]',
+      'docker ["compose","version","--short"]',
+      'lsof ["-i",":8080","-sTCP:LISTEN"]',
+      'lsof ["-i",":5173","-sTCP:LISTEN"]',
+      'lsof ["-i",":5432","-sTCP:LISTEN"]',
     ]);
-    // Every call used { encoding: 'utf-8' }
-    for (let i = 0; i < 5; i++) {
-      expect(execCalls[i].options).toEqual({ encoding: 'utf-8' });
-    }
 
-    // No legacy docker-compose fallback
-    expect(execCalls.find((c) => c.command === 'docker-compose version --short')).toBeUndefined();
+    expect(execCalls.find((c) => c.file === 'docker-compose')).toBeUndefined();
 
     expect(statfsSyncMock).toHaveBeenCalledTimes(1);
     expect(statfsSyncMock).toHaveBeenCalledWith(tmpRoot);
@@ -246,27 +265,55 @@ describe('CLI doctor - scenario 1: all components OK', () => {
       '=== Launchly Doctor ===\n\n' +
         'Docker ....................... OK (v27.3.1)\n' +
         'Docker Compose .............. OK (v2.29.2)\n' +
-        'Ports ........................\n' +
-        '  8080 (launchly-app) ............... IN USE\n' +
-        '  5173 (launchly-web (dev)) ............... FREE\n' +
-        '  5432 (launchly-postgres) ............... FREE\n' +
-        'Disk space ................... OK (2.0 GB available)\n' +
-        `Data directory (${dataDir}) ... EXISTS\n` +
-        '\nDoctor check complete.\n',
+        '端口 ........................\n' +
+        '  8080 (launchly-app) ............... 占用\n' +
+        '  5173 (launchly-web (dev)) ............... 空闲\n' +
+        '  5432 (launchly-postgres) ............... 空闲\n' +
+        '磁盘空间 ................... OK（剩余 2.0 GB）\n' +
+        `数据目录 (${dataDir}) ... 已存在\n` +
+        '\nDoctor 检查完成。\n',
     );
   });
 });
 
-// ─── Scenario 2: fallback + warning ───────────────────────────────────────
-
 describe('CLI doctor - scenario 2: fallback to legacy compose + low disk + data dir is a file', () => {
   it('docker NOT FOUND, plugin fails → legacy compose OK v1.29.2, all ports FREE, 0.5 GB WARNING + fix, data dir EXISTS BUT NOT A DIRECTORY, Doctor complete', async () => {
-    queueExec({ command: 'docker version --format "{{.Server.Version}}"', options: { encoding: 'utf-8' }, throw: new Error('docker not installed') });
-    queueExec({ command: 'docker compose version --short', options: { encoding: 'utf-8' }, throw: new Error('plugin missing') });
-    queueExec({ command: 'docker-compose version --short', options: { encoding: 'utf-8' }, stdout: '1.29.2\n' });
-    queueExec({ command: 'lsof -i :8080 -sTCP:LISTEN', options: { encoding: 'utf-8' }, throw: new Error('not in use') });
-    queueExec({ command: 'lsof -i :5173 -sTCP:LISTEN', options: { encoding: 'utf-8' }, throw: new Error('not in use') });
-    queueExec({ command: 'lsof -i :5432 -sTCP:LISTEN', options: { encoding: 'utf-8' }, throw: new Error('not in use') });
+    queueExec({
+      file: 'docker',
+      args: ['version', '--format', '{{.Server.Version}}'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      throw: new Error('docker not installed'),
+    });
+    queueExec({
+      file: 'docker',
+      args: ['compose', 'version', '--short'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      throw: new Error('plugin missing'),
+    });
+    queueExec({
+      file: 'docker-compose',
+      args: ['version', '--short'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      stdout: '1.29.2\n',
+    });
+    queueExec({
+      file: 'lsof',
+      args: ['-i', ':8080', '-sTCP:LISTEN'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      throw: new Error('not in use'),
+    });
+    queueExec({
+      file: 'lsof',
+      args: ['-i', ':5173', '-sTCP:LISTEN'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      throw: new Error('not in use'),
+    });
+    queueExec({
+      file: 'lsof',
+      args: ['-i', ':5432', '-sTCP:LISTEN'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      throw: new Error('not in use'),
+    });
 
     statfsSyncMock.mockImplementation(() => fakeStatfs(0.5));
 
@@ -276,15 +323,14 @@ describe('CLI doctor - scenario 2: fallback to legacy compose + low disk + data 
     await runDoctor();
 
     expect(execCalls).toHaveLength(6);
-    expect(execCalls.map((c) => c.command)).toEqual([
-      'docker version --format "{{.Server.Version}}"',
-      'docker compose version --short',
-      'docker-compose version --short',
-      'lsof -i :8080 -sTCP:LISTEN',
-      'lsof -i :5173 -sTCP:LISTEN',
-      'lsof -i :5432 -sTCP:LISTEN',
+    expect(execCalls.map((c) => `${c.file} ${JSON.stringify(c.args)}`)).toEqual([
+      'docker ["version","--format","{{.Server.Version}}"]',
+      'docker ["compose","version","--short"]',
+      'docker-compose ["version","--short"]',
+      'lsof ["-i",":8080","-sTCP:LISTEN"]',
+      'lsof ["-i",":5173","-sTCP:LISTEN"]',
+      'lsof ["-i",":5432","-sTCP:LISTEN"]',
     ]);
-    expect(execCalls.every((call) => call.options.encoding === 'utf-8')).toBe(true);
 
     expect(statfsSyncMock).toHaveBeenCalledTimes(1);
     expect(statfsSyncMock).toHaveBeenCalledWith(tmpRoot);
@@ -293,46 +339,72 @@ describe('CLI doctor - scenario 2: fallback to legacy compose + low disk + data 
     const out = getOutput();
     expect(out).toBe(
       '=== Launchly Doctor ===\n\n' +
-        'Docker ....................... NOT FOUND\n' +
-        '  Fix: Install Docker from https://docs.docker.com/get-docker/\n' +
+        'Docker ....................... 未找到\n' +
+        '  修复方法：从 https://docs.docker.com/get-docker/ 安装 Docker\n' +
         'Docker Compose .............. OK (v1.29.2)\n' +
-        'Ports ........................\n' +
-        '  8080 (launchly-app) ............... FREE\n' +
-        '  5173 (launchly-web (dev)) ............... FREE\n' +
-        '  5432 (launchly-postgres) ............... FREE\n' +
-        'Disk space ................... WARNING (0.5 GB available)\n' +
-        '  Launchly needs at least 1 GB free space.\n' +
-        `Data directory (${dataDir}) ... EXISTS BUT NOT A DIRECTORY\n` +
-        '\nDoctor check complete.\n',
+        '端口 ........................\n' +
+        '  8080 (launchly-app) ............... 空闲\n' +
+        '  5173 (launchly-web (dev)) ............... 空闲\n' +
+        '  5432 (launchly-postgres) ............... 空闲\n' +
+        '磁盘空间 ................... 警告（剩余 0.5 GB）\n' +
+        '  Launchly 至少需要 1 GB 可用空间。\n' +
+        `数据目录 (${dataDir}) ... 已存在但不是目录\n` +
+        '\nDoctor 检查完成。\n',
     );
   });
 });
 
-// ─── Scenario 3: 诊断能力不可用 ───────────────────────────────────────────
-
 describe('CLI doctor - scenario 3: diagnostics unavailable', () => {
   it('docker OK, plugin + legacy compose fail → Compose NOT FOUND, port 8080 IN USE, statfsSync throws → UNABLE TO CHECK, data dir missing → NOT YET CREATED, Doctor complete', async () => {
-    queueExec({ command: 'docker version --format "{{.Server.Version}}"', options: { encoding: 'utf-8' }, stdout: '24.0.7\n' });
-    queueExec({ command: 'docker compose version --short', options: { encoding: 'utf-8' }, throw: new Error('plugin missing') });
-    queueExec({ command: 'docker-compose version --short', options: { encoding: 'utf-8' }, throw: new Error('legacy missing') });
-    queueExec({ command: 'lsof -i :8080 -sTCP:LISTEN', options: { encoding: 'utf-8' }, stdout: '...\n' });
-    queueExec({ command: 'lsof -i :5173 -sTCP:LISTEN', options: { encoding: 'utf-8' }, throw: new Error('not in use') });
-    queueExec({ command: 'lsof -i :5432 -sTCP:LISTEN', options: { encoding: 'utf-8' }, throw: new Error('not in use') });
+    queueExec({
+      file: 'docker',
+      args: ['version', '--format', '{{.Server.Version}}'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      stdout: '24.0.7\n',
+    });
+    queueExec({
+      file: 'docker',
+      args: ['compose', 'version', '--short'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      throw: new Error('plugin missing'),
+    });
+    queueExec({
+      file: 'docker-compose',
+      args: ['version', '--short'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      throw: new Error('legacy missing'),
+    });
+    queueExec({
+      file: 'lsof',
+      args: ['-i', ':8080', '-sTCP:LISTEN'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      stdout: '...\n',
+    });
+    queueExec({
+      file: 'lsof',
+      args: ['-i', ':5173', '-sTCP:LISTEN'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      throw: new Error('not in use'),
+    });
+    queueExec({
+      file: 'lsof',
+      args: ['-i', ':5432', '-sTCP:LISTEN'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      throw: new Error('not in use'),
+    });
 
     statfsSyncMock.mockImplementation(() => { throw new Error('statfs unavailable'); });
-
-    // data dir does NOT exist
 
     await runDoctor();
 
     expect(execCalls).toHaveLength(6);
-    expect(execCalls.map((c) => c.command)).toEqual([
-      'docker version --format "{{.Server.Version}}"',
-      'docker compose version --short',
-      'docker-compose version --short',
-      'lsof -i :8080 -sTCP:LISTEN',
-      'lsof -i :5173 -sTCP:LISTEN',
-      'lsof -i :5432 -sTCP:LISTEN',
+    expect(execCalls.map((c) => `${c.file} ${JSON.stringify(c.args)}`)).toEqual([
+      'docker ["version","--format","{{.Server.Version}}"]',
+      'docker ["compose","version","--short"]',
+      'docker-compose ["version","--short"]',
+      'lsof ["-i",":8080","-sTCP:LISTEN"]',
+      'lsof ["-i",":5173","-sTCP:LISTEN"]',
+      'lsof ["-i",":5432","-sTCP:LISTEN"]',
     ]);
 
     expect(statfsSyncMock).toHaveBeenCalledTimes(1);
@@ -344,15 +416,15 @@ describe('CLI doctor - scenario 3: diagnostics unavailable', () => {
     expect(out).toBe(
       '=== Launchly Doctor ===\n\n' +
         'Docker ....................... OK (v24.0.7)\n' +
-        'Docker Compose .............. NOT FOUND\n' +
-        '  Fix: Install Docker Compose plugin or Docker Desktop.\n' +
-        'Ports ........................\n' +
-        '  8080 (launchly-app) ............... IN USE\n' +
-        '  5173 (launchly-web (dev)) ............... FREE\n' +
-        '  5432 (launchly-postgres) ............... FREE\n' +
-        'Disk space ................... UNABLE TO CHECK\n' +
-        `Data directory (${dataDir}) ... NOT YET CREATED (will be created on install)\n` +
-        '\nDoctor check complete.\n',
+        'Docker Compose .............. 未找到\n' +
+        '  修复方法：安装 Docker Compose 插件或 Docker Desktop。\n' +
+        '端口 ........................\n' +
+        '  8080 (launchly-app) ............... 占用\n' +
+        '  5173 (launchly-web (dev)) ............... 空闲\n' +
+        '  5432 (launchly-postgres) ............... 空闲\n' +
+        '磁盘空间 ................... 无法检查\n' +
+        `数据目录 (${dataDir}) ... 尚未创建（安装时将自动创建）\n` +
+        '\nDoctor 检查完成。\n',
     );
   });
 });

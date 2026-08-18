@@ -90,6 +90,7 @@ const TARGETS = [
 
 describe('DeployTargetListPage', () => {
   beforeEach(() => {
+    document.body.innerHTML = ''
     setActivePinia(createPinia())
     vi.mocked(fetchDeployTargets).mockReset()
     vi.mocked(createDeployTarget).mockReset()
@@ -276,5 +277,288 @@ describe('DeployTargetListPage', () => {
     // The workRoot input is pre-filled with the Linux default.
     const workRootInput = w.find('input[placeholder="/var/lib/launchly"]')
     expect((workRootInput.element as HTMLInputElement).value).toBe('/var/lib/launchly')
+  })
+
+  // -------------------------------------------------------------------
+  // Additional coverage:
+  //   - openCreate without projectId pops an ElMessage.error and returns early
+  //   - doSave root/missing validation paths (this page's variant)
+  //   - doSave missing projectId sets inline error
+  //   - openEdit pre-fills the form
+  //   - doSave network error surfaces inline error
+  //   - doDelete network error pops ElMessage.error
+  //   - verify with success=false shows error toast
+  // -------------------------------------------------------------------
+
+  it('DTL.9 openCreate without a projectId pops ElMessage.error and does NOT open the modal', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployTargets).mockResolvedValue({ data: [] } as any)
+    // Mount at a route without :id
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/', name: 'home', component: { template: '<div/>' } },
+        // no /:id route — params.id is undefined
+        { path: '/projects/deploy-targets', name: 'deploy-targets-no-id', component: DeployTargetListPage },
+      ],
+    })
+    await router.push('/projects/deploy-targets')
+    await router.isReady()
+    const w = mount(DeployTargetListPage, {
+      global: { plugins: [router, ElementPlus] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const addBtn = w.findAll('button').find(b => b.text().trim() === '添加部署目标')!
+    await addBtn.trigger('click')
+    await flushPromises()
+
+    // No dialog should be visible.
+    const dialogs = Array.from(document.querySelectorAll('.el-dialog'))
+    expect(dialogs.length).toBe(0)
+    expect(elMessageError).toHaveBeenCalledWith(expect.stringContaining('项目 ID'))
+  })
+
+  it('DTL.10 doSave with username === "root" surfaces the "禁止使用 root" inline error', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployTargets).mockResolvedValue({ data: [] } as any)
+
+    const router = makeRouter()
+    await router.push('/projects/p1/deploy-targets')
+    await router.isReady()
+    const w = mount(DeployTargetListPage, {
+      global: { plugins: [router, ElementPlus] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const addBtn = w.findAll('button').find(b => b.text().trim() === '添加部署目标')!
+    await addBtn.trigger('click')
+    await flushPromises()
+
+    const setInputValue = (selector: string, value: string) => {
+      const el = document.querySelector(selector) as HTMLInputElement | null
+      if (!el) throw new Error('input not found: ' + selector)
+      el.value = value
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    const setTextareaValue = (selector: string, value: string) => {
+      const el = document.querySelector(selector) as HTMLTextAreaElement | null
+      if (!el) throw new Error('textarea not found: ' + selector)
+      el.value = value
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+
+    setInputValue('.el-dialog input[placeholder="生产服务器、测试节点等"]', 'rt')
+    setInputValue('.el-dialog input[placeholder="192.168.1.100 或 example.com"]', '1.1.1.1')
+    setInputValue('.el-dialog input[placeholder="deploy（禁止使用 root）"]', 'root')
+    setTextareaValue('.el-dialog textarea[placeholder^="例如：ssh-ed25519"]', 'ssh-ed25519 AAAA')
+    setTextareaValue('.el-dialog textarea[placeholder="粘贴 SSH 私钥内容（PEM 格式）"]', '-----BEGIN-----\\nfoo')
+    await flushPromises()
+
+    const dialogs = Array.from(document.querySelectorAll('.el-dialog'))
+    const saveBtn = dialogs
+      .flatMap(d => Array.from(d.querySelectorAll('button')))
+      .find(b => b.textContent?.trim() === '保存') as HTMLButtonElement | undefined
+    saveBtn!.click()
+    await flushPromises()
+
+    expect(createDeployTarget).not.toHaveBeenCalled()
+    const text = dialogs.map(d => d.textContent || '').join(' ')
+    expect(text).toContain('禁止使用 root')
+  })
+
+  it('DTL.11 editing an existing target calls updateDeployTarget', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployTargets).mockResolvedValue({ data: TARGETS } as any)
+    vi.mocked(updateDeployTarget).mockResolvedValue({ data: { id: 't1' } } as any)
+
+    const router = makeRouter()
+    await router.push('/projects/p1/deploy-targets')
+    await router.isReady()
+    const w = mount(DeployTargetListPage, {
+      global: { plugins: [router, ElementPlus] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const editBtn = w.findAll('button').find(b => b.text().trim() === '编辑')!
+    await editBtn.trigger('click')
+    await flushPromises()
+
+    const setTextareaValue = (selector: string, value: string) => {
+      const el = document.querySelector(selector) as HTMLTextAreaElement | null
+      if (!el) throw new Error('textarea not found: ' + selector)
+      el.value = value
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    setTextareaValue('.el-dialog textarea[placeholder^="例如：ssh-ed25519"]', 'ssh-ed25519 AAAA')
+    await flushPromises()
+
+    const dialogs = Array.from(document.querySelectorAll('.el-dialog'))
+    const saveBtn = dialogs
+      .flatMap(d => Array.from(d.querySelectorAll('button')))
+      .find(b => b.textContent?.trim() === '保存') as HTMLButtonElement | undefined
+    saveBtn!.click()
+    await flushPromises()
+
+    expect(updateDeployTarget).toHaveBeenCalledWith('t1', expect.objectContaining({
+      name: 'prod-a',
+      host: '10.0.0.1',
+      username: 'deploy',
+      hostKey: 'ssh-ed25519 AAAA',
+    }))
+    expect(createDeployTarget).not.toHaveBeenCalled()
+    expect(elMessageSuccess).toHaveBeenCalledWith('部署目标已更新')
+  })
+
+  it('DTL.12 a save that throws surfaces the inline error', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployTargets).mockResolvedValue({ data: [] } as any)
+    vi.mocked(createDeployTarget).mockRejectedValue({
+      response: { data: { message: 'host unreachable' } },
+    })
+
+    const router = makeRouter()
+    await router.push('/projects/p1/deploy-targets')
+    await router.isReady()
+    const w = mount(DeployTargetListPage, {
+      global: { plugins: [router, ElementPlus] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const addBtn = w.findAll('button').find(b => b.text().trim() === '添加部署目标')!
+    await addBtn.trigger('click')
+    await flushPromises()
+
+    const setInputValue = (selector: string, value: string) => {
+      const el = document.querySelector(selector) as HTMLInputElement | null
+      if (!el) throw new Error('input not found: ' + selector)
+      el.value = value
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+    const setTextareaValue = (selector: string, value: string) => {
+      const el = document.querySelector(selector) as HTMLTextAreaElement | null
+      if (!el) throw new Error('textarea not found: ' + selector)
+      el.value = value
+      el.dispatchEvent(new Event('input', { bubbles: true }))
+    }
+
+    setInputValue('.el-dialog input[placeholder="生产服务器、测试节点等"]', 'ok')
+    setInputValue('.el-dialog input[placeholder="192.168.1.100 或 example.com"]', '1.1.1.1')
+    setInputValue('.el-dialog input[placeholder="deploy（禁止使用 root）"]', 'deploy')
+    setTextareaValue('.el-dialog textarea[placeholder^="例如：ssh-ed25519"]', 'ssh-ed25519 AAAA')
+    setTextareaValue('.el-dialog textarea[placeholder="粘贴 SSH 私钥内容（PEM 格式）"]', '-----BEGIN-----\\nfoo')
+    await flushPromises()
+
+    const dialogs = Array.from(document.querySelectorAll('.el-dialog'))
+    const saveBtn = dialogs
+      .flatMap(d => Array.from(d.querySelectorAll('button')))
+      .find(b => b.textContent?.trim() === '保存') as HTMLButtonElement | undefined
+    saveBtn!.click()
+    await flushPromises()
+
+    const text = dialogs.map(d => d.textContent || '').join(' ')
+    expect(text).toContain('host unreachable')
+  })
+
+  it('DTL.13 a delete that throws pops ElMessage.error', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployTargets).mockResolvedValue({ data: TARGETS } as any)
+    vi.mocked(deleteDeployTarget).mockRejectedValue({
+      response: { data: { message: 'forbidden' } },
+    })
+
+    const router = makeRouter()
+    await router.push('/projects/p1/deploy-targets')
+    await router.isReady()
+    const w = mount(DeployTargetListPage, {
+      global: { plugins: [router, ElementPlus] },
+    })
+    await flushPromises()
+
+    const pop = w.findComponent({ name: 'ElPopconfirm' })
+    await pop.vm.$emit('confirm')
+    await flushPromises()
+
+    expect(elMessageError).toHaveBeenCalledWith('forbidden')
+  })
+
+  it('DTL.14 verify with success=false surfaces the error toast', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployTargets).mockResolvedValue({ data: TARGETS } as any)
+    vi.mocked(verifyDeployTarget).mockResolvedValue({
+      data: { success: false, message: 'auth failed' },
+    } as any)
+
+    const router = makeRouter()
+    await router.push('/projects/p1/deploy-targets')
+    await router.isReady()
+    const w = mount(DeployTargetListPage, {
+      global: { plugins: [router, ElementPlus] },
+    })
+    await flushPromises()
+
+    const verifyBtn = w.findAll('button').find(b => b.text().trim() === '验证')!
+    await verifyBtn.trigger('click')
+    await flushPromises()
+
+    expect(elMessageError).toHaveBeenCalledWith('auth failed')
+  })
+
+  it('DTL.15 a verify that throws is caught and shows ElMessage.error', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployTargets).mockResolvedValue({ data: TARGETS } as any)
+    vi.mocked(verifyDeployTarget).mockRejectedValue(new Error('boom'))
+
+    const router = makeRouter()
+    await router.push('/projects/p1/deploy-targets')
+    await router.isReady()
+    const w = mount(DeployTargetListPage, {
+      global: { plugins: [router, ElementPlus] },
+    })
+    await flushPromises()
+
+    const verifyBtn = w.findAll('button').find(b => b.text().trim() === '验证')!
+    await verifyBtn.trigger('click')
+    await flushPromises()
+
+    expect(elMessageError).toHaveBeenCalledWith('验证失败')
+  })
+
+  it('DTL.16 mount with no :id route param is a no-op (loadTargets returns early)', async () => {
+    setRole('OWNER')
+    const router = createRouter({
+      history: createMemoryHistory(),
+      routes: [
+        { path: '/', name: 'home', component: { template: '<div/>' } },
+        { path: '/projects/deploy-targets', name: 'deploy-targets-no-id', component: DeployTargetListPage },
+      ],
+    })
+    await router.push('/projects/deploy-targets')
+    await router.isReady()
+    mount(DeployTargetListPage, {
+      global: { plugins: [router, ElementPlus] },
+    })
+    await flushPromises()
+
+    expect(fetchDeployTargets).not.toHaveBeenCalled()
+  })
+
+  it('DTL.17 fetch failure surfaces ElMessage.error', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployTargets).mockRejectedValue(new Error('boom'))
+
+    const router = makeRouter()
+    await router.push('/projects/p1/deploy-targets')
+    await router.isReady()
+    mount(DeployTargetListPage, {
+      global: { plugins: [router, ElementPlus] },
+    })
+    await flushPromises()
+
+    expect(elMessageError).toHaveBeenCalledWith('加载部署目标失败')
   })
 })

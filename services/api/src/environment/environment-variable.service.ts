@@ -1,7 +1,16 @@
-import { Injectable, ForbiddenException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { SecretValueService } from './secret-value.service';
 
+/**
+ * 环境变量 Service（KI-016 / R0-05）。
+ *
+ * 行为约束：
+ * - 创建/更新前显式校验同一 Environment 下 key 不重复；
+ *   数据库层也有 @@unique([environmentId, key]) 作为最后兜底。
+ * - 加密/脱敏统一走 SecretValueService，绝不返回明文。
+ * - 全部读/写都校验 Environment→Project→Workspace 归属链。
+ */
 @Injectable()
 export class EnvironmentVariableService {
   constructor(
@@ -23,8 +32,22 @@ export class EnvironmentVariableService {
     }));
   }
 
-  async create(environmentId: string, data: { key: string; value: string; sensitive?: boolean; description?: string }, userId: string, workspaceId: string) {
+  async create(
+    environmentId: string,
+    data: { key: string; value: string; sensitive?: boolean; description?: string },
+    userId: string,
+    workspaceId: string,
+  ) {
     await this.verifyOwnership(environmentId, workspaceId);
+    // KI-016: 显式校验重复 key，给出更友好的错误信息；
+    // 数据库唯一约束是兜底，避免 race condition 下静默覆盖。
+    const existing = await this.prisma.environmentVariable.findFirst({
+      where: { environmentId, key: data.key },
+      select: { id: true },
+    });
+    if (existing) {
+      throw new ConflictException(`环境变量 ${data.key} 已存在，请使用更新接口或选择其他 key`);
+    }
 
     const encryptedValue = this.secrets.encrypt(data.value);
     const maskedValue = this.secrets.mask(data.value);

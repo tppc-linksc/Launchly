@@ -1,1 +1,1 @@
-export { TestCaseRequestDto, UpdateTestRunCaseDto } from './testcase.dto';
+export { TestCaseRequestDto, UpdateTestRunCaseDto, UpdateTestCaseDto } from './testcase.dto';

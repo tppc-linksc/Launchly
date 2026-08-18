@@ -91,6 +91,7 @@ const VARS = [
 
 describe('EnvironmentListPage', () => {
   beforeEach(() => {
+    document.body.innerHTML = ''
     setActivePinia(createPinia())
     vi.mocked(fetchProjects).mockReset()
     vi.mocked(fetchEnvironments).mockReset()
@@ -287,5 +288,199 @@ describe('EnvironmentListPage', () => {
     expect(updateEnvironment).toHaveBeenCalledTimes(1)
     expect((updateEnvironment as any).mock.calls[0][0]).toBe('e1')
     expect(elMessageSuccess).toHaveBeenCalledWith('环境配置已更新')
+  })
+
+  // -------------------------------------------------------------------
+  // Additional coverage:
+  //   - ?projectId= query filters the env list to that one project
+  //   - doDeleteVar deletes a variable and removes it from the local list
+  //   - handleEditSave error path pops ElMessage.error
+  //   - openVarModal failure pops ElMessage.error
+  //   - addVar failure pops ElMessage.error
+  //   - status column renders enabled/disabled tags
+  //   - autoDeploy column shows "已启用" vs "手动"
+  // -------------------------------------------------------------------
+
+  it('EL.8 ?projectId= query filters the env list to that one project only', async () => {
+    vi.mocked(fetchProjects).mockResolvedValue({ data: PROJECTS } as any)
+    vi.mocked(fetchEnvironments).mockImplementation(async (pid: string) => {
+      return { data: ENVS.filter(e => e.projectId === pid) } as any
+    })
+
+    const router = makeRouter()
+    await router.push({ name: 'environments', query: { projectId: 'p1' } })
+    await router.isReady()
+    const w = mount(EnvironmentListPage, { global: { plugins: [router, ElementPlus] } })
+    await flushPromises()
+
+    // Only App's envs (测试/生产) should be visible; Staging (p2) hidden.
+    expect(w.text()).toContain('测试')
+    expect(w.text()).toContain('生产')
+    expect(w.text()).not.toContain('Staging')
+    // The search box should be auto-filled with the project's name.
+    const search = w.find('input[placeholder="搜索项目名称"]')
+    expect((search.element as HTMLInputElement).value).toBe('App')
+  })
+
+  it('EL.9 delete-variable popconfirm removes the row from the local list', async () => {
+    vi.mocked(fetchProjects).mockResolvedValue({ data: PROJECTS } as any)
+    vi.mocked(fetchEnvironments).mockResolvedValue({ data: ENVS } as any)
+    vi.mocked(fetchEnvVariables).mockResolvedValue({ data: VARS } as any)
+    vi.mocked(deleteEnvVariable).mockResolvedValue({ data: { ok: true } } as any)
+
+    const router = makeRouter()
+    await router.push('/environments')
+    await router.isReady()
+    const w = mount(EnvironmentListPage, {
+      global: { plugins: [router, ElementPlus] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const varBtn = w.findAll('button').find(b => b.text().trim() === '变量')!
+    await varBtn.trigger('click')
+    await flushPromises()
+
+    // Find the popconfirm inside the variable dialog and confirm it.
+    const dialogRoot = w.findAllComponents({ name: 'ElDialog' })[0]
+    const pop = dialogRoot.findComponent({ name: 'ElPopconfirm' })
+    expect(pop).exists
+    await pop.vm.$emit('confirm')
+    await flushPromises()
+
+    // The first row's id is v1 (PLAIN_VAR).
+    expect(deleteEnvVariable).toHaveBeenCalledWith('e1', 'v1')
+    const dialogText = (Array.from(document.querySelectorAll('.el-dialog'))
+      .map(d => d.textContent || '').join(' '))
+    expect(dialogText).not.toContain('PLAIN_VAR')
+  })
+
+  it('EL.10 handleEditSave failure pops ElMessage.error with the server message', async () => {
+    vi.mocked(fetchProjects).mockResolvedValue({ data: PROJECTS } as any)
+    vi.mocked(fetchEnvironments).mockResolvedValue({ data: ENVS } as any)
+    vi.mocked(updateEnvironment).mockRejectedValue({
+      response: { data: { message: 'invalid domain' } },
+    })
+
+    const router = makeRouter()
+    await router.push('/environments')
+    await router.isReady()
+    const w = mount(EnvironmentListPage, {
+      global: { plugins: [router, ElementPlus] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const editBtn = w.findAll('button').find(b => b.text().trim() === '编辑')!
+    await editBtn.trigger('click')
+    await flushPromises()
+
+    const editDialog = Array.from(document.querySelectorAll('.el-dialog'))
+      .find(d => (d.textContent || '').includes('编辑环境配置'))
+    const saveBtn = Array.from(editDialog!.querySelectorAll('button'))
+      .find(b => b.textContent?.trim() === '保存') as HTMLButtonElement | undefined
+    saveBtn!.click()
+    await flushPromises()
+
+    expect(elMessageError).toHaveBeenCalledWith('invalid domain')
+  })
+
+  it('EL.11 addVar failure pops ElMessage.error and the form is NOT cleared', async () => {
+    vi.mocked(fetchProjects).mockResolvedValue({ data: PROJECTS } as any)
+    vi.mocked(fetchEnvironments).mockResolvedValue({ data: ENVS } as any)
+    vi.mocked(fetchEnvVariables).mockResolvedValue({ data: [] } as any)
+    vi.mocked(createEnvVariable).mockRejectedValue(new Error('boom'))
+
+    const router = makeRouter()
+    await router.push('/environments')
+    await router.isReady()
+    const w = mount(EnvironmentListPage, {
+      global: { plugins: [router, ElementPlus] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const varBtn = w.findAll('button').find(b => b.text().trim() === '变量')!
+    await varBtn.trigger('click')
+    await flushPromises()
+
+    const keyInput = w.find('input[placeholder="键"]')
+    const valInput = w.find('input[placeholder="值"]')
+    await keyInput.setValue('K')
+    await valInput.setValue('V')
+    await flushPromises()
+
+    const addBtn = w.findAll('button').find(b => b.text().trim() === '添加')!
+    await addBtn.trigger('click')
+    await flushPromises()
+
+    expect(elMessageError).toHaveBeenCalledWith('操作失败，请稍后重试')
+    // After failure, the form retains the entered values (catch returns early).
+    expect((w.find('input[placeholder="键"]').element as HTMLInputElement).value).toBe('K')
+  })
+
+  it('EL.12 addVar with no key/value is a silent no-op (no API call)', async () => {
+    vi.mocked(fetchProjects).mockResolvedValue({ data: PROJECTS } as any)
+    vi.mocked(fetchEnvironments).mockResolvedValue({ data: ENVS } as any)
+    vi.mocked(fetchEnvVariables).mockResolvedValue({ data: [] } as any)
+
+    const router = makeRouter()
+    await router.push('/environments')
+    await router.isReady()
+    const w = mount(EnvironmentListPage, {
+      global: { plugins: [router, ElementPlus] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    const varBtn = w.findAll('button').find(b => b.text().trim() === '变量')!
+    await varBtn.trigger('click')
+    await flushPromises()
+
+    const addBtn = w.findAll('button').find(b => b.text().trim() === '添加')!
+    await addBtn.trigger('click')
+    await flushPromises()
+
+    expect(createEnvVariable).not.toHaveBeenCalled()
+  })
+
+  it('EL.13 openVarModal failure pops ElMessage.error', async () => {
+    vi.mocked(fetchProjects).mockResolvedValue({ data: PROJECTS } as any)
+    vi.mocked(fetchEnvironments).mockResolvedValue({ data: ENVS } as any)
+    vi.mocked(fetchEnvVariables).mockRejectedValue(new Error('boom'))
+
+    const router = makeRouter()
+    await router.push('/environments')
+    await router.isReady()
+    const w = mount(EnvironmentListPage, {
+      global: { plugins: [router, ElementPlus] },
+    })
+    await flushPromises()
+
+    const varBtn = w.findAll('button').find(b => b.text().trim() === '变量')!
+    await varBtn.trigger('click')
+    await flushPromises()
+
+    expect(elMessageError).toHaveBeenCalledWith('操作失败，请稍后重试')
+  })
+
+  it('EL.14 the enabled/autoDeploy columns render "已启用"/"已禁用"/"手动" tags', async () => {
+    const enriched = [
+      { ...ENVS[0], enabled: true, autoDeploy: true },
+      { ...ENVS[1], enabled: false, autoDeploy: false },
+    ]
+    vi.mocked(fetchProjects).mockResolvedValue({ data: PROJECTS } as any)
+    vi.mocked(fetchEnvironments).mockResolvedValue({ data: enriched } as any)
+
+    const router = makeRouter()
+    await router.push('/environments')
+    await router.isReady()
+    const w = mount(EnvironmentListPage, { global: { plugins: [router, ElementPlus] } })
+    await flushPromises()
+
+    const text = w.text()
+    expect(text).toContain('已启用')
+    expect(text).toContain('已禁用')
+    expect(text).toContain('手动')
   })
 })

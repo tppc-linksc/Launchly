@@ -4,48 +4,63 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 
+// KI-041 修复后：所有外部命令使用 execFileSync(file, args, options)。
+// 测试 mock 改为按 args 数组内容匹配，并校验 file 与 options。
+
 type ExecOptions = any;
 type ExecResult = {
-  command: string;
-  options: ExecOptions;
+  file?: string;
+  args?: string[];
+  options?: ExecOptions;
   stdout?: string;
   throw?: Error;
-  sideEffect?: (command: string) => void;
+  sideEffect?: (file: string, args: string[]) => void;
 };
-type ExecCall = { command: string; options: ExecOptions };
+type ExecCall = { file: string; args: string[]; options: ExecOptions };
 
 let execQueue: ExecResult[] = [];
 let execCalls: ExecCall[] = [];
 let unexpectedCalls: ExecCall[] = [];
 let contractFailures: string[] = [];
 
+function argsEqual(a: string[], b: string[] | undefined): boolean {
+  if (!b) return false;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 vi.mock('child_process', () => ({
-  execSync: vi.fn((command: string, options: ExecOptions) => {
-    execCalls.push({ command, options });
+  execFileSync: vi.fn((file: string, args: string[], options: ExecOptions) => {
+    execCalls.push({ file, args, options });
     const plan = execQueue.shift();
     if (!plan) {
-      unexpectedCalls.push({ command, options });
-      throw new Error(`Unexpected execSync call (no plan matched): ${command}`);
+      unexpectedCalls.push({ file, args, options });
+      throw new Error(`Unexpected execFileSync call (no plan matched): ${file} ${JSON.stringify(args)}`);
     }
-    if (plan.command !== command) {
-      const failure = `execSync command mismatch: expected ${JSON.stringify(plan.command)}, got ${JSON.stringify(command)}`;
+    if (plan.file !== undefined && plan.file !== file) {
+      const failure = `execFileSync file mismatch: expected ${JSON.stringify(plan.file)}, got ${JSON.stringify(file)}`;
       contractFailures.push(failure);
       throw new Error(failure);
     }
-    if (JSON.stringify(plan.options) !== JSON.stringify(options)) {
-      const failure =
-        `execSync options mismatch for command ${JSON.stringify(command)}: expected ${JSON.stringify(plan.options)}, got ${JSON.stringify(options)}`;
+    if (plan.args !== undefined && !argsEqual(args, plan.args)) {
+      const failure = `execFileSync args mismatch: expected ${JSON.stringify(plan.args)}, got ${JSON.stringify(args)}`;
       contractFailures.push(failure);
       throw new Error(failure);
     }
-    if (plan.sideEffect) plan.sideEffect(command);
+    if (plan.options !== undefined && JSON.stringify(plan.options) !== JSON.stringify(options)) {
+      const failure = `execFileSync options mismatch for ${JSON.stringify(args)}: expected ${JSON.stringify(plan.options)}, got ${JSON.stringify(options)}`;
+      contractFailures.push(failure);
+      throw new Error(failure);
+    }
+    if (plan.sideEffect) plan.sideEffect(file, args);
     if (plan.throw) throw plan.throw;
     return plan.stdout ?? '';
   }),
 }));
 
 const cp = await import('child_process');
-const execSyncMock = cp.execSync as unknown as ReturnType<typeof vi.fn>;
+const execFileSyncMock = cp.execFileSync as unknown as ReturnType<typeof vi.fn>;
 
 vi.mock('fs', async (importOriginal) => {
   const actual = await importOriginal<typeof import('fs')>();
@@ -100,18 +115,8 @@ function setConfirmInput(answer: string): void {
   });
 }
 
-function queueExec(plan: Omit<ExecResult, 'options'> & { options?: ExecOptions }): void {
-  execQueue.push({
-    options: plan.options ?? undefined,
-    command: plan.command,
-    stdout: plan.stdout,
-    throw: plan.throw,
-    sideEffect: plan.sideEffect,
-  });
-}
-
-function queueDefaultNoCall(): void {
-  // keep helper for readability
+function queueExec(plan: ExecResult): void {
+  execQueue.push(plan);
 }
 
 function getOutput(): string {
@@ -129,7 +134,7 @@ beforeEach(() => {
   execCalls = [];
   unexpectedCalls = [];
   contractFailures = [];
-  execSyncMock.mockClear();
+  execFileSyncMock.mockClear();
 
   tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'launchly-cli-ops-test-'));
   dataDir = path.join(tmpRoot, 'data');
@@ -206,17 +211,17 @@ afterEach(() => {
   }
 
   if (strictQueue.length !== 0) {
-    throw new Error(`Test ended with ${strictQueue.length} unconsumed execSync plan(s)`);
+    throw new Error(`Test ended with ${strictQueue.length} unconsumed execFileSync plan(s)`);
   }
   if (strictUnexpectedCalls.length !== 0) {
     throw new Error(
-      `Test ended with ${strictUnexpectedCalls.length} unexpected execSync call(s): ` +
-        strictUnexpectedCalls.map((c) => c.command).join('; '),
+      `Test ended with ${strictUnexpectedCalls.length} unexpected execFileSync call(s): ` +
+        strictUnexpectedCalls.map((c) => `${c.file} ${JSON.stringify(c.args)}`).join('; '),
     );
   }
   if (strictContractFailures.length !== 0) {
     throw new Error(
-      `Test ended with ${strictContractFailures.length} execSync contract failure(s): ` +
+      `Test ended with ${strictContractFailures.length} execFileSync contract failure(s): ` +
         strictContractFailures.join('; '),
     );
   }
@@ -253,14 +258,15 @@ describe('CLI backup', () => {
     const dumpPath = path.join(dataDir, 'backups', 'db_dump.sql');
 
     queueExec({
-      command: `docker compose -f ${path.join(dataDir, 'docker-compose.yml')} exec -T launchly-postgres pg_dumpall -U launchly`,
-      options: { encoding: 'utf-8' },
+      file: 'docker',
+      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), 'exec', '-T', 'launchly-postgres', 'pg_dumpall', '-U', 'launchly'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
       stdout: 'create table t;\n',
     });
     queueExec({
-      command: `tar -czf ${backupPath} -C ${tmpPath} .`,
+      file: 'tar',
+      args: ['-czf', backupPath, '-C', tmpPath, '.'],
       sideEffect: () => {
-        // In real run this archive file should be generated by tar; mocked here we only check path contract.
         fs.writeFileSync(dumpPath, 'db_dump.sql\n');
       },
     });
@@ -268,14 +274,20 @@ describe('CLI backup', () => {
     await runCli(['backup']);
 
     expect(execCalls).toHaveLength(2);
-    expect(execCalls[0]).toEqual({
-      command: `docker compose -f ${path.join(dataDir, 'docker-compose.yml')} exec -T launchly-postgres pg_dumpall -U launchly`,
-      options: { encoding: 'utf-8' },
-    });
-    expect(execCalls[1]).toEqual({
-      command: `tar -czf ${backupPath} -C ${tmpPath} .`,
-      options: undefined,
-    });
+    expect(execCalls[0].file).toBe('docker');
+    expect(execCalls[0].args).toEqual([
+      'compose',
+      '-f',
+      path.join(dataDir, 'docker-compose.yml'),
+      'exec',
+      '-T',
+      'launchly-postgres',
+      'pg_dumpall',
+      '-U',
+      'launchly',
+    ]);
+    expect(execCalls[1].file).toBe('tar');
+    expect(execCalls[1].args).toEqual(['-czf', backupPath, '-C', tmpPath, '.']);
 
     expect(copyFileSyncSpy).toHaveBeenCalledWith(
       path.join(dataDir, '.env'),
@@ -292,8 +304,8 @@ describe('CLI backup', () => {
       { recursive: true },
     );
 
-    expect(getOutput()).toContain(`Creating backup: ${backupPath}`);
-    expect(getOutput()).toContain(`Backup created: ${backupPath}`);
+    expect(getOutput()).toContain(`正在创建备份：${backupPath}`);
+    expect(getOutput()).toContain(`备份已生成：${backupPath}`);
     expect(rmSyncSpy).toHaveBeenCalledWith(tmpPath, { recursive: true, force: true });
 
     vi.useRealTimers();
@@ -303,17 +315,19 @@ describe('CLI backup', () => {
     const fail = new Error('docker compose missing');
     fs.mkdirSync(dataDir, { recursive: true });
     queueExec({
-      command: `docker compose -f ${path.join(dataDir, 'docker-compose.yml')} exec -T launchly-postgres pg_dumpall -U launchly`,
-      options: { encoding: 'utf-8' },
+      file: 'docker',
+      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), 'exec', '-T', 'launchly-postgres', 'pg_dumpall', '-U', 'launchly'],
+      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
       throw: fail,
     });
     expectedExitCodes = [1];
 
     await expect(runCli(['backup'])).rejects.toBeInstanceOf(Error);
     expect(execCalls).toHaveLength(1);
-    expect(execCalls[0].command).toContain('pg_dumpall');
-    expect(getOutput()).toContain('Error dumping database:');
-    expect(getOutput()).toContain('Make sure Launchly is running (`launchly up`) and try again.');
+    expect(execCalls[0].file).toBe('docker');
+    expect(execCalls[0].args).toContain('pg_dumpall');
+    expect(getOutput()).toContain('错误：导出数据库失败');
+    expect(getOutput()).toContain('请确认 Launchly 已启动');
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 });
@@ -328,13 +342,12 @@ describe('CLI restore', () => {
     await runCli(['restore', backupFile]);
 
     expect(execCalls).toHaveLength(0);
-    expect(getOutput()).toContain(`Restoring from: ${backupFile}`);
-    expect(getOutput()).toContain('Warning: This will overwrite existing data.');
-    expect(getOutput()).toContain('Continue? [y/N] ');
-    expect(getOutput()).toContain('Aborted.');
+    expect(getOutput()).toContain(`正在从备份恢复：${backupFile}`);
+    expect(getOutput()).toContain('警告：此操作将覆盖现有数据。');
+    expect(getOutput()).toContain('继续？[y/N] ');
+    expect(getOutput()).toContain('已取消。');
     expect(openSyncMock).toHaveBeenCalledWith('/dev/stdin', 'r');
     expect(closeSyncMock).toHaveBeenCalledWith(77);
-    expect(getOutput()).toContain('Aborted.');
     expect(getOutput()).not.toContain('tar -xzf');
     expect(cpSyncSpy).not.toHaveBeenCalled();
   });
@@ -354,7 +367,8 @@ describe('CLI restore', () => {
     const backupDbFile = path.join(restoreDir, 'db_dump.sql');
 
     queueExec({
-      command: `tar -xzf ${backupFile} -C ${restoreDir}`,
+      file: 'tar',
+      args: ['-xzf', backupFile, '-C', restoreDir],
       sideEffect: () => {
         fs.mkdirSync(restoreDir, { recursive: true });
         fs.writeFileSync(backupDbFile, 'CREATE TABLE test;');
@@ -364,10 +378,10 @@ describe('CLI restore', () => {
         fs.mkdirSync(path.join(restoreDir, 'launchly-worker-data'), { recursive: true });
         fs.writeFileSync(path.join(restoreDir, 'launchly-worker-data', 'restored-worker.data'), 'restored-worker-data');
       },
-      options: undefined,
     });
     queueExec({
-      command: `docker compose -f ${path.join(dataDir, 'docker-compose.yml')} exec -T launchly-postgres psql -U launchly -d launchly`,
+      file: 'docker',
+      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), 'exec', '-T', 'launchly-postgres', 'psql', '-U', 'launchly', '-d', 'launchly'],
       options: { input: 'CREATE TABLE test;', stdio: ['pipe', 'inherit', 'inherit'] },
       stdout: '',
     });
@@ -375,7 +389,13 @@ describe('CLI restore', () => {
     await runCli(['restore', '--force', backupFile]);
 
     expect(execCalls).toHaveLength(2);
-    expect(execCalls[1].command).toContain('launchly-postgres psql -U launchly -d launchly');
+    expect(execCalls[1].file).toBe('docker');
+    expect(execCalls[1].args).toContain('launchly-postgres');
+    expect(execCalls[1].args).toContain('psql');
+    expect(execCalls[1].args).toContain('-U');
+    expect(execCalls[1].args).toContain('launchly');
+    expect(execCalls[1].args).toContain('-d');
+    expect(execCalls[1].args).toContain('launchly');
     expect(execCalls[1].options).toEqual({ input: 'CREATE TABLE test;', stdio: ['pipe', 'inherit', 'inherit'] });
     expect(copyFileSyncSpy).toHaveBeenCalledWith(path.join(restoreDir, '.env'), path.join(dataDir, '.env'));
     expect(cpSyncSpy).toHaveBeenCalledWith(path.join(restoreDir, 'launchly-data'), path.join(dataDir, 'launchly-data'), {
@@ -392,8 +412,8 @@ describe('CLI restore', () => {
       'restored-worker-data',
     );
     expect(fs.existsSync(restoreDir)).toBe(false);
-    expect(getOutput()).toContain(`Restoring from: ${backupFile}`);
-    expect(getOutput()).toContain('Restore complete.');
+    expect(getOutput()).toContain(`正在从备份恢复：${backupFile}`);
+    expect(getOutput()).toContain('恢复完成。');
   });
 
   it('validates backup file existence before doing any restore work', async () => {
@@ -402,7 +422,7 @@ describe('CLI restore', () => {
 
     await expect(runCli(['restore', backupFile])).rejects.toBeInstanceOf(Error);
     expect(execCalls).toHaveLength(0);
-    expect(getOutput()).toContain(`Error: backup file not found: ${backupFile}`);
+    expect(getOutput()).toContain(`错误：找不到备份文件：${backupFile}`);
     expect(exitSpy).toHaveBeenCalledWith(1);
   });
 });
@@ -418,8 +438,9 @@ describe('CLI uninstall', () => {
     fs.writeFileSync(path.join(dataDir, 'launchly-data', 'seed.txt'), 'old', { flag: 'w' });
     setConfirmInput('yes');
 
-  queueExec({
-      command: `docker compose -f ${composePath} --env-file ${envPath} down -v`,
+    queueExec({
+      file: 'docker',
+      args: ['compose', '-f', composePath, '--env-file', envPath, 'down', '-v'],
       options: { stdio: 'inherit' },
       stdout: '',
     });
@@ -427,13 +448,12 @@ describe('CLI uninstall', () => {
     await runCli(['uninstall']);
 
     expect(execCalls).toHaveLength(1);
-    expect(execCalls[0]).toEqual({
-      command: `docker compose -f ${composePath} --env-file ${envPath} down -v`,
-      options: { stdio: 'inherit' },
-    });
+    expect(execCalls[0].file).toBe('docker');
+    expect(execCalls[0].args).toEqual(['compose', '-f', composePath, '--env-file', envPath, 'down', '-v']);
+    expect(execCalls[0].options).toEqual({ stdio: 'inherit' });
     expect(fs.existsSync(dataDir)).toBe(false);
-    expect(getOutput()).toContain('Launchly has been uninstalled.');
-    expect(getOutput()).toContain('Type \'yes\' to confirm: ');
+    expect(getOutput()).toContain('Launchly 已卸载。');
+    expect(getOutput()).toContain("请输入 'yes' 确认：");
     expect(rmSyncSpy).toHaveBeenCalledWith(dataDir, { recursive: true, force: true });
   });
 
@@ -448,7 +468,8 @@ describe('CLI uninstall', () => {
     setConfirmInput('yes');
 
     queueExec({
-      command: `docker compose -f ${composePath} --env-file ${envPath} down`,
+      file: 'docker',
+      args: ['compose', '-f', composePath, '--env-file', envPath, 'down'],
       options: { stdio: 'inherit' },
       stdout: '',
     });
@@ -456,14 +477,12 @@ describe('CLI uninstall', () => {
     await runCli(['uninstall', '--keep-data']);
 
     expect(execCalls).toHaveLength(1);
-    expect(execCalls[0]).toEqual({
-      command: `docker compose -f ${composePath} --env-file ${envPath} down`,
-      options: { stdio: 'inherit' },
-    });
+    expect(execCalls[0].args).toEqual(['compose', '-f', composePath, '--env-file', envPath, 'down']);
+    expect(execCalls[0].args).not.toContain('-v');
+    expect(execCalls[0].options).toEqual({ stdio: 'inherit' });
     expect(fs.existsSync(dataDir)).toBe(true);
-    expect(getOutput()).toContain('Launchly has been uninstalled.');
+    expect(getOutput()).toContain('Launchly 已卸载。');
     expect(fs.existsSync(path.join(dataDir, 'launchly-data', 'seed.txt'))).toBe(true);
-    expect(getOutput()).not.toContain(' -v');
   });
 
   it('--force skips confirmation prompt and performs keep-data uninstall', async () => {
@@ -473,8 +492,9 @@ describe('CLI uninstall', () => {
     fs.writeFileSync(envPath, 'LAUNCHLY_DB_PASSWORD=x\n', { mode: 0o600 });
     fs.writeFileSync(composePath, 'services:\n');
 
-  queueExec({
-      command: `docker compose -f ${composePath} --env-file ${envPath} down`,
+    queueExec({
+      file: 'docker',
+      args: ['compose', '-f', composePath, '--env-file', envPath, 'down'],
       options: { stdio: 'inherit' },
       stdout: '',
     });
@@ -483,11 +503,9 @@ describe('CLI uninstall', () => {
 
     expect(openSyncMock).not.toHaveBeenCalled();
     expect(execCalls).toHaveLength(1);
-    expect(execCalls[0]).toEqual({
-      command: `docker compose -f ${composePath} --env-file ${envPath} down`,
-      options: { stdio: 'inherit' },
-    });
+    expect(execCalls[0].args).toEqual(['compose', '-f', composePath, '--env-file', envPath, 'down']);
+    expect(execCalls[0].options).toEqual({ stdio: 'inherit' });
     expect(fs.existsSync(dataDir)).toBe(true);
-    expect(getOutput()).toContain('Launchly has been uninstalled.');
+    expect(getOutput()).toContain('Launchly 已卸载。');
   });
 });

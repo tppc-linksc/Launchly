@@ -366,4 +366,144 @@ describe('DeploymentDetailPage', () => {
       globalThis.AbortController = originalAbortController
     }
   })
+
+  // -------------------------------------------------------------------
+  // Additional coverage:
+  //   - commitShort handles missing sha ('-')
+  //   - statusType / tagType / dotColor mappings
+  //   - handleCreateTestRun error pops ElMessage.error
+  //   - handleRedeploy error path
+  //   - mount failure of fetchDeployment (both reject) returns silently
+  //   - timeline renders log entries
+  // -------------------------------------------------------------------
+
+  it('DD.12 commitShort returns "-" when sha is missing/empty', async () => {
+    setRole('OWNER')
+    const NO_SHA = { ...FAILED_DEPLOY, commitSha: null }
+    vi.mocked(fetchDeployment).mockResolvedValue({ data: NO_SHA } as any)
+    vi.mocked(fetchDeploymentLogs).mockResolvedValue({ data: [] } as any)
+
+    const router = makeRouter()
+    await router.push('/deployments/d1')
+    await router.isReady()
+    const w = mount(DeploymentDetailPage, { global: { plugins: [router, ElementPlus] } })
+    await flushPromises()
+
+    expect(w.text()).toContain('-')
+  })
+
+  it('DD.13 mount failure (fetchDeployment + logs reject) returns silently', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployment).mockRejectedValue(new Error('boom'))
+    vi.mocked(fetchDeploymentLogs).mockRejectedValue(new Error('boom'))
+
+    const router = makeRouter()
+    await router.push('/deployments/d1')
+    await router.isReady()
+    mount(DeploymentDetailPage, { global: { plugins: [router, ElementPlus] } })
+    await flushPromises()
+
+    // No toast was emitted by the page itself (the catch returns silently).
+    expect(elMessageError).not.toHaveBeenCalled()
+  })
+
+  it('DD.14 the timeline renders the log entries with their stages and statuses', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployment).mockResolvedValue({ data: SUCCEEDED_DEPLOY } as any)
+    vi.mocked(fetchDeploymentLogs).mockResolvedValue({
+      data: [
+        { id: 'l1', stage: 'CLONE', status: 'SUCCEEDED', log: 'git clone ok' },
+        { id: 'l2', stage: 'BUILD', status: 'SUCCEEDED', log: 'docker build ok' },
+      ],
+    } as any)
+
+    const router = makeRouter()
+    await router.push('/deployments/d2')
+    await router.isReady()
+    const w = mount(DeploymentDetailPage, { global: { plugins: [router, ElementPlus] } })
+    await flushPromises()
+
+    expect(w.text()).toContain('克隆代码')
+    expect(w.text()).toContain('构建')
+    expect(w.text()).toContain('git clone ok')
+    expect(w.text()).toContain('docker build ok')
+  })
+
+  it('DD.15 handleCreateTestRun error path pops ElMessage.error', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployment).mockResolvedValue({ data: SUCCEEDED_DEPLOY } as any)
+    vi.mocked(fetchDeploymentLogs).mockResolvedValue({ data: [] } as any)
+    vi.mocked(createTestRun).mockRejectedValue({
+      response: { data: { message: 'no test cases' } },
+    })
+
+    const router = makeRouter()
+    await router.push('/deployments/d2')
+    await router.isReady()
+    const w = mount(DeploymentDetailPage, { global: { plugins: [router, ElementPlus] } })
+    await flushPromises()
+
+    const btn = w.findAll('button').find(b => b.text().trim() === '创建测试任务')!
+    await btn.trigger('click')
+    await flushPromises()
+
+    expect(elMessageError).toHaveBeenCalledWith('no test cases')
+  })
+
+  it('DD.16 handleRedeploy error path pops ElMessage.error and clears the loading flag', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployment).mockResolvedValue({ data: FAILED_DEPLOY } as any)
+    vi.mocked(fetchDeploymentLogs).mockResolvedValue({ data: [] } as any)
+    vi.mocked(createDeployment).mockRejectedValue({
+      response: { data: { message: 'no deploy target' } },
+    })
+
+    const router = makeRouter()
+    await router.push('/deployments/d1')
+    await router.isReady()
+    const w = mount(DeploymentDetailPage, { global: { plugins: [router, ElementPlus] } })
+    await flushPromises()
+
+    const btn = w.findAll('button').find(b => b.text().trim() === '重新部署')!
+    await btn.trigger('click')
+    await flushPromises()
+
+    expect(elMessageError).toHaveBeenCalledWith('no deploy target')
+  })
+
+  it('DD.17 deployment with status CANCELED shows "已取消" mapped status', async () => {
+    setRole('OWNER')
+    const CANCELED_DEPLOY = { ...FAILED_DEPLOY, status: 'CANCELED' }
+    vi.mocked(fetchDeployment).mockResolvedValue({ data: CANCELED_DEPLOY } as any)
+    vi.mocked(fetchDeploymentLogs).mockResolvedValue({ data: [] } as any)
+
+    const router = makeRouter()
+    await router.push('/deployments/d1')
+    await router.isReady()
+    const w = mount(DeploymentDetailPage, { global: { plugins: [router, ElementPlus] } })
+    await flushPromises()
+
+    expect(w.text()).toContain('已取消')
+  })
+
+  it('DD.18 deployment with accessUrl renders the success alert with the URL', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchDeployment).mockResolvedValue({ data: SUCCEEDED_DEPLOY } as any)
+    vi.mocked(fetchDeploymentLogs).mockResolvedValue({ data: [] } as any)
+
+    const router = makeRouter()
+    await router.push('/deployments/d2')
+    await router.isReady()
+    const w = mount(DeploymentDetailPage, {
+      global: { plugins: [router, ElementPlus] },
+      attachTo: document.body,
+    })
+    await flushPromises()
+
+    // The alert contains a link to the access URL.
+    const alert = Array.from(document.querySelectorAll('.el-alert'))
+      .find(a => (a.textContent || '').includes('部署成功'))
+    expect(alert).toBeDefined()
+    expect(alert!.textContent).toContain('https://app.example.com')
+  })
 })

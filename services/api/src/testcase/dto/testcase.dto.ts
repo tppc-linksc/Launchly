@@ -54,3 +54,23 @@ export class UpdateTestRunCaseDto {
   @IsString({ message: '执行人 ID 必须是字符串' })
   executedBy?: string;
 }
+
+export class UpdateTestCaseDto {
+  @IsOptional() @IsString() @IsNotEmpty({ message: "标题不能为空" })
+  title?: string;
+
+  @IsOptional() @IsString()
+  description?: string;
+
+  @IsOptional() @IsString()
+  priority?: string;
+
+  @IsOptional() @IsString()
+  steps?: string;
+
+  @IsOptional() @IsString()
+  expectedResult?: string;
+
+  @IsOptional() @IsString()
+  status?: string;
+}

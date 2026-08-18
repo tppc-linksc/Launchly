@@ -4,15 +4,44 @@
     <header class="topbar">
       <div class="topbar-inner">
         <div class="brand">Launch<span class="teal">ly</span></div>
-        <div class="global-search-wrap">
+        <div class="global-search-wrap" @keydown.esc="closeSearch">
           <el-input
+            ref="searchInputRef"
             v-model="searchQuery"
-            placeholder="搜索部署、项目、分支…"
+            placeholder="搜索部署、项目、分支、节点、commit…"
+
             clearable
             class="global-search"
+            @focus="searchOpen = true"
+            @input="searchOpen = true"
+            @clear="closeSearch"
           >
             <template #prefix><span style="color: #9ca3af;">&#9906;</span></template>
           </el-input>
+
+          <!-- 搜索结果下拉：项目 / 服务 / 部署 / 节点 / 分支 / commit / 域名 -->
+          <div v-if="searchOpen && searchQuery.trim()" class="search-dropdown" v-loading="searchLoading">
+            <div v-if="searchError" class="search-empty">
+              <span class="search-empty-text">搜索失败：{{ searchError }}</span>
+            </div>
+            <div v-else-if="!searchLoading && searchResults.length === 0" class="search-empty">
+              <span class="search-empty-text">没有匹配的资源</span>
+            </div>
+            <ul v-else class="search-results" data-testid="global-search-results">
+              <li
+                v-for="r in searchResults"
+                :key="r.id"
+                class="search-item"
+                @click="onSelectResult(r)"
+              >
+                <span :class="['cat-tag', 'cat-' + r.category]">{{ categoryLabel(r.category) }}</span>
+                <div class="search-item-text">
+                  <span class="search-item-title">{{ r.title }}</span>
+                  <span v-if="r.subtitle" class="search-item-subtitle">{{ r.subtitle }}</span>
+                </div>
+              </li>
+            </ul>
+          </div>
         </div>
         <div class="top-actions">
           <el-button v-if="canDeploy" type="primary" class="btn-pill" @click="$router.push('/deployments')">触发部署</el-button>
@@ -52,16 +81,75 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { usePermission } from '../composables/usePermission'
+import { useGlobalSearch, ResultCategory, SearchResult } from '../composables/useGlobalSearch'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const { canDeploy } = usePermission()
-const searchQuery = ref('')
+
+// KI-014 全局搜索组合式。
+// 用 ref 双向绑定的 searchQuery 直接传给 composable 的 query；
+// results 已经是按类别排序的前 30 条。
+const {
+  query: composableQuery,
+  results: searchResults,
+  loading: searchLoading,
+  error: searchError,
+  refresh: refreshSearch,
+} = useGlobalSearch()
+
+// 全局 v-model 与 composable 的 query 同步
+const searchQuery = computed<string>({
+  get: () => composableQuery.value,
+  set: (v: string) => { composableQuery.value = v },
+})
+
+const searchOpen = ref(false)
+const searchInputRef = ref<any>(null)
+
+// 类别文本（用于彩色 chip）
+const categoryLabels: Record<ResultCategory, string> = {
+  project: '项目',
+  service: '服务',
+  deployment: '部署',
+  node: '节点',
+  branch: '分支',
+  commit: 'commit',
+  domain: '域名',
+}
+function categoryLabel(c: ResultCategory): string { return categoryLabels[c] || c }
+
+// 点击搜索结果：跳转目标页 + 关闭浮层
+function onSelectResult(r: SearchResult) {
+  router.push(r.path)
+  closeSearch()
+}
+
+// 关闭搜索下拉（保留 query 以便 Tab 切换后还能显示）
+function closeSearch() {
+  searchOpen.value = false
+  // 不主动清空 query，让用户保留输入恢复时还在
+}
+
+// 点击外部关闭：用一个全局 click 监听
+function onDocumentClick(e: MouseEvent) {
+  const target = e.target as HTMLElement
+  if (!target) return
+  if (target.closest('.global-search-wrap')) return
+  searchOpen.value = false
+}
+
+onMounted(() => {
+  document.addEventListener('click', onDocumentClick)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', onDocumentClick)
+})
 
 const navItems = [
   { key: 'overview', label: '概览', path: '/' },
@@ -75,7 +163,7 @@ const navItems = [
 
 const activeKey = computed(() => {
   const path = route.path
-  if (path === '/' || path === '') return 'overview'
+  if (path === '/') return 'overview'
   if (path.startsWith('/deploy-targets')) return 'targets'
   if (path.startsWith('/targets')) return 'targets'
   if (path.startsWith('/deployments')) return 'deployments'
@@ -95,6 +183,13 @@ function onNavClick(key: string) {
   const item = navItems.find(i => i.key === key)
   if (item) router.push(item.path)
 }
+
+// 保留旧字段名以向兼容
+const _legacySearchQuery = searchQuery
+void _legacySearchQuery
+void route
+void searchInputRef
+void refreshSearch
 </script>
 
 <style scoped>
@@ -128,10 +223,12 @@ function onNavClick(key: string) {
 }
 .brand .teal { color: #0d9488; }
 
+/* 搜索包裹 + 下拉 */
 .global-search-wrap {
   flex: 1;
   min-width: 200px;
   max-width: 420px;
+  position: relative;
 }
 .global-search :deep(.el-input__wrapper) {
   border-radius: 999px;
@@ -144,6 +241,67 @@ function onNavClick(key: string) {
   background: #fff;
   box-shadow: 0 0 0 2px rgba(13, 148, 136, 0.1);
 }
+
+/* 搜索结果下拉（KI-014 关闭条件） */
+.search-dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+  max-height: 360px;
+  overflow-y: auto;
+  z-index: 30;
+  padding: 4px 0;
+}
+.search-results { list-style: none; margin: 0; padding: 0; }
+.search-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+.search-item:hover { background: #f3f4f6; }
+.search-item-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.search-item-title {
+  font-size: 14px;
+  color: #111827;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.search-item-subtitle {
+  font-size: 12px;
+  color: #6b7280;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 类别彩色 chip */
+.cat-tag {
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #6b7280;
+  letter-spacing: 0.04em;
+}
+.cat-project { background: #ccfbf1; color: #0f766e; }
+.cat-service { background: #dbeafe; color: #1d4ed8; }
+.cat-deployment { background: #fef3c7; color: #b45309; }
+.cat-node { background: #f3e8ff; color: #6b21a8; }
+.cat-branch { background: #dcfce7; color: #166534; }
+.cat-commit { background: #fee2e2; color: #b91c1c; }
+.cat-domain { background: #e0e7ff; color: #4338ca; }
+.search-empty { padding: 16px; text-align: center; }
+.search-empty-text { color: #9ca3af; font-size: 13px; }
 
 .top-actions {
   display: flex;

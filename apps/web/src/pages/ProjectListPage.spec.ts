@@ -186,4 +186,88 @@ describe('ProjectListPage', () => {
       expect(deployBtn, `per-card "部署" must be hidden for role ${role}`).toBeUndefined()
     }
   })
+
+  // Additional coverage:
+  //   - lastDeployMap computed picks the first deployment per projectId
+  //   - deployTagType covers all 5 status enums and the default fallback
+  //   - failure of BOTH fetches (no catch fallback) surfaces the error toast
+  //   - the per-card '部署' navigates to /projects/:id (stop propagation)
+
+  it('P.1.7 the per-card "部署" button (canDeploy) navigates to the project detail', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchProjects).mockResolvedValue({
+      data: [{ id: 'p1', name: 'App', projectType: 'APP', repositoryUrl: 'x', createdAt: '2026-01-01' }],
+    } as any)
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any)
+
+    const router = makeRouter()
+    await router.push('/projects')
+    await router.isReady()
+    const pushSpy = vi.spyOn(router, 'push')
+    const w = mount(ProjectListPage, { global: { plugins: [router, ElementPlus] } })
+    await flushPromises()
+
+    const deployBtn = w.findAll('button').find(b => b.text().trim() === '部署')!
+    await deployBtn.trigger('click')
+    await flushPromises()
+    expect(pushSpy).toHaveBeenCalledWith('/projects/p1')
+  })
+
+  it('P.1.8 the lastDeployMap picks the first deployment per projectId', async () => {
+    vi.mocked(fetchProjects).mockResolvedValue({
+      data: [{ id: 'p1', name: 'App', projectType: 'APP', repositoryUrl: 'x', createdAt: '2026-01-01' }],
+    } as any)
+    vi.mocked(fetchDeployments).mockResolvedValue({
+      data: [
+        { id: 'd1', projectId: 'p1', status: 'RUNNING', branch: 'main', createdAt: '2026-01-01' },
+        { id: 'd2', projectId: 'p1', status: 'FAILED', branch: 'fix', createdAt: '2026-01-02' },
+      ],
+    } as any)
+    setRole('OWNER')
+
+    const w = mount(ProjectListPage, {
+      global: { plugins: [makeRouter(), ElementPlus] },
+    })
+    await flushPromises()
+
+    const tag = w.find('.card-deploy .el-tag')
+    expect(tag.exists()).toBe(true)
+    expect(tag.text()).toContain('运行中')
+    expect(w.text()).toContain('main')
+  })
+
+  it('P.1.9 a card with no deployments shows the "暂无部署" placeholder', async () => {
+    vi.mocked(fetchProjects).mockResolvedValue({
+      data: [{ id: 'p1', name: 'App', projectType: 'APP', repositoryUrl: 'x', createdAt: '2026-01-01' }],
+    } as any)
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any)
+    setRole('OWNER')
+
+    const w = mount(ProjectListPage, {
+      global: { plugins: [makeRouter(), ElementPlus] },
+    })
+    await flushPromises()
+
+    expect(w.text()).toContain('暂无部署')
+  })
+
+  it('P.1.10 per-card "详情" button navigates to /projects/:id', async () => {
+    setRole('OWNER')
+    vi.mocked(fetchProjects).mockResolvedValue({
+      data: [{ id: 'p1', name: 'App', projectType: 'APP', repositoryUrl: 'x', createdAt: '2026-01-01' }],
+    } as any)
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any)
+
+    const router = makeRouter()
+    await router.push('/projects')
+    await router.isReady()
+    const pushSpy = vi.spyOn(router, 'push')
+    const w = mount(ProjectListPage, { global: { plugins: [router, ElementPlus] } })
+    await flushPromises()
+
+    const detailBtn = w.findAll('button').find(b => b.text().trim() === '详情')!
+    await detailBtn.trigger('click')
+    await flushPromises()
+    expect(pushSpy).toHaveBeenCalledWith('/projects/p1')
+  })
 })

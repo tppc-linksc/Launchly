@@ -4,7 +4,16 @@ import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.de
 import { Roles } from '../common/decorators/roles.decorator';
 import { ProjectResourceAccessPolicy } from '../common/access/project-resource-access-policy';
 import { CreateReleaseDto } from './dto/create-release.dto';
+import { ExemptGateDto } from './dto';
 
+/**
+ * 发布（Release）Controller。
+ *
+ * 关键点：
+ * - 所有写入均使用 class-validator DTO（KI-005）。
+ * - 子资源 ID 走统一 ProjectResourceAccessPolicy 反查归属（KI-004 / R0-04）。
+ * - 豁免 Gate 必须提供 reason，写入审计（KI-020 修复要求）。
+ */
 @Controller('projects/:projectId/releases')
 export class ReleaseController {
   constructor(
@@ -14,7 +23,11 @@ export class ReleaseController {
 
   @Roles('DEVELOPER')
   @Post()
-  async create(@Param('projectId') projectId: string, @Body() body: CreateReleaseDto, @CurrentUser() user: AuthPrincipal) {
+  async create(
+    @Param('projectId') projectId: string,
+    @Body() body: CreateReleaseDto,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
     await this.accessPolicy.requireProject(projectId, user.userId, user.workspaceId!, 'DEVELOPER');
     return this.releaseService.createRelease(projectId, body, user.userId);
   }
@@ -49,7 +62,7 @@ export class ReleaseController {
   async exempt(
     @Param('id') id: string,
     @Param('gateName') gateName: string,
-    @Body() body: any,
+    @Body() body: ExemptGateDto,
     @CurrentUser() user: AuthPrincipal,
   ) {
     await this.accessPolicy.requireRelease(id, user.userId, user.workspaceId!, 'ADMIN');

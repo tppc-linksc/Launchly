@@ -3,6 +3,10 @@ import * as path from 'path'
 import * as os from 'os'
 import * as crypto from 'crypto'
 
+// 为保持向下兼容，从独立模块 re-export；后续命令实现统一从 './parse-port.js'
+// 直接引入 parsePort，但历史代码继续 import 自 config 仍可工作。
+export { isValidPort, parsePort } from './parse-port.js'
+
 export const DATA_DIR_ENV = 'LAUNCHLY_DATA_DIR'
 export const DEFAULT_DATA_DIR = '.launchly'
 export const COMPOSE_FILE = 'docker-compose.yml'

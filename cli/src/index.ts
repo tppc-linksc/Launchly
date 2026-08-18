@@ -1,337 +1,19 @@
 #!/usr/bin/env node
-
 import { Command } from 'commander'
-import { execSync } from 'child_process'
-import * as fs from 'fs'
-import * as path from 'path'
-import * as os from 'os'
-import {
-  getDataDir,
-  fileExists,
-  randomString,
-  generateEnv,
-  composeTemplate,
-  COMPOSE_FILE,
-  ENV_FILE,
-} from './config.js'
 
-function confirmPrompt(message: string): boolean {
-  const buf = Buffer.alloc(256)
-  const fd = fs.openSync('/dev/stdin', 'r')
-  try {
-    process.stdout.write(message)
-    const bytes = fs.readSync(fd, buf, 0, 256, null)
-    const answer = buf.toString('utf-8', 0, bytes).trim().toLowerCase()
-    return answer === 'yes'
-  } finally {
-    fs.closeSync(fd)
-  }
-}
+import { cmdInstall, cmdUp, cmdDown, cmdRestart } from './commands/install.js'
+import { cmdUpgrade } from './commands/upgrade.js'
+import { cmdUninstall } from './commands/uninstall.js'
+import { cmdBackup } from './commands/backup.js'
+import { cmdRestore } from './commands/restore.js'
+import { cmdStatus, cmdLogs } from './commands/status.js'
+import { cmdDoctor } from './commands/doctor.js'
+import { cmdExec, cmdShell } from './commands/exec.js'
 
-function runCompose(dataDir: string, args: string[]): void {
-  const base = ['compose', '-f', path.join(dataDir, COMPOSE_FILE)]
-  const envPath = path.join(dataDir, ENV_FILE)
-  if (fileExists(envPath)) {
-    base.push('--env-file', envPath)
-  }
-  execSync(`docker ${[...base, ...args].join(' ')}`, { stdio: 'inherit' })
-}
-
-// ── Commands ──────────────────────────────────────────────
-
-function cmdInstall(opts: { dryRun?: boolean; port?: string }) {
-  const dataDir = getDataDir()
-  const port = opts.port || '8080'
-
-  if (opts.dryRun) {
-    console.log('=== Launchly Install (Dry Run) ===\n')
-    console.log('Planned actions:\n')
-    console.log(`  1. Create data directory: ${dataDir}`)
-    console.log(`  2. Generate .env with auto-generated secrets`)
-    console.log(`  3. Write docker-compose.yml`)
-    console.log(`  4. Start Docker Compose services`)
-    console.log(`  5. Output browser initialization URL:\n`)
-    console.log(`     http://localhost:${port}/setup\n`)
-    return
-  }
-
-  console.log('=== Launchly Install ===\n')
-
-  // 1. Create directories
-  console.log('Creating directories ...')
-  for (const sub of ['', 'logs', 'data', 'config']) {
-    const dir = path.join(dataDir, sub)
-    fs.mkdirSync(dir, { recursive: true })
-    console.log(`  ${dir}`)
-  }
-  console.log()
-
-  // 2. Generate .env
-  const envPath = path.join(dataDir, ENV_FILE)
-  if (fileExists(envPath)) {
-    console.log(`  .env already exists at ${envPath}, skipping.\n`)
-  } else {
-    console.log('Generating .env file ...')
-    fs.writeFileSync(envPath, generateEnv(port), { mode: 0o600 })
-    console.log(`  ${envPath} (permissions: 600)\n`)
-  }
-
-  // 3. Write docker-compose.yml
-  console.log('Writing docker-compose.yml ...')
-  fs.writeFileSync(path.join(dataDir, COMPOSE_FILE), composeTemplate())
-  console.log(`  ${path.join(dataDir, COMPOSE_FILE)}\n`)
-
-  // 4. Start services
-  console.log('Starting services ...')
-  runCompose(dataDir, ['up', '-d'])
-
-  console.log('\nInstallation complete.\n')
-  console.log('Next steps:')
-  console.log(`  1. Open http://localhost:${port}/setup in your browser`)
-  console.log('  2. Create your owner account and workspace\n')
-}
-
-function cmdUp() {
-  console.log('Starting Launchly services ...')
-  runCompose(getDataDir(), ['up', '-d'])
-  console.log('Services started.')
-}
-
-function cmdDown() {
-  console.log('Stopping Launchly services ...')
-  runCompose(getDataDir(), ['down'])
-  console.log('Services stopped.')
-}
-
-function cmdRestart() {
-  console.log('Restarting Launchly services ...')
-  runCompose(getDataDir(), ['restart'])
-  console.log('Services restarted.')
-}
-
-function cmdStatus() {
-  const dataDir = getDataDir()
-  try {
-    execSync(`docker compose -f ${path.join(dataDir, COMPOSE_FILE)} ps`, { stdio: 'inherit' })
-  } catch {
-    console.log('Launchly services not found. Run `launchly install` first.')
-  }
-}
-
-function cmdLogs(opts: { follow?: boolean; service?: string }) {
-  const args = ['logs']
-  if (opts.follow) args.push('-f')
-  if (opts.service) args.push(opts.service)
-  runCompose(getDataDir(), args)
-}
-
-function cmdDoctor() {
-  console.log('=== Launchly Doctor ===\n')
-
-  // Docker
-  process.stdout.write('Docker ....................... ')
-  try {
-    const ver = execSync('docker version --format "{{.Server.Version}}"', { encoding: 'utf-8' }).trim()
-    console.log(`OK (v${ver})`)
-  } catch {
-    console.log('NOT FOUND')
-    console.log('  Fix: Install Docker from https://docs.docker.com/get-docker/')
-  }
-
-  // Docker Compose
-  process.stdout.write('Docker Compose .............. ')
-  try {
-    const ver = execSync('docker compose version --short', { encoding: 'utf-8' }).trim()
-    console.log(`OK (v${ver})`)
-  } catch {
-    try {
-      const ver = execSync('docker-compose version --short', { encoding: 'utf-8' }).trim()
-      console.log(`OK (v${ver})`)
-    } catch {
-      console.log('NOT FOUND')
-      console.log('  Fix: Install Docker Compose plugin or Docker Desktop.')
-    }
-  }
-
-  // Ports
-  console.log('Ports ........................')
-  for (const { port, name } of [
-    { port: 8080, name: 'launchly-app' },
-    { port: 5173, name: 'launchly-web (dev)' },
-    { port: 5432, name: 'launchly-postgres' },
-  ]) {
-    process.stdout.write(`  ${port} (${name}) ............... `)
-    try {
-      execSync(`lsof -i :${port} -sTCP:LISTEN`, { encoding: 'utf-8' })
-      console.log('IN USE')
-    } catch {
-      console.log('FREE')
-    }
-  }
-
-  // Disk space
-  process.stdout.write('Disk space ................... ')
-  try {
-    const stat = fs.statfsSync(os.homedir())
-    const availGB = (stat.bavail * stat.bsize) / 1_073_741_824
-    if (availGB < 1.0) {
-      console.log(`WARNING (${availGB.toFixed(1)} GB available)`)
-      console.log('  Launchly needs at least 1 GB free space.')
-    } else {
-      console.log(`OK (${availGB.toFixed(1)} GB available)`)
-    }
-  } catch {
-    console.log('UNABLE TO CHECK')
-  }
-
-  // Data directory
-  const dataDir = getDataDir()
-  process.stdout.write(`Data directory (${dataDir}) ... `)
-  try {
-    const stat = fs.statSync(dataDir)
-    console.log(stat.isDirectory() ? 'EXISTS' : 'EXISTS BUT NOT A DIRECTORY')
-  } catch {
-    console.log('NOT YET CREATED (will be created on install)')
-  }
-
-  console.log('\nDoctor check complete.')
-}
-
-function cmdBackup() {
-  const dataDir = getDataDir()
-  const timestamp = new Date().toISOString().replace(/[-:T]/g, '').slice(0, 15)
-  const backupDir = path.join(dataDir, 'backups')
-  fs.mkdirSync(backupDir, { recursive: true })
-  const backupFile = path.join(backupDir, `launchly-backup-${timestamp}.tar.gz`)
-
-  console.log(`Creating backup: ${backupFile}`)
-
-  // Dump database
-  const dbFile = path.join(backupDir, 'db_dump.sql')
-  try {
-    const out = execSync(
-      `docker compose -f ${path.join(dataDir, COMPOSE_FILE)} exec -T launchly-postgres pg_dumpall -U launchly`,
-      { encoding: 'utf-8' }
-    )
-    fs.writeFileSync(dbFile, out, { mode: 0o600 })
-  } catch (e: any) {
-    console.error('Error dumping database:', e.message)
-    console.error('Make sure Launchly is running (`launchly up`) and try again.')
-    process.exit(1)
-  }
-
-  // Create tar.gz
-  const tmpDir = path.join(backupDir, `tmp_${timestamp}`)
-  fs.mkdirSync(tmpDir, { recursive: true })
-  fs.renameSync(dbFile, path.join(tmpDir, 'db_dump.sql'))
-  const envSrc = path.join(dataDir, ENV_FILE)
-  if (fileExists(envSrc)) fs.copyFileSync(envSrc, path.join(tmpDir, ENV_FILE))
-
-  for (const dir of ['launchly-data', 'launchly-worker-data']) {
-    const volumeSrc = path.join(dataDir, dir)
-    if (fileExists(volumeSrc) && fs.statSync(volumeSrc).isDirectory()) {
-      fs.cpSync(volumeSrc, path.join(tmpDir, dir), { recursive: true })
-    }
-  }
-
-  execSync(`tar -czf ${backupFile} -C ${tmpDir} .`)
-  fs.rmSync(tmpDir, { recursive: true, force: true })
-  console.log(`Backup created: ${backupFile}`)
-}
-
-function cmdRestore(backupFile: string, options: { force?: boolean } = {}) {
-  if (!backupFile) {
-    console.error('Usage: launchly restore <backup-file>')
-    process.exit(1)
-  }
-  if (!fileExists(backupFile)) {
-    console.error(`Error: backup file not found: ${backupFile}`)
-    process.exit(1)
-  }
-
-  const dataDir = getDataDir()
-  console.log(`Restoring from: ${backupFile}`)
-  console.log('Warning: This will overwrite existing data.')
-  if (!options.force && !confirmPrompt('Continue? [y/N] ')) {
-    console.log('Aborted.')
-    return
-  }
-
-  const restoreDir = path.join(dataDir, 'restore_tmp')
-  fs.rmSync(restoreDir, { recursive: true, force: true })
-  fs.mkdirSync(restoreDir, { recursive: true })
-
-  try {
-    execSync(`tar -xzf ${backupFile} -C ${restoreDir}`)
-
-    const dumpFile = path.join(restoreDir, 'db_dump.sql')
-    if (fileExists(dumpFile)) {
-      console.log('Restoring database ...')
-      const data = fs.readFileSync(dumpFile, 'utf-8')
-      execSync(
-        `docker compose -f ${path.join(dataDir, COMPOSE_FILE)} exec -T launchly-postgres psql -U launchly -d launchly`,
-        { input: data, stdio: ['pipe', 'inherit', 'inherit'] }
-      )
-    }
-    const restoredEnv = path.join(restoreDir, ENV_FILE)
-    if (fileExists(restoredEnv)) {
-      fs.copyFileSync(restoredEnv, path.join(dataDir, ENV_FILE))
-    }
-    for (const dir of ['launchly-data', 'launchly-worker-data']) {
-      const volumeDir = path.join(restoreDir, dir)
-      if (fileExists(volumeDir) && fs.statSync(volumeDir).isDirectory()) {
-        fs.rmSync(path.join(dataDir, dir), { recursive: true, force: true })
-        fs.cpSync(volumeDir, path.join(dataDir, dir), { recursive: true })
-      }
-    }
-    console.log('Restore complete.')
-  } finally {
-    fs.rmSync(restoreDir, { recursive: true, force: true })
-  }
-}
-
-function cmdUpgrade() {
-  const dataDir = getDataDir()
-  console.log('Upgrading Launchly ...')
-  console.log('Pulling latest images ...')
-  runCompose(dataDir, ['pull'])
-  console.log('Recreating services ...')
-  runCompose(dataDir, ['up', '-d'])
-  console.log('Upgrade complete.')
-}
-
-function cmdUninstall(opts: { force?: boolean; keepData?: boolean }) {
-  const dataDir = getDataDir()
-
-  if (!opts.force) {
-    console.log('WARNING: This will stop and remove all Launchly services.')
-    if (!opts.keepData) {
-      console.log('         All data will be deleted (use --keep-data to preserve).')
-    }
-    if (!confirmPrompt("Type 'yes' to confirm: ")) {
-      console.log('Aborted.')
-      return
-    }
-  }
-
-  console.log('Stopping services ...')
-  const downArgs = opts.keepData ? ['down'] : ['down', '-v']
-  try {
-    runCompose(dataDir, downArgs)
-  } catch {
-    /* ignore */
-  }
-
-  if (!opts.keepData) {
-    console.log('Removing data directory ...')
-    fs.rmSync(dataDir, { recursive: true, force: true })
-    console.log(`  ${dataDir} removed`)
-  }
-
-  console.log('Launchly has been uninstalled.')
-}
-
-// ── CLI Definition ────────────────────────────────────────
+// ── CLI 入口（KI-041 / KI-042 修复后） ─────────────────────────────────────
+// 本文件只负责把 commander 子命令与具体实现函数绑定；
+// 实际逻辑分散在 cli/src/commands/ 下的各模块，并使用 execFileSync 接收
+// 参数数组，避免把路径/用户输入拼入 shell 命令。
 
 const program = new Command()
 
@@ -373,7 +55,21 @@ program
   .command('uninstall')
   .description('卸载 Launchly')
   .option('--force', '跳过确认')
-  .option('--keep-data', '保留数据目录和卷')
+  .option('--keep-data', '保留数据目录和命名卷')
   .action(cmdUninstall)
+
+program
+  .command('exec <service> <command...>')
+  .description('在指定服务容器内运行一次性命令')
+  .action((service: string, command: string[], opts: unknown) => {
+    // commander 会把剩余参数收集到 command
+    void opts
+    cmdExec(service, command)
+  })
+
+program
+  .command('shell <service>')
+  .description('进入指定服务容器的交互式 shell')
+  .action(cmdShell)
 
 program.parse()
