@@ -101,8 +101,9 @@ export class DeployTargetService {
 
   async create(projectId: string, data: { name: string; host: string; port?: number; username: string; authMethod?: string; credential?: string; hostKey?: string; workRoot?: string; type?: string }) {
     this.assertSafeTargetInput(data);
-    const encryptedCredential = this.secrets.encrypt(data.credential!);
+    // 工作目录必须在加密前校验：避免在无效输入上执行昂贵的 secrets.encrypt 调用。
     const workRoot = this.normalizeWorkRoot(data.workRoot);
+    const encryptedCredential = this.secrets.encrypt(data.credential!);
     const target = await this.prisma.deployTarget.create({
       data: {
         projectId,

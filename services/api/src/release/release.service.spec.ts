@@ -215,7 +215,7 @@ describe('ReleaseService', () => {
 
       const rejection = service.publish(releaseId, userId);
       await expect(rejection).rejects.toThrow(ForbiddenException);
-      await expect(rejection).rejects.toMatchObject({ message: '门禁检查未通过: health check failed' });
+      await expect(rejection).rejects.toMatchObject({ message: 'Gate 未通过: health check failed' });
       expect(prisma.release.update).not.toHaveBeenCalled();
     });
 
@@ -232,7 +232,7 @@ describe('ReleaseService', () => {
       prisma.gateExemption.findMany.mockResolvedValue([]);
 
       await expect(service.publish(releaseId, userId)).rejects.toMatchObject({
-        message: '门禁检查未通过: health check failed, p0 test failed',
+        message: 'Gate 未通过: health check failed; p0 test failed',
       });
       expect(prisma.release.update).not.toHaveBeenCalled();
     });
@@ -279,7 +279,7 @@ describe('ReleaseService', () => {
 
       const rejection = service.publish(releaseId, userId);
       await expect(rejection).rejects.toThrow(ForbiddenException);
-      await expect(rejection).rejects.toMatchObject({ message: '门禁检查未通过: p' });
+      await expect(rejection).rejects.toMatchObject({ message: 'Gate 未通过: p' });
       expect(prisma.release.update).not.toHaveBeenCalled();
     });
 

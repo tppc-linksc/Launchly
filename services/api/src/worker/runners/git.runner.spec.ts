@@ -121,7 +121,8 @@ describe('GitRunner.execute - input gate rejects before any side effect', () => 
     const runner = makeRunner(deps);
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main\0bad' } }));
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toContain('invalid');
+    // KI-032 修复后：caller 输入校验失败统一抛 '仓库 URL / branch / commit 非法'。
+    expect(result.errorMessage).toBe('仓库 URL / branch / commit 非法');
     expect(fsMock.mkdirSync).not.toHaveBeenCalled();
     expect(deps.executor.execFile).not.toHaveBeenCalled();
   });
@@ -136,7 +137,7 @@ describe('GitRunner.execute - input gate rejects before any side effect', () => 
     expect(deps.executor.execFile).not.toHaveBeenCalled();
   });
 
-  it('rejects when branch is exactly 256 chars and accepts 255', async () => {
+  it('rejects when branch is exactly 256 chars and accepts 255 (KI-032 caller input gate)', async () => {
     const deps = makeDeps();
     const runner = makeRunner(deps);
     // 255 chars → accepted
@@ -146,20 +147,20 @@ describe('GitRunner.execute - input gate rejects before any side effect', () => 
     const ok = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'a'.repeat(255) } }));
     expect(ok).toEqual({ success: true, stdout: '', stderr: '', exitCode: 0, errorMessage: '' });
     expect(deps.executor.execFile).toHaveBeenCalledTimes(1);
-    // 256 chars → rejected
+    // 256 chars → rejected (KI-032)
     const bad = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'a'.repeat(256) } }));
     expect(bad.success).toBe(false);
-    expect(bad.errorMessage).toContain('invalid');
+    expect(bad.errorMessage).toBe('仓库 URL / branch / commit 非法');
     expect(fsMock.mkdirSync).toHaveBeenCalledTimes(1);
   });
 
-  it('rejects when commitSha contains NUL/CR/LF or exceeds 255 chars', async () => {
+  it('rejects when commitSha contains NUL/CR/LF or exceeds 255 chars (KI-032 caller input gate)', async () => {
     const deps = makeDeps();
     const runner = makeRunner(deps);
     for (const bad of ['abc\0def', 'abc\rdef', 'abc\ndef', 'a'.repeat(256)]) {
       const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: bad } }));
       expect(result.success).toBe(false);
-      expect(result.errorMessage).toContain('invalid');
+      expect(result.errorMessage).toBe('仓库 URL / branch / commit 非法');
     }
     expect(deps.executor.execFile).not.toHaveBeenCalled();
   });
@@ -197,7 +198,7 @@ describe('GitRunner.execute - input gate rejects before any side effect', () => 
 // ─── B. GIT_PUBLIC ─────────────────────────────────────────────────────────
 
 describe('GitRunner.execute - GIT_PUBLIC path', () => {
-  it('when workDir does not exist: skips rm, calls mkdir(0700), clones with exact argv', async () => {
+  it('when workDir does not exist: skips rm, calls mkdir(0700) under task-isolated work-{refId}, clones with exact argv (KI-034)', async () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
@@ -209,11 +210,12 @@ describe('GitRunner.execute - GIT_PUBLIC path', () => {
     expect(result.stdout).toBe('cloned ok');
     expect(result.stderr).toBe('');
     expect(fsMock.rmSync).not.toHaveBeenCalled();
-    expect(fsMock.mkdirSync).toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1', { recursive: true, mode: 0o700 });
+    // KI-034：任务专属子目录 work-{refId}，避免并发串扰。
+    expect(fsMock.mkdirSync).toHaveBeenCalledWith('/tmp/launchly-builds/work-deploy-1', { recursive: true, mode: 0o700 });
     const call = deps.executor.execFile.mock.calls[0];
     expect(call[0]).toBe('git');
     expect(call[1]).toEqual(['clone', '--depth', '1', '--branch', 'main', PUBLIC_URL, '.']);
-    expect(call[2]).toEqual({ cwd: '/tmp/launchly-builds/deploy-1', timeout: 300, env: undefined });
+    expect(call[2]).toEqual({ cwd: '/tmp/launchly-builds/work-deploy-1', timeout: 300, env: undefined });
   });
 
   it.skip('when workDir exists: rm then mkdir, no executor env (current GIT_PUBLIC contract)', async () => {
@@ -299,24 +301,77 @@ describe('GitRunner.execute - GIT_PUBLIC path', () => {
     expect(result.errorMessage).toBe('token=plain-secret');
   });
 
-  it('commitSha present: fetch and checkout are called in order with exact argv, timeout 120', async () => {
+  it('commitSha present: clone + fetch + detached checkout (FETCH_HEAD) + HEAD verification are called in order with exact argv (KI-033)', async () => {
+    // KI-033 修复后：commitSha 走 fail-closed 路径。
+    //   1) clone
+    //   2) git fetch --depth 1 origin <commitSha
+    //   3) git checkout --detach FETCH_HEAD
+    //   4) git rev-parse HEAD 用于核对实际 HEAD；测试中返回与请求一致以保持 success。
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
     deps.executor.execFile
       .mockResolvedValueOnce({ stdout: 'cloned', stderr: '', exitCode: 0 }) // clone
       .mockResolvedValueOnce({ stdout: 'fetched', stderr: '', exitCode: 0 }) // fetch
-      .mockResolvedValueOnce({ stdout: 'switched', stderr: '', exitCode: 0 }); // checkout
+      .mockResolvedValueOnce({ stdout: 'switched', stderr: '', exitCode: 0 }) // checkout FETCH_HEAD
+      .mockResolvedValueOnce({ stdout: 'abc1234', stderr: '', exitCode: 0 }); // rev-parse HEAD
     const runner = makeRunner(deps);
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: 'abc1234' } }));
     expect(result.success).toBe(true);
-    expect(deps.executor.execFile).toHaveBeenCalledTimes(3);
+    expect(deps.executor.execFile).toHaveBeenCalledTimes(4);
     expect(deps.executor.execFile.mock.calls[1][0]).toBe('git');
     expect(deps.executor.execFile.mock.calls[1][1]).toEqual(['fetch', '--depth', '1', 'origin', 'abc1234']);
-    expect(deps.executor.execFile.mock.calls[1][2]).toEqual({ cwd: '/tmp/launchly-builds/deploy-1', timeout: 120, env: undefined });
+    expect(deps.executor.execFile.mock.calls[1][2]).toEqual({ cwd: '/tmp/launchly-builds/work-deploy-1', timeout: 120, env: undefined });
     expect(deps.executor.execFile.mock.calls[2][0]).toBe('git');
-    expect(deps.executor.execFile.mock.calls[2][1]).toEqual(['checkout', '--detach', 'abc1234']);
-    expect(deps.executor.execFile.mock.calls[2][2]).toEqual({ cwd: '/tmp/launchly-builds/deploy-1', timeout: 120, env: undefined });
+    expect(deps.executor.execFile.mock.calls[2][1]).toEqual(['checkout', '--detach', 'FETCH_HEAD']);
+    expect(deps.executor.execFile.mock.calls[2][2]).toEqual({ cwd: '/tmp/launchly-builds/work-deploy-1', timeout: 120, env: undefined });
+    expect(deps.executor.execFile.mock.calls[3][0]).toBe('git');
+    expect(deps.executor.execFile.mock.calls[3][1]).toEqual(['rev-parse', 'HEAD']);
+  });
+
+  it('commitSha present: HEAD mismatch fails closed with "实际 HEAD 与请求 commit 不一致" (KI-033)', async () => {
+    // KI-033 修复后：fetch+checkout 成功后必须核对 HEAD 与请求一致；不一致直接拒绝。
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile
+      .mockResolvedValueOnce({ stdout: 'cloned', stderr: '', exitCode: 0 }) // clone
+      .mockResolvedValueOnce({ stdout: 'fetched', stderr: '', exitCode: 0 }) // fetch
+      .mockResolvedValueOnce({ stdout: 'switched', stderr: '', exitCode: 0 }) // checkout
+      .mockResolvedValueOnce({ stdout: 'differentcommit', stderr: '', exitCode: 0 }); // rev-parse HEAD differs
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: 'requested-sha' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('实际 HEAD 与请求 commit 不一致');
+    expect(result.errorMessage).toContain('requested-sha');
+    expect(result.errorMessage).toContain('differentcommit');
+  });
+
+  it('commitSha present: fetch non-zero fails closed with "拉取失败" (KI-033)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile
+      .mockResolvedValueOnce({ stdout: 'cloned', stderr: '', exitCode: 0 }) // clone
+      .mockResolvedValueOnce({ stdout: '', stderr: 'no such ref', exitCode: 1 }); // fetch fails
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: 'deadbee' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('指定 commit deadbee 拉取失败');
+  });
+
+  it('commitSha present: checkout non-zero fails closed with "检出失败" (KI-033)', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.executor.execFile
+      .mockResolvedValueOnce({ stdout: 'cloned', stderr: '', exitCode: 0 }) // clone
+      .mockResolvedValueOnce({ stdout: 'fetched', stderr: '', exitCode: 0 }) // fetch
+      .mockResolvedValueOnce({ stdout: '', stderr: 'cannot switch', exitCode: 1 }); // checkout fails
+    const runner = makeRunner(deps);
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: 'badcafe' } }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('指定 commit badcafe 检出失败');
   });
 
   it.skip('commitSha fetch non-zero: no checkout, still returns success (current behavior)', async () => {
@@ -660,7 +715,9 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     expect(fsMock.unlinkSync).toHaveBeenCalledTimes(2);
   });
 
-  it('successful DEPLOY_KEY result: never leaks private key, host key, or token in result or serialized form', async () => {
+  it('successful DEPLOY_KEY result: never leaks private key, host key, or token in result or serialized form (KI-034)', async () => {
+    // KI-034 修复后：密钥写入 work-{refId}/id_ed25519 与 work-{refId}/known_hosts，
+    // 不再使用顶层 repo-key-${refId} / repo-known-hosts-${refId}。
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
@@ -684,9 +741,10 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     expect(serialized).not.toContain('ghp_abcdefghijklmnopqrstuvwxyz');
     expect(result.stdout).toContain('[REDACTED]');
     expect(result.stderr).toContain('[REDACTED]');
+    // 任务专属子目录 + id_ed25519 / known_hosts 文件名
     expect(fsMock.unlinkSync.mock.calls).toEqual([
-      ['/tmp/launchly-builds/repo-key-deploy-1'],
-      ['/tmp/launchly-builds/repo-known-hosts-deploy-1'],
+      ['/tmp/launchly-builds/work-deploy-1/id_ed25519'],
+      ['/tmp/launchly-builds/work-deploy-1/known_hosts'],
     ]);
   });
 });
@@ -694,16 +752,18 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
 // ─── E. Path boundary (refId-based path escape) ────────────────────────────
 
 describe('GitRunner.execute - refId path boundary (current behavior is a candidate defect)', () => {
-  it('workDir is computed via path.join with BUILD_ROOT and the unvalidated refId (path.join normalizes ..)', async () => {
+  it('refId "../escape-1" is rejected by assertSafeRefId before any fs/Prisma/executor call (KI-032)', async () => {
+    // KI-032 修复后：caller 控制的 refId 必须先通过 assertSafeRefId；'../escape-1' 包含非法字符 '/'
+    // 会被拒绝并返回失败结果。早期 path.join 直接归一化的"逃逸 BUILD_ROOT"候选缺陷已消除。
     const deps = makeDeps();
-    fsMock.existsSync.mockReturnValueOnce(false);
-    fsMock.mkdirSync.mockReturnValueOnce(undefined);
-    deps.executor.execFile.mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
     const runner = makeRunner(deps);
-    await runner.execute(makeContext({ refId: '../escape-1' }));
-    // path.join normalizes ../, so the workDir escapes BUILD_ROOT (a candidate defect).
-    expect(fsMock.mkdirSync).toHaveBeenCalledWith('/tmp/escape-1', { recursive: true, mode: 0o700 });
-    expect(deps.executor.execFile.mock.calls[0][2].cwd).toBe('/tmp/escape-1');
+    const result = await runner.execute(makeContext({ refId: '../escape-1' }));
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('refId 必须是字母/数字/下划线/连字符组成的 1-128 字符 ID');
+    expect(fsMock.mkdirSync).not.toHaveBeenCalled();
+    expect(fsMock.existsSync).not.toHaveBeenCalled();
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+    expect(deps.prisma.project.findUnique).not.toHaveBeenCalled();
   });
 
   it.skip('DEPLOY_KEY privateKeyPath and knownHostsPath also resolve through path.join (candidate defect)', async () => {

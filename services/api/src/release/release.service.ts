@@ -89,12 +89,13 @@ export class ReleaseService {
       throw new ForbiddenException('Gate 未通过: ' + unresolvedFailures.map(g => g.message).join('; '));
     }
 
-    const allExempted = gateStatus.gates.every(g => !g.passed && exemptedGates.has(g.name));
+    // EXEMPTED 状态判定：所有未通过的 gate 都已有豁免，且没有任何 unresolved failure。
+    const hasUnresolvedFailure = unresolvedFailures.length > 0;
     return this.prisma.release.update({
       where: { id },
       data: {
         status: 'PUBLISHED',
-        gateStatus: gateStatus.allPassed ? 'PASSED' : (allExempted ? 'EXEMPTED' : 'PASSED'),
+        gateStatus: gateStatus.allPassed ? 'PASSED' : (hasUnresolvedFailure ? 'FAILED' : 'EXEMPTED'),
         releasedBy: userId,
         releasedAt: new Date(),
       },

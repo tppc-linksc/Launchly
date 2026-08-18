@@ -15,7 +15,7 @@
 
 const SENSITIVE_KEYS = [
   'password', 'passwd', 'token', 'access_token', 'refresh_token',
-  'secret', 'api_key', 'apikey', 'private_key', 'privatekey',
+  'secret', 'api_key', 'apikey', 'api-key', 'private_key', 'privatekey', 'private-key',
   'credential', 'credentials', 'auth', 'authorization',
 ];
 
@@ -90,6 +90,9 @@ function maskKeyValues(text: string): string {
   for (const k of keys) {
     const v = parseValueAfter(text, k.end);
     if (!v) continue;
+    const originalValue = text.slice(v.start, v.end);
+    // 幂等性：值已经是 REDACTED 占位符或被包含，则跳过，避免重复添加 [REDACTED] 末尾。
+    if (originalValue.includes(REDACTED)) continue;
     const replacement = text.slice(k.start, v.start) + REDACTED;
     replacements.push({ start: k.start, end: v.end, text: replacement });
   }
@@ -99,7 +102,9 @@ function maskKeyValues(text: string): string {
   for (const r of replacements) {
     if (r.start < cursor) continue; // 跳过重叠
     result += text.slice(cursor, r.start) + r.text;
-    cursor = r.end;
+    // 修复：r.end 是原 value 的右边界，但替换文本（REDACTED）长度可能不同；
+    // 应当以替换文本长度为准推进 cursor，避免遗留一个字符（如 "]"）。
+    cursor = r.start + r.text.length;
   }
   return result + text.slice(cursor);
 }
