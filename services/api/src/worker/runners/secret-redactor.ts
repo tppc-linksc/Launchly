@@ -91,8 +91,17 @@ function maskKeyValues(text: string): string {
     const v = parseValueAfter(text, k.end);
     if (!v) continue;
     const originalValue = text.slice(v.start, v.end);
-    // 幂等性：值已经是 REDACTED 占位符或被包含，则跳过，避免重复添加 [REDACTED] 末尾。
-    if (originalValue.includes(REDACTED)) continue;
+    // 幂等性：值已经是 REDACTED 占位符或被包含，则跳过，
+    // 同时把紧随其后的一个字符（如 "]"）也消耗掉，避免重复插入。
+    if (originalValue.includes(REDACTED)) {
+      // 把 v.end 之后的一个字符（如裸值结束符 ] 或 "）也消耗
+      let nextPos = v.end;
+      if (text.length > nextPos && (text[nextPos] === ']' || text[nextPos] === '"' || text[nextPos] === "'" || text[nextPos] === ' ' || text[nextPos] === ',' || text[nextPos] === ';')) {
+        nextPos += 1;
+      }
+      replacements.push({ start: k.start, end: nextPos, text: text.slice(k.start, v.start) + REDACTED });
+      continue;
+    }
     const replacement = text.slice(k.start, v.start) + REDACTED;
     replacements.push({ start: k.start, end: v.end, text: replacement });
   }
@@ -102,8 +111,6 @@ function maskKeyValues(text: string): string {
   for (const r of replacements) {
     if (r.start < cursor) continue; // 跳过重叠
     result += text.slice(cursor, r.start) + r.text;
-    // r.end 是原 value 的右边界，是原始 text 的偏移；
-    // 用 r.end 推进 cursor，保持与原文本同步。
     cursor = r.end;
   }
   return result + text.slice(cursor);
