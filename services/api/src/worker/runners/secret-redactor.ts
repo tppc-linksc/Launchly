@@ -91,10 +91,9 @@ function maskKeyValues(text: string): string {
     const v = parseValueAfter(text, k.end);
     if (!v) continue;
     const originalValue = text.slice(v.start, v.end);
-    // 幂等性：值已经是 REDACTED 占位符或被包含，则跳过，
-    // 同时把紧随其后的一个字符（如 "]"）也消耗掉，避免重复插入。
-    if (originalValue.includes(REDACTED)) {
-      // 把 v.end 之后的一个字符（如裸值结束符 ] 或 "）也消耗
+    // 幂等性：值已经是 REDACTED 占位符（裸值形态），则跳过并把紧随的分隔符消耗掉。
+    // 判断：value 起始是 [REDACTED 但长度小于等于 11 字符（不包含 ]）。
+    if (originalValue === '[REDACTED' || originalValue === '"[REDACTED"' || originalValue === "'[REDACTED]'") {
       let nextPos = v.end;
       if (text.length > nextPos && (text[nextPos] === ']' || text[nextPos] === '"' || text[nextPos] === "'" || text[nextPos] === ' ' || text[nextPos] === ',' || text[nextPos] === ';')) {
         nextPos += 1;

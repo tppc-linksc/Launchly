@@ -553,15 +553,15 @@ describe('WorkerService.poll - task type / stage mapping', () => {
     }
   });
 
-  it('unknown task type marks the task SUCCEEDED without invoking any runner and clears the lease', async () => {
-    const row = makePendingRow({ taskType: 'MYSTERY_TASK' });
-    attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ taskType: 'MYSTERY_TASK' }) });
+  it('unknown task type marks the task FAILED (KI-025 fail closed) without invoking any runner and clears the lease', async () => {
+    const row = makePendingRow({ taskType: 'MYSTERY_TASK', payload: '{}' });
+    attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ taskType: 'MYSTERY_TASK', payload: '{}' }) });
     await service.poll();
     expect(runnerFactory.execute).not.toHaveBeenCalled();
     expect(prisma.task.update).toHaveBeenCalledTimes(1);
     const args = prisma.task.update.mock.calls[0][0];
     expect(args.where).toEqual({ id: 'task-1' });
-    expect(args.data.status).toBe('SUCCEEDED');
+    expect(args.data.status).toBe('FAILED');
     expect(args.data.leaseOwner).toBeNull();
     expect(args.data.leaseExpiresAt).toBeNull();
     expect(args.data.finishedAt).toBeInstanceOf(Date);
@@ -1283,7 +1283,7 @@ describe('WorkerService.timeoutStuckTasks', () => {
     }
   });
 
-  it('under maxAttempts: writes FAILED with timeout error, then re-queues PENDING and leaves deployment alone', async () => {
+  it('under maxAttempts: writes PENDING with timeout error (KI-027 atomic reset) and leaves deployment alone', async () => {
     const stuck = {
       id: 'task-1',
       taskType: 'REPO_CLONE',
@@ -1296,20 +1296,15 @@ describe('WorkerService.timeoutStuckTasks', () => {
 
     await service.timeoutStuckTasks();
 
+    // KI-027 修复后：有重试预算的任务只写一次 PENDING（不再先写 FAILED 再覆盖），
+    // 状态从 RUNNING 直接转回 PENDING，错误信息保留供运维参考。
     const updates = prisma.task.update.mock.calls.map(c => c[0]);
-    expect(updates).toHaveLength(2);
-    const failedWrite = updates[0];
-    expect(failedWrite.where).toEqual({ id: 'task-1' });
-    expect(failedWrite.data.status).toBe('FAILED');
-    expect(failedWrite.data.errorMessage).toContain('30');
-    expect(failedWrite.data.errorMessage).toContain('分钟');
-    expect(failedWrite.data.finishedAt).toBeInstanceOf(Date);
-    expect(failedWrite.data.leaseOwner).toBeNull();
-    expect(failedWrite.data.leaseExpiresAt).toBeNull();
-
-    const pendingWrite = updates[1];
+    expect(updates).toHaveLength(1);
+    const pendingWrite = updates[0];
+    expect(pendingWrite.where).toEqual({ id: 'task-1' });
     expect(pendingWrite.data.status).toBe('PENDING');
-    expect(pendingWrite.data.errorMessage).toBeNull();
+    expect(pendingWrite.data.errorMessage).toContain('30');
+    expect(pendingWrite.data.errorMessage).toContain('分钟');
     expect(pendingWrite.data.startedAt).toBeNull();
     expect(pendingWrite.data.finishedAt).toBeNull();
     expect(pendingWrite.data.leaseOwner).toBeNull();
@@ -1358,16 +1353,16 @@ describe('WorkerService.timeoutStuckTasks', () => {
     expect(deployUpdate[0].data.errorMessage).toContain('任务超时失败');
   });
 
-  it('processes multiple stuck tasks independently', async () => {
+  it('processes multiple stuck tasks independently (KI-027: each writes one PENDING)', async () => {
     const stuck1 = { id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-1', attempts: 1, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000) };
     const stuck2 = { id: 'task-2', taskType: 'PROJECT_BUILD', refId: 'deploy-2', attempts: 1, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000) };
     prisma.task.findMany.mockResolvedValue([stuck1, stuck2]);
     await service.timeoutStuckTasks();
     const updates = prisma.task.update.mock.calls.map(c => c[0]);
-    const failedIds = updates.filter(c => c.data.status === 'FAILED').map(c => c.where.id);
-    expect(failedIds).toEqual(expect.arrayContaining(['task-1', 'task-2']));
+    // KI-027 修复后：有重试预算的任务只写一次 PENDING（不再先 FAILED 再 PENDING）。
     const pendingIds = updates.filter(c => c.data.status === 'PENDING').map(c => c.where.id);
     expect(pendingIds).toEqual(expect.arrayContaining(['task-1', 'task-2']));
+    expect(updates).toHaveLength(2);
   });
 
   it.skip('stops the timeout batch when updating the first stuck task fails (current behavior)', async () => {
@@ -1595,7 +1590,7 @@ describe('WorkerService - automatic rollback', () => {
     const stageCall = tx.deploymentStageLog.create.mock.calls[0][0];
     expect(stageCall.data.deploymentId).toBe('deploy-failed');
     expect(stageCall.data.stage).toBe('ROLLBACK');
-    expect(stageCall.data.stepOrder).toBe(5);
+    expect(stageCall.data.stepOrder).toBe(6);
     expect(stageCall.data.status).toBe('PENDING');
     expect(stageCall.data.log).toContain('Automatic rollback scheduled after');
     expect(stageCall.data.log).toContain('任务超时失败');
