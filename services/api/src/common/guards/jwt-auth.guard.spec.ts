@@ -54,9 +54,26 @@ describe('JwtAuthGuard', () => {
 
   it('should set request.user and return true for a valid token', () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false);
-    (jwtService.verify as jest.Mock).mockReturnValue({ uid: 'u1', wid: 'w1', role: 'ADMIN' });
+    (jwtService.verify as jest.Mock).mockReturnValue({ uid: 'u1', wid: 'w1', role: 'ADMIN', typ: 'access', aud: 'launchly:api' });
     const { ctx, request } = mockContext({ authorization: 'Bearer good-token' });
     expect(guard.canActivate(ctx)).toBe(true);
+    expect(jwtService.verify).toHaveBeenCalledWith('good-token', { audience: 'launchly:api' });
     expect(request.user).toEqual({ userId: 'u1', workspaceId: 'w1', role: 'ADMIN' });
+  });
+
+  it('rejects a validly signed refresh-token payload on protected routes', () => {
+    (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false);
+    (jwtService.verify as jest.Mock).mockReturnValue({ uid: 'u1', jti: 'refresh-1', typ: 'refresh', aud: 'launchly:refresh' });
+    const { ctx } = mockContext({ authorization: 'Bearer refresh-token' });
+
+    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
+  });
+
+  it('rejects an access-token payload without a user id', () => {
+    (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false);
+    (jwtService.verify as jest.Mock).mockReturnValue({ typ: 'access', aud: 'launchly:api' });
+    const { ctx } = mockContext({ authorization: 'Bearer incomplete-token' });
+
+    expect(() => guard.canActivate(ctx)).toThrow(UnauthorizedException);
   });
 });

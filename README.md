@@ -20,7 +20,7 @@
   <a href="README.en.md">English Documentation</a>
 </p>
 
-> **当前状态（2026-08-18）**：项目以 `eb8c933` 为基线继续推进 **R0 可信基线修复**。本轮集中完成 R0-04/05/06/07/08/09 代码路径：统一授权策略、DTO/唯一约束、迁移脚本、密钥与日志脱敏、CLI 拆分；测试覆盖提升至 API ~95%/88%/90%/96%、Web Functions 62.13%（>70% 目标）、CLI 52 个测试通过。但 BASE/E2E 真实验收仍未完成；没有对应证据的能力不得对外称为完成。详细状态只看[项目重启路线图](docs/basic/项目重启路线图.md)和[交付验收规范](docs/basic/交付验收规范.md)。
+> **当前状态（2026-08-20）**：项目继续推进 **R0 可信基线修复**。本地复跑 API 单元、API E2E、Web 与 CLI 均为绿；当前全量覆盖率为 API 78.86%/64.04%/64.34%/79.12%、Web 96.33%/85.12%/62.13%/96.33%、CLI 86.83%/85.05%/86.20%/86.83%（Statements/Branches/Functions/Lines）。API 与 Web Functions 尚未达到 R0 门槛，且真实数据库、迁移升级、Registry/SSH/HTTPS 等 BASE/E2E 验收仍未完成；没有对应证据的能力不得对外称为完成。详细状态只看[项目重启路线图](docs/basic/项目重启路线图.md)和[交付验收规范](docs/basic/交付验收规范.md)。
 
 ## Launchly 是什么
 
@@ -117,11 +117,11 @@ GitHub / GitLab + CI Checks
 
 | 范围 | 测试规模 | Statements | Branches | Functions | Lines |
 | --- | --- | ---: | ---: | ---: | ---: |
-| API | 38 suites / 1225 tests，910 通过；另有 2 E2E suites | 95.70% | 88.10% | 90.48% | 96.27% |
-| Web | 30 files / 354 tests | 96.33% | 85.12% | 62.13%（>70% 目标） | 96.33% |
-| CLI | 4 files / 52 tests | 97.92% | 93.10% | 100% | 97.92% |
+| API | 39 suites / 1212 tests：1040 通过、172 跳过；另有 2 E2E suites / 94 通过 | 78.86% | 64.04% | 64.34% | 79.12% |
+| Web | 30 files / 354 tests | 96.33% | 85.12% | 62.13%（低于 70% 目标） | 96.33% |
+| CLI | 4 files / 52 tests | 86.83% | 85.05% | 86.20% | 86.83% |
 
-这些数字只说明本轮自动化测试的覆盖广度提升，仍不能取代 BASE-11 真实验收。API 在双 Workspace、迁移升级、备份恢复、真实 SSH/Registry/GitHub/HTTPS、回滚和故障恢复仍没有完整 E2E 证据。Web Functions 达到目标但仍有少量方法覆盖率未达 100%。剩余工作见[项目重启路线图](docs/basic/项目重启路线图.md)的下一批工作。
+这些数字只说明当前自动化测试可复跑，仍不能取代 BASE-11 真实验收。API 的 Statements/Lines 接近但未达到 80%，Branches/Functions 仍有明显缺口；Web Functions 也低于 70% 目标。双 Workspace、迁移升级、备份恢复、真实 SSH/Registry/GitHub/HTTPS、回滚和故障恢复仍没有完整 E2E 证据。剩余工作见[项目重启路线图](docs/basic/项目重启路线图.md)的下一批工作。
 
 ## 项目路线图
 

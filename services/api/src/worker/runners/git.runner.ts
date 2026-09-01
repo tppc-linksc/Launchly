@@ -5,6 +5,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { SecretValueService } from '../../environment/secret-value.service';
 import { GithubAppService } from '../../git/github-app.service';
 import { assertSafeRefId } from './ref-id-safety';
+import { BUILD_ROOT, buildContextDir } from './build-context';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -13,13 +14,11 @@ import * as fs from 'fs';
  *
  * 关键约束：
  * - refId / projectId 走 assertSafeRefId；防止路径穿越（KI-032）。
- * - 任务专属临时目录（work-${refId}/repo-key 等）；外层 finally 清理（KI-034）。
+ * - Deploy Key 凭据位于构建上下文之外并在 finally 清理，源码保留给下一阶段 BuildKit。
  * - 指定 commitSha 时，fetch 和 detached checkout 任一失败必须 fail closed（KI-033），
  *   并读取实际 HEAD 写入 Artifact，避免"声称 X commit 实际是 Y head"。
  * - 所有报错与 stdout/stderr 走 CommandExecutor.sanitize。
  */
-
-const BUILD_ROOT = '/tmp/launchly-builds';
 
 @Injectable()
 export class GitRunner {
@@ -49,10 +48,11 @@ export class GitRunner {
       return this.failure('仓库 URL / branch / commit 非法');
     }
 
-    // KI-034: 每个任务用专属子目录隔离密钥，避免并发串扰。
-    const workDir = path.join(BUILD_ROOT, `work-${ctx.refId}`);
+    // REPO_CLONE 与后续 PROJECT_BUILD 必须共享同一个构建上下文。
+    const workDir = buildContextDir(ctx.refId);
     let privateKeyPath: string | undefined;
     let knownHostsPath: string | undefined;
+    let sourceReady = false;
 
     try {
       if (fs.existsSync(workDir)) fs.rmSync(workDir, { recursive: true, force: true });
@@ -80,6 +80,11 @@ export class GitRunner {
         }
       }
 
+      // A GitHub App clone records its credentialed URL in .git/config. BuildKit
+      // never needs repository metadata, so remove all of .git before handing off.
+      fs.rmSync(path.join(workDir, '.git'), { recursive: true, force: true });
+      sourceReady = true;
+
       return {
         success: true,
         stdout: CommandExecutor.sanitize(clone.result.stdout),
@@ -92,8 +97,10 @@ export class GitRunner {
     } finally {
       if (privateKeyPath) this.safeUnlink(privateKeyPath);
       if (knownHostsPath) this.safeUnlink(knownHostsPath);
-      // KI-034: 删除 workDir 兜底；失败不抛错。
-      try { if (fs.existsSync(workDir)) fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* 清理失败忽略 */ }
+      // Only a complete, credential-free source tree may survive for BuildKit.
+      if (!sourceReady) {
+        try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* best effort */ }
+      }
     }
   }
 
@@ -102,34 +109,41 @@ export class GitRunner {
     let env: Record<string, string> | undefined;
     let privateKeyPath: string | undefined;
     let knownHostsPath: string | undefined;
-    if (sourceType === 'GITHUB_APP') {
-      const project = await this.prisma.project.findUnique({ where: { id: projectId } });
-      if (!project?.githubInstallationId) throw new Error('GitHub App 源缺少 installation ID');
-      url = this.githubTokenUrl(repositoryUrl, await this.githubApp.installationToken(project.githubInstallationId));
-    } else if (sourceType === 'DEPLOY_KEY') {
-      const credential = await this.prisma.repositoryCredential.findUnique({ where: { projectId } });
-      if (!credential || credential.credentialType !== 'DEPLOY_KEY' || !credential.hostKey) {
-        throw new Error('Deploy Key 源缺少密钥或 pinned host key');
+    try {
+      if (sourceType === 'GITHUB_APP') {
+        const project = await this.prisma.project.findUnique({ where: { id: projectId } });
+        if (!project?.githubInstallationId) throw new Error('GitHub App 源缺少 installation ID');
+        url = this.githubTokenUrl(repositoryUrl, await this.githubApp.installationToken(project.githubInstallationId));
+      } else if (sourceType === 'DEPLOY_KEY') {
+        const credential = await this.prisma.repositoryCredential.findUnique({ where: { projectId } });
+        if (!credential || credential.credentialType !== 'DEPLOY_KEY' || !credential.hostKey) {
+          throw new Error('Deploy Key 源缺少密钥或 pinned host key');
+        }
+        const host = this.sshHost(repositoryUrl);
+        if (!host) throw new Error('Deploy Key 源必须是 SSH 仓库 URL');
+        // Keep credentials outside workDir: `git clone ... .` requires an empty
+        // destination and BuildKit must never receive secret material as context.
+        privateKeyPath = path.join(BUILD_ROOT, `.git-key-${deploymentId}`);
+        knownHostsPath = path.join(BUILD_ROOT, `.git-known-hosts-${deploymentId}`);
+        fs.writeFileSync(privateKeyPath, this.secrets.decrypt(credential.encryptedValue), { mode: 0o600 });
+        fs.writeFileSync(knownHostsPath, `${host} ${credential.hostKey.trim()}\n`, { mode: 0o600 });
+        env = {
+          GIT_SSH_COMMAND: `ssh -i ${privateKeyPath} -o IdentitiesOnly=yes -o BatchMode=yes -o PasswordAuthentication=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${knownHostsPath}`,
+        };
+      } else if (sourceType !== 'GIT_PUBLIC') {
+        throw new Error(`不支持的 Git 源类型: ${sourceType}`);
       }
-      const host = this.sshHost(repositoryUrl);
-      if (!host) throw new Error('Deploy Key 源必须是 SSH 仓库 URL');
-      // KI-034: 任务专属子目录下的密钥文件。
-      privateKeyPath = path.join(workDir, 'id_ed25519');
-      knownHostsPath = path.join(workDir, 'known_hosts');
-      fs.writeFileSync(privateKeyPath, this.secrets.decrypt(credential.encryptedValue), { mode: 0o600 });
-      fs.writeFileSync(knownHostsPath, `${host} ${credential.hostKey.trim()}\n`, { mode: 0o600 });
-      env = {
-        GIT_SSH_COMMAND: `ssh -i ${privateKeyPath} -o IdentitiesOnly=yes -o BatchMode=yes -o PasswordAuthentication=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${knownHostsPath}`,
+      return {
+        result: await this.executor.execFile('git', ['clone', '--depth', '1', '--branch', branch, url, '.'], { cwd: workDir, timeout: 300, env }),
+        env,
+        privateKeyPath,
+        knownHostsPath,
       };
-    } else if (sourceType !== 'GIT_PUBLIC') {
-      throw new Error(`不支持的 Git 源类型: ${sourceType}`);
+    } catch (error) {
+      if (privateKeyPath) this.safeUnlink(privateKeyPath);
+      if (knownHostsPath) this.safeUnlink(knownHostsPath);
+      throw error;
     }
-    return {
-      result: await this.executor.execFile('git', ['clone', '--depth', '1', '--branch', branch, url, '.'], { cwd: workDir, timeout: 300, env }),
-      env,
-      privateKeyPath,
-      knownHostsPath,
-    };
   }
 
   private githubTokenUrl(repositoryUrl: string, token: string): string {
@@ -157,7 +171,8 @@ export class GitRunner {
 
   private safeUnlink(file: string) { try { fs.unlinkSync(file); } catch { /* 清理失败忽略 */ } }
   private failure(message: string): RunnerResult {
-    return { success: false, stdout: '', stderr: CommandExecutor.sanitize(message), exitCode: -1, errorMessage: message };
+    const sanitized = CommandExecutor.sanitize(message);
+    return { success: false, stdout: '', stderr: sanitized, exitCode: -1, errorMessage: sanitized };
   }
   private resultFrom(result: { stdout: string; stderr: string; exitCode: number }, message: string): RunnerResult {
     return {

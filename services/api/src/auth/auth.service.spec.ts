@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
-import { UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { UnauthorizedException, BadRequestException, HttpException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { createPrismaMock, MockPrismaService } from '../../test/helpers/prisma-mock';
 
@@ -51,6 +51,14 @@ describe('AuthService', () => {
       expect(result.refreshToken).toBe('mock-token');
       expect(result.user).toEqual({ id: 'u1', account: 'admin', displayName: 'Admin', role: 'OWNER' });
       expect(result.workspace).toEqual({ id: 'w1', name: 'My Workspace' });
+      expect(jwtService.sign).toHaveBeenNthCalledWith(1, expect.objectContaining({
+        uid: 'u1', wid: 'w1', role: 'OWNER', typ: 'access',
+      }), { audience: 'launchly:api' });
+      expect(jwtService.sign).toHaveBeenNthCalledWith(2, expect.objectContaining({
+        uid: 'u1', typ: 'refresh', jti: expect.any(String),
+      }), { audience: 'launchly:refresh', expiresIn: '30d' });
+      expect(jwtService.sign.mock.calls[0][0]).not.toHaveProperty('aud');
+      expect(jwtService.sign.mock.calls[1][0]).not.toHaveProperty('aud');
     });
 
     it('should throw UnauthorizedException when user not found', async () => {
@@ -79,6 +87,40 @@ describe('AuthService', () => {
       expect(result.workspace).toBeNull();
       expect(result.user.role).toBeUndefined();
     });
+
+    it('rate-limits the sixth failed attempt for the same account and client address', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        await expect(service.login('admin', 'wrong', '192.0.2.10')).rejects.toThrow(UnauthorizedException);
+      }
+      const blocked = service.login('admin', 'wrong', '192.0.2.10');
+      await expect(blocked).rejects.toBeInstanceOf(HttpException);
+      await expect(blocked).rejects.toMatchObject({ status: 429 });
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(5);
+    });
+
+    it('does not share login failure counters across client addresses', async () => {
+      prisma.user.findUnique.mockResolvedValue(null);
+
+      for (let attempt = 0; attempt < 5; attempt += 1) {
+        await expect(service.login('admin', 'wrong', '192.0.2.10')).rejects.toThrow(UnauthorizedException);
+      }
+      await expect(service.login('admin', 'wrong', '192.0.2.11')).rejects.toThrow(UnauthorizedException);
+      expect(prisma.user.findUnique).toHaveBeenCalledTimes(6);
+    });
+  });
+
+  it('signs a real access/refresh pair with distinct audiences and no duplicate aud option', async () => {
+    const realJwt = new JwtService({ secret: 'real-jwt-test-secret', signOptions: { expiresIn: '1h' } });
+    const realService = new AuthService(prisma as unknown as PrismaService, realJwt);
+
+    const pair = await (realService as any).issueTokenPair('u-real', 'w-real', 'OWNER', 'Workspace', 'owner', 'Owner');
+    const access = realJwt.verify(pair.accessToken, { audience: 'launchly:api' });
+    const refresh = realJwt.verify(pair.refreshToken, { audience: 'launchly:refresh' });
+
+    expect(access).toMatchObject({ uid: 'u-real', wid: 'w-real', role: 'OWNER', typ: 'access', aud: 'launchly:api' });
+    expect(refresh).toMatchObject({ uid: 'u-real', typ: 'refresh', aud: 'launchly:refresh', jti: expect.any(String) });
   });
 
   describe('getStatus', () => {
@@ -101,11 +143,10 @@ describe('AuthService', () => {
 
   describe('createOwner', () => {
     it('should create user, workspace, and member in a transaction', async () => {
-      prisma.user.count.mockResolvedValue(0);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
 
       const txMock = {
-        user: { create: jest.fn().mockResolvedValue({ id: 'u1', account: 'admin', displayName: 'Admin' }) },
+        user: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({ id: 'u1', account: 'admin', displayName: 'Admin' }) },
         workspace: { create: jest.fn().mockResolvedValue({ id: 'w1', name: 'Org' }) },
         workspaceMember: { create: jest.fn().mockResolvedValue({}) },
       };
@@ -113,7 +154,8 @@ describe('AuthService', () => {
 
       const result = await service.createOwner('admin', 'pass', 'Admin', 'Org');
 
-      expect(prisma.user.count).toHaveBeenCalled();
+      expect(txMock.user.count).toHaveBeenCalled();
+      expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: 'Serializable' });
       expect(bcrypt.hash).toHaveBeenCalledWith('pass', 10);
       expect(txMock.user.create).toHaveBeenCalled();
       expect(txMock.workspace.create).toHaveBeenCalledWith({ data: { name: 'Org' } });
@@ -123,18 +165,17 @@ describe('AuthService', () => {
     });
 
     it('should throw BadRequestException when users already exist', async () => {
-      prisma.user.count.mockResolvedValue(1);
+      prisma.$transaction.mockImplementation(async (fn: any) => fn({ user: { count: jest.fn().mockResolvedValue(1) } }));
 
       await expect(service.createOwner('admin', 'pass', 'Admin', 'Org')).rejects.toThrow(BadRequestException);
-      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(prisma.$transaction).toHaveBeenCalled();
     });
 
     it('should use account as displayName when displayName is null', async () => {
-      prisma.user.count.mockResolvedValue(0);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
 
       const txMock = {
-        user: { create: jest.fn().mockResolvedValue({ id: 'u1', account: 'admin', displayName: 'admin' }) },
+        user: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({ id: 'u1', account: 'admin', displayName: 'admin' }) },
         workspace: { create: jest.fn().mockResolvedValue({ id: 'w1', name: 'Org' }) },
         workspaceMember: { create: jest.fn().mockResolvedValue({}) },
       };
@@ -145,6 +186,13 @@ describe('AuthService', () => {
       expect(txMock.user.create).toHaveBeenCalledWith(
         expect.objectContaining({ data: expect.objectContaining({ displayName: 'admin' }) }),
       );
+    });
+
+    it.each(['P2002', 'P2034'])('maps concurrent initialization error %s to BadRequest', async code => {
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
+      prisma.$transaction.mockRejectedValue(Object.assign(new Error('transaction conflict'), { code }));
+
+      await expect(service.createOwner('admin', 'pass', 'Admin', 'Org')).rejects.toThrow(BadRequestException);
     });
   });
 });

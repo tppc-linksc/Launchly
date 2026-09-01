@@ -1,6 +1,7 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { GateCheckService } from './gate-check.service';
+import { AuditService } from '../audit/audit.service';
 
 /**
  * 发布（Release）Service（KI-020 / KI-021 / R0-09 / R5）。
@@ -15,6 +16,7 @@ export class ReleaseService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly gateCheck: GateCheckService,
+    @Optional() private readonly audit?: AuditService,
   ) {}
 
   async createRelease(projectId: string, data: { environmentId: string; deploymentId: string; version: string; notes?: string }, userId: string) {
@@ -106,14 +108,27 @@ export class ReleaseService {
     if (!data.reason || !String(data.reason).trim()) {
       throw new BadRequestException('豁免原因不能为空（KI-020）');
     }
-    return this.prisma.gateExemption.create({
+    const exemption = await this.prisma.gateExemption.create({
       data: {
         releaseId: id,
         gateName,
         exemptedBy: userId,
         reason: data.reason,
+        ticket: data.ticket ?? null,
       },
     });
+    if (this.audit) {
+      const release = await this.prisma.release.findUnique({
+        where: { id },
+        select: { project: { select: { workspaceId: true } } },
+      });
+      await this.audit.record(userId, release?.project.workspaceId ?? null, 'RELEASE_GATE_EXEMPTED', 'RELEASE', id, {
+        gateName,
+        reason: data.reason,
+        ticket: data.ticket ?? null,
+      });
+    }
+    return exemption;
   }
 
   async getExemptions(id: string) {

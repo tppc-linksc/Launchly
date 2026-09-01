@@ -103,10 +103,12 @@ export function composeTemplate(): string {
       <<: *launchly-env
       LAUNCHLY_PROCESS_ROLE: worker
       LAUNCHLY_BUILDKIT_ADDR: tcp://launchly-buildkit:1234
+      LAUNCHLY_REGISTRY_AUTH_JSON: \${LAUNCHLY_REGISTRY_AUTH_JSON:-}
     volumes:
       - launchly-worker-data:/var/lib/launchly-worker
     networks:
       - launchly-net
+      - launchly-builder-net
     depends_on:
       launchly-migrate:
         condition: service_completed_successfully
@@ -119,7 +121,7 @@ export function composeTemplate(): string {
     security_opt:
       - no-new-privileges:true
     networks:
-      - launchly-net
+      - launchly-builder-net
     restart: unless-stopped
     profiles: ["builder"]
     mem_limit: \${LAUNCHLY_BUILDKIT_MEMORY_LIMIT:-1024m}
@@ -127,6 +129,9 @@ export function composeTemplate(): string {
 networks:
   launchly-net:
     driver: bridge
+  launchly-builder-net:
+    driver: bridge
+    internal: true
 
 volumes:
   launchly-postgres-data:

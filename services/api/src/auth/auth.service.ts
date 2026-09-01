@@ -1,8 +1,9 @@
-import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../common/prisma/prisma.service';
 import * as bcrypt from 'bcryptjs';
 import { webcrypto as crypto } from 'node:crypto';
+import { Prisma } from '@prisma/client';
 
 /**
  * 认证 Service（KI-010 / R0-08）。
@@ -20,20 +21,22 @@ const TOKEN_TYPE_REFRESH = 'refresh';
 const ACCESS_AUDIENCE = 'launchly:api';
 const REFRESH_AUDIENCE = 'launchly:refresh';
 const REFRESH_TOKEN_TTL = '30d';
+const LOGIN_FAILURE_LIMIT = 5;
+const LOGIN_FAILURE_WINDOW_MS = 15 * 60 * 1000;
+const MAX_RATE_LIMIT_KEYS = 10_000;
 
 interface AccessTokenPayload {
   uid: string;
   wid?: string;
   role?: string;
   typ: typeof TOKEN_TYPE_ACCESS;
-  aud: typeof ACCESS_AUDIENCE;
 }
 
 interface RefreshTokenPayload {
   uid: string;
   jti: string;
   typ: typeof TOKEN_TYPE_REFRESH;
-  aud: typeof REFRESH_AUDIENCE;
+  aud?: string | string[];
 }
 
 @Injectable()
@@ -43,17 +46,28 @@ export class AuthService {
    * 多实例部署应改为 Redis 或数据库表；目前为单实例内存实现，足以通过 R0 BASE 验收。
    */
   private readonly revokedRefreshJtis = new Set<string>();
+  private readonly loginFailures = new Map<string, { count: number; resetAt: number }>();
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
   ) {}
 
-  async login(account: string, password: string) {
+  async login(account: string, password: string, clientAddress = 'unknown') {
+    const rateLimitKey = `${clientAddress}\u0000${account.toLocaleLowerCase('en-US')}`;
+    this.assertLoginAllowed(rateLimitKey);
     const user = await this.prisma.user.findUnique({ where: { account } });
-    if (!user) throw new UnauthorizedException('账号或密码错误');
+    if (!user) {
+      this.recordLoginFailure(rateLimitKey);
+      throw new UnauthorizedException('账号或密码错误');
+    }
     const valid = await bcrypt.compare(password, user.passwordHash);
-    if (!valid) throw new UnauthorizedException('账号或密码错误');
+    if (!valid) {
+      this.recordLoginFailure(rateLimitKey);
+      throw new UnauthorizedException('账号或密码错误');
+    }
+
+    this.loginFailures.delete(rateLimitKey);
 
     const member = await this.prisma.workspaceMember.findFirst({
       where: { userId: user.id },
@@ -80,7 +94,7 @@ export class AuthService {
     } catch {
       throw new UnauthorizedException('无效的 Refresh Token');
     }
-    if (payload.typ !== TOKEN_TYPE_REFRESH || payload.aud !== REFRESH_AUDIENCE) {
+    if (payload.typ !== TOKEN_TYPE_REFRESH) {
       throw new UnauthorizedException('Refresh Token 类型或受众错误');
     }
     if (!payload.jti || this.revokedRefreshJtis.has(payload.jti)) {
@@ -113,7 +127,7 @@ export class AuthService {
     if (!refreshToken || typeof refreshToken !== 'string') return { success: true };
     try {
       const payload = this.jwtService.verify<RefreshTokenPayload>(refreshToken, { audience: REFRESH_AUDIENCE });
-      if (payload.typ === TOKEN_TYPE_REFRESH && payload.aud === REFRESH_AUDIENCE && payload.jti) {
+      if (payload.typ === TOKEN_TYPE_REFRESH && payload.jti) {
         this.revokedRefreshJtis.add(payload.jti);
       }
     } catch {
@@ -128,29 +142,36 @@ export class AuthService {
   }
 
   async createOwner(account: string, password: string, displayName: string | null, workspaceName: string) {
-    const userCount = await this.prisma.user.count();
-    if (userCount > 0) {
-      throw new BadRequestException('系统已初始化');
-    }
-
     const passwordHash = await bcrypt.hash(password, 10);
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: {
-          account,
-          displayName: displayName || account,
-          passwordHash,
-        },
-      });
-      const workspace = await tx.workspace.create({
-        data: { name: workspaceName },
-      });
-      await tx.workspaceMember.create({
-        data: { workspaceId: workspace.id, userId: user.id, role: 'OWNER' },
-      });
-      return { user, workspace };
-    });
+    let result: { user: any; workspace: any };
+    try {
+      result = await this.prisma.$transaction(async (tx) => {
+        // The count and writes share a SERIALIZABLE transaction. Concurrent first-owner
+        // attempts cannot both commit even when they use different account values.
+        if (await tx.user.count() > 0) throw new BadRequestException('系统已初始化');
+        const user = await tx.user.create({
+          data: {
+            account,
+            displayName: displayName || account,
+            passwordHash,
+          },
+        });
+        const workspace = await tx.workspace.create({
+          data: { name: workspaceName },
+        });
+        await tx.workspaceMember.create({
+          data: { workspaceId: workspace.id, userId: user.id, role: 'OWNER' },
+        });
+        return { user, workspace };
+      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    } catch (error: any) {
+      if (error instanceof BadRequestException) throw error;
+      if (error?.code === 'P2002' || error?.code === 'P2034') {
+        throw new BadRequestException('系统已初始化或正在初始化');
+      }
+      throw error;
+    }
 
     return this.issueTokenPair(
       result.user.id,
@@ -175,7 +196,6 @@ export class AuthService {
       ...(workspaceId && { wid: workspaceId }),
       ...(role && { role }),
       typ: TOKEN_TYPE_ACCESS,
-      aud: ACCESS_AUDIENCE,
     };
     const accessToken = this.jwtService.sign(accessPayload, { audience: ACCESS_AUDIENCE });
 
@@ -184,7 +204,6 @@ export class AuthService {
       uid: userId,
       jti: refreshJti,
       typ: TOKEN_TYPE_REFRESH,
-      aud: REFRESH_AUDIENCE,
     };
     const refreshToken = this.jwtService.sign(refreshPayload, {
       audience: REFRESH_AUDIENCE,
@@ -204,5 +223,37 @@ export class AuthService {
     return [...crypto.getRandomValues(new Uint8Array(16))]
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
+  }
+
+  private assertLoginAllowed(key: string): void {
+    const now = Date.now();
+    const entry = this.loginFailures.get(key);
+    if (!entry) return;
+    if (entry.resetAt <= now) {
+      this.loginFailures.delete(key);
+      return;
+    }
+    if (entry.count >= LOGIN_FAILURE_LIMIT) {
+      throw new HttpException('登录尝试过于频繁，请稍后重试', HttpStatus.TOO_MANY_REQUESTS);
+    }
+  }
+
+  private recordLoginFailure(key: string): void {
+    const now = Date.now();
+    const current = this.loginFailures.get(key);
+    if (!current || current.resetAt <= now) {
+      // Bound memory even when an attacker rotates arbitrary account names/IPs.
+      if (this.loginFailures.size >= MAX_RATE_LIMIT_KEYS) {
+        for (const [candidate, entry] of this.loginFailures) {
+          if (entry.resetAt <= now) this.loginFailures.delete(candidate);
+        }
+        if (this.loginFailures.size >= MAX_RATE_LIMIT_KEYS) {
+          this.loginFailures.delete(this.loginFailures.keys().next().value as string);
+        }
+      }
+      this.loginFailures.set(key, { count: 1, resetAt: now + LOGIN_FAILURE_WINDOW_MS });
+      return;
+    }
+    current.count += 1;
   }
 }

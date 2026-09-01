@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsInt, IsObject, IsBoolean, ValidateNested, MinLength, IsEmail } from 'class-validator';
+import { IsString, IsOptional, IsInt, IsObject, IsBoolean, ValidateNested, MinLength, IsEmail, IsNotEmpty, MaxLength, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class RepositoryCredentialDto {
@@ -34,6 +34,8 @@ export class BootstrapAdminDto {
 
 export class CreateProjectDto {
   @IsString()
+  @IsNotEmpty()
+  @MaxLength(255)
   name!: string;
 
   @IsString()
@@ -110,6 +112,8 @@ export class CreateProjectDto {
 
   @IsInt()
   @IsOptional()
+  @Min(1)
+  @Max(65535)
   defaultPort?: number;
 
   /** Only accepted for an SSH deploy-key source and encrypted before persistence. */

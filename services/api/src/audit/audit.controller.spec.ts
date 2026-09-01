@@ -2,6 +2,8 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuditLogController } from './audit.controller';
 import { AuditService } from './audit.service';
 import { createPrismaMock, MockPrismaService } from '../../test/helpers/prisma-mock';
+import { BadRequestException } from '@nestjs/common';
+import { ROLES_KEY } from '../common/decorators/roles.decorator';
 
 /**
  * AuditLogController 单元测试。
@@ -42,6 +44,10 @@ describe('AuditLogController', () => {
   // A. list
   // ============================================================
   describe('A. list', () => {
+    it('requires ADMIN or higher through controller metadata', () => {
+      expect(Reflect.getMetadata(ROLES_KEY, AuditLogController)).toEqual(['ADMIN']);
+    });
+
     it('未传 limit/offset 时使用默认 50 / 0，并把当前工作空间透传', async () => {
       const rows = [{ id: 'log-1' }, { id: 'log-2' }];
       auditService.list.mockResolvedValue(rows);
@@ -80,25 +86,24 @@ describe('AuditLogController', () => {
       expect(auditService.list).toHaveBeenCalledWith('ws-1', 50, 0);
     });
 
-    it('limit/offset 为非数字字符串时 parseInt 返回 NaN，按当前实现语义原样下传', async () => {
+    it('拒绝非数字 limit/offset，而不是把 NaN 传给 Prisma', async () => {
       auditService.list.mockResolvedValue([]);
 
-      await controller.list(
+      await expect(controller.list(
         { userId: 'u1', workspaceId: 'ws-1' },
         'abc',
         'xyz',
-      );
+      )).rejects.toBeInstanceOf(BadRequestException);
 
-      // parseInt('abc') === NaN；当前控制器不做兜底，把 NaN 透传给 service。
-      expect(auditService.list).toHaveBeenCalledWith('ws-1', NaN, NaN);
+      expect(auditService.list).not.toHaveBeenCalled();
     });
 
-    it('user.workspaceId 为空字符串时也会透传（不抛错）', async () => {
+    it('拒绝缺失的 workspaceId，避免 Prisma 省略租户过滤条件', async () => {
       auditService.list.mockResolvedValue([]);
 
-      await controller.list({ userId: 'u1', workspaceId: '' }, '10', '0');
+      await expect(controller.list({ userId: 'u1', workspaceId: '' }, '10', '0')).rejects.toBeInstanceOf(BadRequestException);
 
-      expect(auditService.list).toHaveBeenCalledWith('', 10, 0);
+      expect(auditService.list).not.toHaveBeenCalled();
     });
   });
 
@@ -176,11 +181,11 @@ describe('AuditLogController', () => {
       const lines = body.replace(/^\uFEFF/, '').split('\n');
       // 第 0 行是表头，第 1、2 行是数据
       expect(lines[0]).toBe('时间,用户ID,操作,目标类型,目标ID,详情');
-      expect(lines[1]).toBe('2026-08-18T01:02:03.000Z,u1,CREATE_PROJECT,Project,proj-1,{"k":"v"}');
+      expect(lines[1]).toBe('2026-08-18T01:02:03.000Z,u1,CREATE_PROJECT,Project,proj-1,"{""k"":""v""}"');
       expect(lines[2]).toBe('2026-08-17T01:02:03.000Z,,DELETE,,,');
     });
 
-    it('将 detail 字段里的英文逗号替换为分号，避免破坏 CSV 列结构', async () => {
+    it('按 CSV 标准引用 detail，保留其中的逗号和 JSON 内容', async () => {
       auditService.listForExport.mockResolvedValue([
         {
           createdAt: new Date('2026-08-18T00:00:00.000Z'),
@@ -197,10 +202,24 @@ describe('AuditLogController', () => {
       await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
 
       const body = res.send.mock.calls[0][0] as string;
-      // 整个 CSV 不能再出现 x,y 或 y,z 这种裸逗号（detail 内部逗号已转分号）
-      expect(body).not.toContain('"a":"x,y');
-      expect(body).toContain('{"a":"x;y;z";"b":"ok"}');
+      expect(body).toContain('"{""a"":""x,y,z"",""b"":""ok""}"');
     });
+
+    it.each(['=1+1', '+SUM(A1:A2)', '-2+3', '@cmd'])(
+      'neutralises spreadsheet formula prefix %s',
+      async detail => {
+        auditService.listForExport.mockResolvedValue([{
+          createdAt: new Date('2026-08-18T00:00:00.000Z'),
+          userId: 'u1', action: 'X', targetType: 'T', targetId: 'id', detail,
+        }]);
+        const res: any = { setHeader: jest.fn(), send: jest.fn() };
+
+        await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
+
+        const body = res.send.mock.calls[0][0] as string;
+        expect(body).toContain(`,'${detail}`);
+      },
+    );
 
     it('无日志时只输出表头（不含数据行）', async () => {
       auditService.listForExport.mockResolvedValue([]);
@@ -212,6 +231,21 @@ describe('AuditLogController', () => {
       const body = res.send.mock.calls[0][0] as string;
       // 表头 + 末尾一个 \n
       expect(body).toBe('\uFEFF时间,用户ID,操作,目标类型,目标ID,详情\n');
+    });
+
+    it('超过 10000 条时截断导出并设置显式响应头', async () => {
+      const row = {
+        createdAt: new Date('2026-08-18T00:00:00.000Z'),
+        userId: 'u1', action: 'X', targetType: 'T', targetId: 'id', detail: null,
+      };
+      auditService.listForExport.mockResolvedValue(Array.from({ length: 10001 }, () => row));
+      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+
+      await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
+
+      expect(res.setHeader).toHaveBeenCalledWith('X-Launchly-Export-Truncated', 'true');
+      const lines = (res.send.mock.calls[0][0] as string).split('\n');
+      expect(lines).toHaveLength(10001); // header + exactly 10000 exported rows
     });
   });
 });

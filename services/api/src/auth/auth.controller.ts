@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get } from '@nestjs/common';
+import { Controller, Post, Body, Get, Ip } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginRequestDto } from './dto/login-request.dto';
 import { SetupOwnerRequestDto } from './dto/setup-owner-request.dto';
@@ -10,8 +10,8 @@ export class AuthController {
 
   @Public()
   @Post('login')
-  async login(@Body() dto: LoginRequestDto) {
-    return this.authService.login(dto.account, dto.password);
+  async login(@Body() dto: LoginRequestDto, @Ip() clientAddress: string) {
+    return this.authService.login(dto.account, dto.password, clientAddress);
   }
 
   @Public()

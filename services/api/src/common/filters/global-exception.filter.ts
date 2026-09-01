@@ -21,16 +21,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       status = HttpStatus.FORBIDDEN;
       message = exception.message || '权限不足';
     } else if (exception instanceof Error) {
-      message = exception.message || message;
       this.logger.error(exception.message, exception.stack);
-    }
-
-    // Map specific error patterns to HTTP status
-    if (status === HttpStatus.INTERNAL_SERVER_ERROR && message.includes('不存在')) {
-      status = HttpStatus.NOT_FOUND;
-    }
-    if (status === HttpStatus.INTERNAL_SERVER_ERROR && message.includes('无权')) {
-      status = HttpStatus.FORBIDDEN;
     }
 
     response.status(status).json({

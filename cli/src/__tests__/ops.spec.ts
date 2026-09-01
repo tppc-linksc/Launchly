@@ -267,7 +267,7 @@ describe('CLI backup', () => {
       file: 'tar',
       args: ['-czf', backupPath, '-C', tmpPath, '.'],
       sideEffect: () => {
-        fs.writeFileSync(dumpPath, 'db_dump.sql\n');
+        fs.writeFileSync(backupPath, 'archive\n');
       },
     });
 
@@ -306,6 +306,7 @@ describe('CLI backup', () => {
 
     expect(getOutput()).toContain(`正在创建备份：${backupPath}`);
     expect(getOutput()).toContain(`备份已生成：${backupPath}`);
+    expect(fs.statSync(backupPath).mode & 0o777).toBe(0o600);
     expect(rmSyncSpy).toHaveBeenCalledWith(tmpPath, { recursive: true, force: true });
 
     vi.useRealTimers();

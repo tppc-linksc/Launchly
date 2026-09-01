@@ -86,9 +86,9 @@ export class ShellRunner {
         const result = await this.executor.execFile('curl', ['-sf', '-o', '/dev/null', '-w', '%{http_code}', url], { timeout: 30 });
         // KI-039: 必须有完整三位数字状态码且 exitCode=0 才算成功。
         const statusText = result.stdout.trim();
-        const statusCode = Number.parseInt(statusText, 10);
+        const statusCode = /^\d{3}$/.test(statusText) ? Number(statusText) : Number.NaN;
         lastStatus = statusCode;
-        if (result.exitCode === 0 && Number.isInteger(statusCode) && statusCode >= 200 && statusCode < 400) {
+        if (result.exitCode === 0 && Number.isInteger(statusCode) && statusCode >= 200 && statusCode < 300) {
           return { success: true, stdout: `健康检查通过 (${statusCode})`, stderr: '', exitCode: 0, errorMessage: '' };
         }
       } catch {

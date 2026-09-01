@@ -66,6 +66,8 @@ export function cmdBackup(): void {
   execFileSync('tar', ['-czf', backupFile, '-C', tmpDir, '.'], {
     stdio: 'inherit',
   })
+  // 归档包含数据库、JWT/加密密钥和运行数据；不受调用者 umask 影响，固定仅所有者可读写。
+  fs.chmodSync(backupFile, 0o600)
   fs.rmSync(tmpDir, { recursive: true, force: true })
   console.log(`备份已生成：${backupFile}`)
 }

@@ -47,7 +47,7 @@ beforeEach(() => {
     fn.mockReset();
   }
   fsMock.existsSync.mockImplementation(unexpectedSync('existsSync'));
-  fsMock.rmSync.mockImplementation(unexpectedSync('rmSync'));
+  fsMock.rmSync.mockReturnValue(undefined);
   fsMock.mkdirSync.mockImplementation(unexpectedSync('mkdirSync'));
   fsMock.writeFileSync.mockImplementation(unexpectedSync('writeFileSync'));
   fsMock.unlinkSync.mockImplementation(unexpectedSync('unlinkSync'));
@@ -127,7 +127,7 @@ describe('GitRunner.execute - input gate rejects before any side effect', () => 
     expect(deps.executor.execFile).not.toHaveBeenCalled();
   });
 
-  it.skip('rejects when branch contains CR or LF (current behavior)', async () => {
+  it('rejects when branch contains CR or LF', async () => {
     const deps = makeDeps();
     const runner = makeRunner(deps);
     const r1 = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'ma\rbad' } }));
@@ -209,16 +209,16 @@ describe('GitRunner.execute - GIT_PUBLIC path', () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toBe('cloned ok');
     expect(result.stderr).toBe('');
-    expect(fsMock.rmSync).not.toHaveBeenCalled();
+    expect(fsMock.rmSync).toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1/.git', { recursive: true, force: true });
     // KI-034：任务专属子目录 work-{refId}，避免并发串扰。
-    expect(fsMock.mkdirSync).toHaveBeenCalledWith('/tmp/launchly-builds/work-deploy-1', { recursive: true, mode: 0o700 });
+    expect(fsMock.mkdirSync).toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1', { recursive: true, mode: 0o700 });
     const call = deps.executor.execFile.mock.calls[0];
     expect(call[0]).toBe('git');
     expect(call[1]).toEqual(['clone', '--depth', '1', '--branch', 'main', PUBLIC_URL, '.']);
-    expect(call[2]).toEqual({ cwd: '/tmp/launchly-builds/work-deploy-1', timeout: 300, env: undefined });
+    expect(call[2]).toEqual({ cwd: '/tmp/launchly-builds/deploy-1', timeout: 300, env: undefined });
   });
 
-  it.skip('when workDir exists: rm then mkdir, no executor env (current GIT_PUBLIC contract)', async () => {
+  it('when workDir exists: removes it before cloning and strips .git after success', async () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(true);
     fsMock.rmSync.mockReturnValueOnce(undefined);
@@ -228,6 +228,7 @@ describe('GitRunner.execute - GIT_PUBLIC path', () => {
     const result = await runner.execute(makeContext());
     expect(result.success).toBe(true);
     expect(fsMock.rmSync).toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1', { recursive: true, force: true });
+    expect(fsMock.rmSync).toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1/.git', { recursive: true, force: true });
     expect(fsMock.mkdirSync).toHaveBeenCalledTimes(1);
   });
 
@@ -288,7 +289,7 @@ describe('GitRunner.execute - GIT_PUBLIC path', () => {
     });
   });
 
-  it.skip('sanitizes stderr but leaves a sensitive thrown message in errorMessage (current behavior)', async () => {
+  it('sanitizes sensitive thrown messages in both stderr and errorMessage', async () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
@@ -297,8 +298,8 @@ describe('GitRunner.execute - GIT_PUBLIC path', () => {
 
     const result = await runner.execute(makeContext());
 
-    expect(result.stderr).toBe('[REDACTED]');
-    expect(result.errorMessage).toBe('token=plain-secret');
+    expect(result.stderr).toBe('token=[REDACTED]');
+    expect(result.errorMessage).toBe('token=[REDACTED]');
   });
 
   it('commitSha present: clone + fetch + detached checkout (FETCH_HEAD) + HEAD verification are called in order with exact argv (KI-033)', async () => {
@@ -321,10 +322,10 @@ describe('GitRunner.execute - GIT_PUBLIC path', () => {
     expect(deps.executor.execFile).toHaveBeenCalledTimes(4);
     expect(deps.executor.execFile.mock.calls[1][0]).toBe('git');
     expect(deps.executor.execFile.mock.calls[1][1]).toEqual(['fetch', '--depth', '1', 'origin', 'abc1234']);
-    expect(deps.executor.execFile.mock.calls[1][2]).toEqual({ cwd: '/tmp/launchly-builds/work-deploy-1', timeout: 120, env: undefined });
+    expect(deps.executor.execFile.mock.calls[1][2]).toEqual({ cwd: '/tmp/launchly-builds/deploy-1', timeout: 120, env: undefined });
     expect(deps.executor.execFile.mock.calls[2][0]).toBe('git');
     expect(deps.executor.execFile.mock.calls[2][1]).toEqual(['checkout', '--detach', 'FETCH_HEAD']);
-    expect(deps.executor.execFile.mock.calls[2][2]).toEqual({ cwd: '/tmp/launchly-builds/work-deploy-1', timeout: 120, env: undefined });
+    expect(deps.executor.execFile.mock.calls[2][2]).toEqual({ cwd: '/tmp/launchly-builds/deploy-1', timeout: 120, env: undefined });
     expect(deps.executor.execFile.mock.calls[3][0]).toBe('git');
     expect(deps.executor.execFile.mock.calls[3][1]).toEqual(['rev-parse', 'HEAD']);
   });
@@ -374,7 +375,7 @@ describe('GitRunner.execute - GIT_PUBLIC path', () => {
     expect(result.errorMessage).toContain('指定 commit badcafe 检出失败');
   });
 
-  it.skip('commitSha fetch non-zero: no checkout, still returns success (current behavior)', async () => {
+  it('commitSha fetch non-zero stops before checkout and removes the incomplete context', async () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
@@ -383,12 +384,12 @@ describe('GitRunner.execute - GIT_PUBLIC path', () => {
       .mockResolvedValueOnce({ stdout: '', stderr: 'no such ref', exitCode: 1 });
     const runner = makeRunner(deps);
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: 'deadbee' } }));
-    expect(result.success).toBe(true);
+    expect(result.success).toBe(false);
     expect(deps.executor.execFile).toHaveBeenCalledTimes(2);
-    expect(warnSpy).toHaveBeenCalledWith('Unable to fetch requested revision for deployment deploy-1; using branch head');
+    expect(fsMock.rmSync).toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1', { recursive: true, force: true });
   });
 
-  it.skip('commitSha checkout non-zero: success overall, checkout warn swallowed (current behavior)', async () => {
+  it('commitSha checkout non-zero fails and removes the incomplete context', async () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
@@ -398,10 +399,9 @@ describe('GitRunner.execute - GIT_PUBLIC path', () => {
       .mockResolvedValueOnce({ stdout: '', stderr: 'cannot switch', exitCode: 1 });
     const runner = makeRunner(deps);
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: 'badcafe' } }));
-    expect(result.success).toBe(true);
-    expect(result.exitCode).toBe(0);
+    expect(result.success).toBe(false);
     expect(deps.executor.execFile).toHaveBeenCalledTimes(3);
-    expect(warnSpy).toHaveBeenCalledWith('Unable to checkout requested revision for deployment deploy-1');
+    expect(fsMock.rmSync).toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1', { recursive: true, force: true });
   });
 });
 
@@ -583,7 +583,7 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     expect(result.errorMessage).toBe('Deploy Key 源必须是 SSH 仓库 URL');
   });
 
-  it.skip('scp-style URL: writes private key + known_hosts, passes env with full GIT_SSH_COMMAND (current public behavior)', async () => {
+  it('scp-style URL writes task-local private key and known_hosts with mode 0600', async () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
@@ -602,8 +602,8 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     expect(deps.secrets.decrypt).toHaveBeenCalledWith('v2:ciphertext');
     // writeFileSync called twice with mode 0600
     expect(fsMock.writeFileSync).toHaveBeenCalledTimes(2);
-    expect(fsMock.writeFileSync.mock.calls[0]).toEqual(['/tmp/launchly-builds/repo-key-deploy-1', PRIVATE_KEY_DECRYPTED, { mode: 0o600 }]);
-    expect(fsMock.writeFileSync.mock.calls[1]).toEqual(['/tmp/launchly-builds/repo-known-hosts-deploy-1', `${HOST} ${HOST_KEY.trim()}\n`, { mode: 0o600 }]);
+    expect(fsMock.writeFileSync.mock.calls[0]).toEqual(['/tmp/launchly-builds/.git-key-deploy-1', PRIVATE_KEY_DECRYPTED, { mode: 0o600 }]);
+    expect(fsMock.writeFileSync.mock.calls[1]).toEqual(['/tmp/launchly-builds/.git-known-hosts-deploy-1', `${HOST} ${HOST_KEY.trim()}\n`, { mode: 0o600 }]);
     // execFile called with git clone and the SSH env
     const call = deps.executor.execFile.mock.calls[0];
     expect(call[0]).toBe('git');
@@ -613,8 +613,8 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     expect(env.GIT_SSH_COMMAND).toContain('BatchMode=yes');
     expect(env.GIT_SSH_COMMAND).toContain('PasswordAuthentication=no');
     expect(env.GIT_SSH_COMMAND).toContain('StrictHostKeyChecking=yes');
-    expect(env.GIT_SSH_COMMAND).toContain(`/tmp/launchly-builds/repo-known-hosts-deploy-1`);
-    expect(env.GIT_SSH_COMMAND).toContain('/tmp/launchly-builds/repo-key-deploy-1');
+    expect(env.GIT_SSH_COMMAND).toContain('/tmp/launchly-builds/.git-known-hosts-deploy-1');
+    expect(env.GIT_SSH_COMMAND).toContain('/tmp/launchly-builds/.git-key-deploy-1');
     expect(call[2].timeout).toBe(300);
   });
 
@@ -645,7 +645,10 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     expect(result.errorMessage).toBe('Encrypted value is malformed');
     expect(fsMock.writeFileSync).not.toHaveBeenCalled();
     expect(deps.executor.execFile).not.toHaveBeenCalled();
-    expect(fsMock.unlinkSync).not.toHaveBeenCalled();
+    expect(fsMock.unlinkSync.mock.calls).toEqual([
+      ['/tmp/launchly-builds/.git-key-deploy-1'],
+      ['/tmp/launchly-builds/.git-known-hosts-deploy-1'],
+    ]);
   });
 
   it('first writeFileSync (private key) throws: failure, no known_hosts, no clone', async () => {
@@ -661,10 +664,13 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     expect(result.errorMessage).toBe('EACCES');
     expect(fsMock.writeFileSync).toHaveBeenCalledTimes(1);
     expect(deps.executor.execFile).not.toHaveBeenCalled();
-    expect(fsMock.unlinkSync).not.toHaveBeenCalled();
+    expect(fsMock.unlinkSync.mock.calls).toEqual([
+      ['/tmp/launchly-builds/.git-key-deploy-1'],
+      ['/tmp/launchly-builds/.git-known-hosts-deploy-1'],
+    ]);
   });
 
-  it.skip('second writeFileSync (known_hosts) throws: private key left on disk, no clone (current behavior)', async () => {
+  it('second writeFileSync failure removes the private key and incomplete source context', async () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
@@ -677,10 +683,14 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     expect(result.errorMessage).toBe('ENOSPC');
     expect(fsMock.writeFileSync).toHaveBeenCalledTimes(2);
     expect(deps.executor.execFile).not.toHaveBeenCalled();
-    expect(fsMock.unlinkSync).not.toHaveBeenCalled();
+    expect(fsMock.unlinkSync.mock.calls).toEqual([
+      ['/tmp/launchly-builds/.git-key-deploy-1'],
+      ['/tmp/launchly-builds/.git-known-hosts-deploy-1'],
+    ]);
+    expect(fsMock.rmSync).toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1', { recursive: true, force: true });
   });
 
-  it.skip('executor execFile rejects during clone: failure propagates, unlink is NOT reached because privateKeyPath assignment happens after the throw (current behavior is a candidate defect)', async () => {
+  it('executor failure removes deploy-key files and the incomplete source context', async () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
@@ -692,11 +702,12 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
     expect(result.success).toBe(false);
     expect(result.errorMessage).toBe('spawn ENOENT git');
-    // Current behavior: outer privateKeyPath is never assigned (the throw happens before
-    // `privateKeyPath = clone.privateKeyPath`), so the finally loop is a no-op.
-    // This means the private key and known_hosts files ARE left on disk.
-    expect(fsMock.unlinkSync).not.toHaveBeenCalled();
+    expect(fsMock.unlinkSync.mock.calls).toEqual([
+      ['/tmp/launchly-builds/.git-key-deploy-1'],
+      ['/tmp/launchly-builds/.git-known-hosts-deploy-1'],
+    ]);
     expect(fsMock.writeFileSync).toHaveBeenCalledTimes(2); // private key + known_hosts were written
+    expect(fsMock.rmSync).toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1', { recursive: true, force: true });
   });
 
   it('unlink failure during cleanup does not change the success result', async () => {
@@ -716,8 +727,7 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
   });
 
   it('successful DEPLOY_KEY result: never leaks private key, host key, or token in result or serialized form (KI-034)', async () => {
-    // KI-034 修复后：密钥写入 work-{refId}/id_ed25519 与 work-{refId}/known_hosts，
-    // 不再使用顶层 repo-key-${refId} / repo-known-hosts-${refId}。
+    // 凭据保存在构建上下文外，避免让 clone 目标非空或被 BuildKit 打包。
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
@@ -741,17 +751,17 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     expect(serialized).not.toContain('ghp_abcdefghijklmnopqrstuvwxyz');
     expect(result.stdout).toContain('[REDACTED]');
     expect(result.stderr).toContain('[REDACTED]');
-    // 任务专属子目录 + id_ed25519 / known_hosts 文件名
+    // 任务专属凭据文件在构建上下文之外。
     expect(fsMock.unlinkSync.mock.calls).toEqual([
-      ['/tmp/launchly-builds/work-deploy-1/id_ed25519'],
-      ['/tmp/launchly-builds/work-deploy-1/known_hosts'],
+      ['/tmp/launchly-builds/.git-key-deploy-1'],
+      ['/tmp/launchly-builds/.git-known-hosts-deploy-1'],
     ]);
   });
 });
 
 // ─── E. Path boundary (refId-based path escape) ────────────────────────────
 
-describe('GitRunner.execute - refId path boundary (current behavior is a candidate defect)', () => {
+describe('GitRunner.execute - refId path boundary', () => {
   it('refId "../escape-1" is rejected by assertSafeRefId before any fs/Prisma/executor call (KI-032)', async () => {
     // KI-032 修复后：caller 控制的 refId 必须先通过 assertSafeRefId；'../escape-1' 包含非法字符 '/'
     // 会被拒绝并返回失败结果。早期 path.join 直接归一化的"逃逸 BUILD_ROOT"候选缺陷已消除。
@@ -766,7 +776,7 @@ describe('GitRunner.execute - refId path boundary (current behavior is a candida
     expect(deps.prisma.project.findUnique).not.toHaveBeenCalled();
   });
 
-  it.skip('DEPLOY_KEY privateKeyPath and knownHostsPath also resolve through path.join (candidate defect)', async () => {
+  it('rejects unsafe DEPLOY_KEY refId before resolving credential paths', async () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
@@ -780,9 +790,7 @@ describe('GitRunner.execute - refId path boundary (current behavior is a candida
       refId: 'subdir/../../etc',
       payload: { projectId: 'proj-1', repositoryUrl: 'git@github.com:acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' },
     }));
-    // path.join normalizes the entire path; the `repo-key-${refId}` segment is collapsed by `..` and the
-    // files land outside BUILD_ROOT entirely (current behavior is a candidate defect).
-    expect(fsMock.writeFileSync.mock.calls[0][0]).toBe('/tmp/etc');
-    expect(fsMock.writeFileSync.mock.calls[1][0]).toBe('/tmp/etc');
+    expect(fsMock.writeFileSync).not.toHaveBeenCalled();
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
   });
 });

@@ -13,6 +13,9 @@ export class SecretValueService {
     if (!current && process.env.NODE_ENV === 'production') {
       throw new Error('LAUNCHLY_ENCRYPTION_KEY is required in production and must not reuse the JWT secret');
     }
+    if (process.env.NODE_ENV === 'production' && current === process.env.LAUNCHLY_JWT_SECRET) {
+      throw new Error('LAUNCHLY_ENCRYPTION_KEY must not reuse LAUNCHLY_JWT_SECRET in production');
+    }
     const rawKeys = [current || 'launchly-development-encryption-key-not-for-production', ...(process.env.LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS || '').split(',').filter(Boolean)];
     this.keys = rawKeys.map(raw => ({
       id: crypto.createHash('sha256').update(raw).digest('hex').slice(0, 12),

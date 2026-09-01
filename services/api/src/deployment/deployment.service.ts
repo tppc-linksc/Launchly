@@ -7,7 +7,12 @@ import { AuditService } from '../audit/audit.service';
 export class DeploymentService {
   constructor(private readonly prisma: PrismaService, @Optional() private readonly audit?: AuditService) {}
 
-  async create(dto: CreateDeploymentDto, userId: string, workspaceId: string) {
+  async create(
+    dto: CreateDeploymentDto,
+    userId: string,
+    workspaceId: string,
+    options: { idempotencyKey?: string; triggerSource?: string } = {},
+  ) {
     const env = await this.prisma.environment.findUnique({ where: { id: dto.environmentId } });
     if (!env) throw new NotFoundException('环境不存在: ' + dto.environmentId);
     if (env.enabled === false) throw new BadRequestException('该环境已禁用，无法部署');
@@ -25,11 +30,8 @@ export class DeploymentService {
     if (!target || target.projectId !== dto.projectId) {
       throw new NotFoundException('部署目标不存在或不属于指定项目');
     }
-    const externalPort = await this.resolveExternalPort(env, target.id);
+    const externalPort = await this.reserveExternalPort(env, target.id);
     const effectiveEnvironment = { ...env, externalPort, deployTargetId: target.id };
-    if (env.externalPort !== externalPort || env.deployTargetId !== target.id) {
-      await this.prisma.environment.update({ where: { id: env.id }, data: { externalPort, deployTargetId: target.id } });
-    }
 
     const deployment = await this.prisma.$transaction(async (tx) => {
       const d = await tx.deployment.create({
@@ -41,6 +43,8 @@ export class DeploymentService {
           commitSha: dto.commitSha,
           status: 'PENDING',
           triggeredBy: userId || null,
+          idempotencyKey: options.idempotencyKey,
+          triggerSource: options.triggerSource,
         },
       });
 
@@ -91,17 +95,24 @@ export class DeploymentService {
     if (!project) throw new NotFoundException('项目不存在');
     const target = await this.prisma.deployTarget.findFirst({ where: { projectId: input.projectId }, orderBy: { createdAt: 'asc' } });
     if (!target) throw new BadRequestException('自动部署需要已验证的部署目标');
-    const deployment = await this.create({
-      projectId: input.projectId,
-      environmentId: input.environmentId,
-      deployTargetId: target.id,
-      branch: input.branch,
-      commitSha: input.commitSha,
-    }, '', project.workspaceId);
-    await this.prisma.deployment.update({
-      where: { id: deployment.id },
-      data: { triggerSource: 'GITHUB_WEBHOOK', idempotencyKey: input.idempotencyKey },
-    });
+    let deployment: any;
+    try {
+      deployment = await this.create({
+        projectId: input.projectId,
+        environmentId: input.environmentId,
+        deployTargetId: target.id,
+        branch: input.branch,
+        commitSha: input.commitSha,
+      }, '', project.workspaceId, {
+        triggerSource: 'GITHUB_WEBHOOK',
+        idempotencyKey: input.idempotencyKey,
+      });
+    } catch (error: any) {
+      if (error?.code !== 'P2002') throw error;
+      const winner = await this.prisma.deployment.findFirst({ where: { idempotencyKey: input.idempotencyKey } });
+      if (!winner) throw error;
+      return this.enrichDeployment(winner);
+    }
     await this.audit?.record(null, project.workspaceId, 'DEPLOYMENT_WEBHOOK_QUEUED', 'DEPLOYMENT', deployment.id, {
       projectId: project.id, environmentId: input.environmentId, commitSha: input.commitSha,
     });
@@ -307,22 +318,45 @@ export class DeploymentService {
     }
   }
 
-  /** Keeps a fallback port unique per target even when users leave the default 3001/3002/3003 values. */
-  private async resolveExternalPort(environment: any, deployTargetId: string): Promise<number> {
+  /**
+   * Reserves the port on the environment row. A database unique constraint on
+   * (deployTargetId, externalPort) closes the read/choose/update race between API requests.
+   */
+  private async reserveExternalPort(environment: any, deployTargetId: string): Promise<number> {
     const desired = environment.externalPort || 3000;
-    const deployments = await this.prisma.deployment.findMany({
-      where: { deployTargetId, status: { notIn: ['FAILED', 'CANCELED', 'ROLLED_BACK'] } },
-      include: { environment: { select: { id: true, externalPort: true } } },
-    }) || [];
-    const used = new Set<number>(deployments
-      .filter((deployment: any) => deployment.environmentId !== environment.id)
-      .map((deployment: any) => deployment.environment?.externalPort)
-      .filter((port: unknown): port is number => Number.isInteger(port)));
-    if (!used.has(desired)) return desired;
-    for (let candidate = Math.max(10000, desired + 1); candidate <= 60000; candidate += 1) {
-      if (!used.has(candidate)) return candidate;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const environments = await this.prisma.environment.findMany({
+        where: { deployTargetId },
+        select: { id: true, externalPort: true },
+      }) || [];
+      const used = new Set<number>(environments
+        .filter((candidate: any) => candidate.id !== environment.id)
+        .map((candidate: any) => candidate.externalPort)
+        .filter((port: unknown): port is number => Number.isInteger(port)));
+      let selected = desired;
+      if (used.has(selected)) {
+        selected = -1;
+        for (let candidate = Math.max(10000, desired + 1); candidate <= 60000; candidate += 1) {
+          if (!used.has(candidate)) {
+            selected = candidate;
+            break;
+          }
+        }
+      }
+      if (selected === -1) throw new BadRequestException('部署目标没有可用的回退访问端口');
+      if (environment.externalPort === selected && environment.deployTargetId === deployTargetId) return selected;
+      try {
+        await this.prisma.environment.update({
+          where: { id: environment.id },
+          data: { externalPort: selected, deployTargetId },
+        });
+        return selected;
+      } catch (error: any) {
+        if (error?.code !== 'P2002') throw error;
+        // Another request reserved this candidate; refresh the occupied set and retry.
+      }
     }
-    throw new BadRequestException('部署目标没有可用的回退访问端口');
+    throw new BadRequestException('并发部署端口分配冲突，请重试');
   }
 
   private initialTaskType(project: any): string {

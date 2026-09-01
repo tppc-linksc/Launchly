@@ -2,16 +2,20 @@ import { Injectable } from '@nestjs/common';
 import * as fs from 'fs';
 import * as path from 'path';
 import { RunnerContext, RunnerResult } from './runner.factory';
-
-const BUILD_ROOT = '/tmp/launchly-builds';
+import { buildContextDir } from './build-context';
 
 /** Creates source only for reviewed, versioned built-in templates. Never executes user supplied template text. */
 @Injectable()
 export class TemplateSourceRunner {
   async execute(ctx: RunnerContext): Promise<RunnerResult> {
     if (ctx.payload.templateId !== 'static-blog') return this.failure('Template is not supported by the deployment executor');
+    let workDir: string;
+    try {
+      workDir = buildContextDir(ctx.refId);
+    } catch (error: any) {
+      return this.failure(error?.message || 'Invalid refId');
+    }
     const title = this.escapeHtml(String(ctx.payload.templateTitle || 'Launchly Blog').slice(0, 120));
-    const workDir = path.join(BUILD_ROOT, ctx.refId);
     try {
       fs.rmSync(workDir, { recursive: true, force: true });
       fs.mkdirSync(workDir, { recursive: true, mode: 0o700 });

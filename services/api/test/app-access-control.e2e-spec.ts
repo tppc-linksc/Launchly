@@ -69,7 +69,7 @@ const TEST_RUN_CASE_A = 'trc-a';
 const TASK_A = 'task-a';
 
 function makeJwt(jwt: JwtService, userId: string, workspaceId: string, role: string) {
-  return jwt.sign({ uid: userId, wid: workspaceId, role });
+  return jwt.sign({ uid: userId, wid: workspaceId, role, typ: 'access' }, { audience: 'launchly:api' });
 }
 
 function makeTokenMap(jwt: JwtService) {
@@ -387,6 +387,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     stub('environment.findMany', []);
     stub('environment.update', (() => ({ id: ENVIRONMENT_A, projectId: PROJECT_A })) as any);
     stub('environmentVariable.findUnique', null);
+    stub('environmentVariable.findFirst', null);
     stub('environmentVariable.findMany', []);
     stub('environmentVariable.create', (() => {
       const v = { id: VARIABLE_A, environmentId: 'env', key: 'KEY', maskedValue: '****', sensitive: false, description: null };
@@ -483,7 +484,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       // 真实控制器不允许直接传 minimumRole,所以此处通过 Service 路径不可达;
       // 我们验证 RolesGuard 在 user.role 不被识别时仍按 0 处理,要求角色的人会 403
       // 模拟 unknown workspace role:
-      const unknown = jwt.sign({ uid: 'user-x', wid: WORKSPACE_A, role: 'GHOST' });
+      const unknown = makeJwt(jwt, 'user-x', WORKSPACE_A, 'GHOST');
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: 'user-x', role: 'GHOST' });
       // ENVIRONMENT list 是 VIEWER,要求角色不严格;改测一个 DEVELOPER 接口
       stub('environment.findUnique', { projectId: PROJECT_A });

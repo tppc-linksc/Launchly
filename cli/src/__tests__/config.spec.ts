@@ -111,6 +111,8 @@ describe('composeTemplate', () => {
   it('contains network and volume definitions', () => {
     const tpl = composeTemplate()
     expect(tpl).toContain('launchly-net:')
+    expect(tpl).toContain('launchly-builder-net:')
+    expect(tpl).toContain('internal: true')
     expect(tpl).toContain('launchly-postgres-data:')
     expect(tpl).toContain('launchly-data:')
   })

@@ -176,7 +176,7 @@ describe('AuditService', () => {
   // C. listForExport
   // ============================================================
   describe('C. listForExport', () => {
-    it('查询全量日志（不带 take/skip），按 createdAt desc 排序', async () => {
+    it('对导出设置硬上限和一个截断哨兵行，按 createdAt desc 排序', async () => {
       const rows = [
         { id: 'log-1', createdAt: new Date('2026-08-18T00:00:00.000Z') },
         { id: 'log-2', createdAt: new Date('2026-08-17T00:00:00.000Z') },
@@ -188,10 +188,10 @@ describe('AuditService', () => {
       expect(prisma.auditLog.findMany).toHaveBeenCalledWith({
         where: { workspaceId: 'ws-1' },
         orderBy: { createdAt: 'desc' },
+        take: 10001,
       });
-      // 注意：导出列表必须不带 take/skip（一次性返回，避免导出截断）
       const args = (prisma.auditLog.findMany as jest.Mock).mock.calls[0][0];
-      expect(args.take).toBeUndefined();
+      expect(args.take).toBe(10001);
       expect(args.skip).toBeUndefined();
       expect(result).toBe(rows);
     });

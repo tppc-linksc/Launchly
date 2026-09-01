@@ -4,6 +4,7 @@ const ENV_KEYS = [
   'NODE_ENV',
   'LAUNCHLY_ENCRYPTION_KEY',
   'LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS',
+  'LAUNCHLY_JWT_SECRET',
 ] as const;
 
 type EnvKey = (typeof ENV_KEYS)[number];
@@ -13,6 +14,7 @@ function snapshotEnv(): Record<EnvKey, string | undefined> {
     NODE_ENV: process.env.NODE_ENV,
     LAUNCHLY_ENCRYPTION_KEY: process.env.LAUNCHLY_ENCRYPTION_KEY,
     LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS: process.env.LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS,
+    LAUNCHLY_JWT_SECRET: process.env.LAUNCHLY_JWT_SECRET,
   };
 }
 
@@ -203,6 +205,14 @@ describe('SecretValueService', () => {
       process.env.NODE_ENV = 'test';
 
       expect(() => new SecretValueService()).not.toThrow();
+    });
+
+    it('throws in production when the encryption key reuses the JWT secret', () => {
+      process.env.NODE_ENV = 'production';
+      process.env.LAUNCHLY_JWT_SECRET = 'same-production-secret';
+      process.env.LAUNCHLY_ENCRYPTION_KEY = 'same-production-secret';
+
+      expect(() => new SecretValueService()).toThrow(/must not reuse/);
     });
   });
 

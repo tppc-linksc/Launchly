@@ -8,7 +8,7 @@ services:
     volumes:
       - launchly-postgres-data:/var/lib/postgresql/data
     ports:
-      - "${LAUNCHLY_DB_PORT:-5432}:5432"
+      - "127.0.0.1:${LAUNCHLY_DB_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -63,8 +63,12 @@ services:
       <<: *launchly-env
       LAUNCHLY_PROCESS_ROLE: worker
       LAUNCHLY_BUILDKIT_ADDR: tcp://buildkit:1234
+      LAUNCHLY_REGISTRY_AUTH_JSON: ${LAUNCHLY_REGISTRY_AUTH_JSON:-}
     volumes:
       - launchly-worker-data:/var/lib/launchly-worker
+    networks:
+      - default
+      - builder-internal
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -76,9 +80,15 @@ services:
     command: ["buildkitd", "--addr", "tcp://0.0.0.0:1234"]
     security_opt:
       - no-new-privileges:true
+    networks:
+      - builder-internal
     restart: unless-stopped
     profiles: ["builder"]
     mem_limit: ${LAUNCHLY_BUILDKIT_MEMORY_LIMIT:-1024m}
+
+networks:
+  builder-internal:
+    internal: true
 
 volumes:
   launchly-postgres-data:

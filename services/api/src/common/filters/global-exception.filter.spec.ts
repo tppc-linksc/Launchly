@@ -106,7 +106,7 @@ describe('GlobalExceptionFilter', () => {
   });
 
   describe('plain Error', () => {
-    it('defaults to 500 and surfaces the error message', () => {
+    it('defaults to 500 without exposing the internal error message', () => {
       const { host, response } = makeHost();
 
       filter.catch(new Error('boom'), host);
@@ -114,31 +114,21 @@ describe('GlobalExceptionFilter', () => {
       expect(response.statusCode).toBe(500);
       expect(response.body).toMatchObject({
         statusCode: 500,
-        message: ['boom'],
+        message: ['服务器内部错误'],
       });
+      expect(JSON.stringify(response.body)).not.toContain('boom');
+      expect(loggerErrorSpy).toHaveBeenCalledWith('boom', expect.any(String));
     });
 
-    it('maps a message containing 不存在 to 404', () => {
+    it('does not infer a public status from internal error message text', () => {
       const { host, response } = makeHost();
 
       filter.catch(new Error('资源不存在'), host);
 
-      expect(response.statusCode).toBe(404);
+      expect(response.statusCode).toBe(500);
       expect(response.body).toMatchObject({
-        statusCode: 404,
-        message: ['资源不存在'],
-      });
-    });
-
-    it('maps a message containing 无权 to 403', () => {
-      const { host, response } = makeHost();
-
-      filter.catch(new Error('无权访问该资源'), host);
-
-      expect(response.statusCode).toBe(403);
-      expect(response.body).toMatchObject({
-        statusCode: 403,
-        message: ['无权访问该资源'],
+        statusCode: 500,
+        message: ['服务器内部错误'],
       });
     });
   });

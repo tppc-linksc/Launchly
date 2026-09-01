@@ -358,6 +358,7 @@ describe('ReleaseService', () => {
           gateName: 'health_check',
           exemptedBy: userId,
           reason: 'ops override',
+          ticket: null,
         },
       });
       expect(result).toEqual({ id: 'ex-1' });
@@ -367,6 +368,36 @@ describe('ReleaseService', () => {
       await expect(service.exemptGate(releaseId, 'health_check', {} as any, userId))
         .rejects.toThrow(BadRequestException);
       expect(prisma.gateExemption.create).not.toHaveBeenCalled();
+    });
+
+    it('records the reason and ticket in the workspace audit log', async () => {
+      const audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) };
+      const auditedService = new ReleaseService(
+        prisma as any,
+        gateCheck as unknown as GateCheckService,
+        audit as any,
+      );
+      prisma.gateExemption.create.mockResolvedValue({ id: 'ex-1' });
+      prisma.release.findUnique.mockResolvedValue({ project: { workspaceId: 'ws-1' } } as any);
+
+      await auditedService.exemptGate(
+        releaseId,
+        'health_check',
+        { reason: 'incident mitigation', ticket: 'OPS-42' },
+        userId,
+      );
+
+      expect(prisma.gateExemption.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ ticket: 'OPS-42' }),
+      });
+      expect(audit.record).toHaveBeenCalledWith(
+        userId,
+        'ws-1',
+        'RELEASE_GATE_EXEMPTED',
+        'RELEASE',
+        releaseId,
+        { gateName: 'health_check', reason: 'incident mitigation', ticket: 'OPS-42' },
+      );
     });
   });
 

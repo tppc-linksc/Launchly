@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 
+export const AUDIT_EXPORT_LIMIT = 10_000;
+
 @Injectable()
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
@@ -31,6 +33,8 @@ export class AuditService {
     return this.prisma.auditLog.findMany({
       where: { workspaceId },
       orderBy: { createdAt: 'desc' },
+      // Fetch one sentinel row so the controller can mark a truncated export.
+      take: AUDIT_EXPORT_LIMIT + 1,
     });
   }
 }

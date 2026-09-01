@@ -22,6 +22,13 @@ RUN pnpm build
 WORKDIR /app/apps/web
 RUN pnpm build
 
+# Create an isolated production dependency tree for the API. The runtime image
+# receives neither workspace build tooling nor Jest/TypeScript devDependencies.
+WORKDIR /app
+RUN pnpm --filter launchly-api deploy --prod --legacy /app/launchly-api-production
+WORKDIR /app/launchly-api-production
+RUN ./node_modules/.bin/prisma generate --schema prisma/schema.prisma
+
 FROM moby/buildkit:v0.16.0-rootless AS buildctl
 
 FROM node:22-bookworm-slim
@@ -29,14 +36,8 @@ FROM node:22-bookworm-slim
 WORKDIR /app
 ENV NODE_ENV=production
 
-RUN corepack enable
-
-COPY --from=app-builder /app/node_modules /app/node_modules
-COPY --from=app-builder /app/services/api/node_modules /app/services/api/node_modules
-COPY --from=app-builder /app/services/api/dist /app/services/api/dist
+COPY --from=app-builder /app/launchly-api-production /app/services/api
 COPY --from=app-builder /app/apps/web/dist /app/services/api/dist/web
-COPY --from=app-builder /app/services/api/prisma /app/services/api/prisma
-COPY --from=app-builder /app/services/api/package.json /app/services/api/package.json
 COPY --from=buildctl /usr/bin/buildctl /usr/local/bin/buildctl
 COPY services/api/docker-entrypoint.sh /app/services/api/docker-entrypoint.sh
 

@@ -4,6 +4,9 @@ import { JwtService } from '@nestjs/jwt';
 import { Request } from 'express';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
+const ACCESS_AUDIENCE = 'launchly:api';
+const ACCESS_TOKEN_TYPE = 'access';
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
   constructor(
@@ -27,7 +30,10 @@ export class JwtAuthGuard implements CanActivate {
 
     try {
       const token = authHeader.substring(7);
-      const payload = this.jwtService.verify(token);
+      const payload = this.jwtService.verify(token, { audience: ACCESS_AUDIENCE });
+      if (payload?.typ !== ACCESS_TOKEN_TYPE || typeof payload?.uid !== 'string' || !payload.uid) {
+        throw new UnauthorizedException('Invalid access token');
+      }
       (request as any).user = {
         userId: payload.uid,
         workspaceId: payload.wid,

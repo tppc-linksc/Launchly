@@ -385,18 +385,14 @@ describe('TemplateSourceRunner.execute - side-effect error propagation', () => {
 
 // ─── H. Path traversal boundary ───────────────────────────────────────────
 
-describe('TemplateSourceRunner.execute - refId path boundary (current behavior is a candidate defect)', () => {
-  it('workDir is path.join(BUILD_ROOT, unvalidated refId) which normalizes ../ to escape BUILD_ROOT', async () => {
+describe('TemplateSourceRunner.execute - refId path boundary', () => {
+  it('rejects path traversal before touching the filesystem', async () => {
     const runner = makeRunner();
-    fsMock.rmSync.mockReturnValueOnce(undefined);
-    fsMock.mkdirSync.mockReturnValueOnce(undefined);
-    fsMock.writeFileSync.mockReturnValueOnce(undefined).mockReturnValueOnce(undefined);
     const result = await runner.execute(makeContext({ refId: '../escape-1', payload: { templateId: 'static-blog' } }));
-    expect(result.success).toBe(true);
-    // path.join normalizes, so the workDir escapes BUILD_ROOT.
-    expect(fsMock.mkdirSync).toHaveBeenCalledWith('/tmp/escape-1', { recursive: true, mode: 0o700 });
-    expect(fsMock.rmSync).toHaveBeenCalledWith('/tmp/escape-1', { recursive: true, force: true });
-    expect(fsMock.writeFileSync.mock.calls[0][0]).toBe('/tmp/escape-1/Dockerfile');
-    expect(fsMock.writeFileSync.mock.calls[1][0]).toBe('/tmp/escape-1/index.html');
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toMatch(/refId/);
+    expect(fsMock.rmSync).not.toHaveBeenCalled();
+    expect(fsMock.mkdirSync).not.toHaveBeenCalled();
+    expect(fsMock.writeFileSync).not.toHaveBeenCalled();
   });
 });

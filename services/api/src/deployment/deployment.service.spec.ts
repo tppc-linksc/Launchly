@@ -131,6 +131,26 @@ describe('DeploymentService.create', () => {
     expect(result.id).toBe('deploy-1');
     expect(result.status).toBe('PENDING');
   });
+
+  it('retries port reservation after a concurrent unique-constraint conflict', async () => {
+    prisma.environment.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ id: 'env-other', externalPort: 3001 }] as any);
+    prisma.environment.update
+      .mockRejectedValueOnce(Object.assign(new Error('port already reserved'), { code: 'P2002' }))
+      .mockResolvedValueOnce({ ...mockEnv, deployTargetId: 'target-1', externalPort: 10000 } as any);
+
+    await service.create(baseDto, userId, workspaceId);
+
+    expect(prisma.environment.update).toHaveBeenNthCalledWith(1, {
+      where: { id: 'env-1' },
+      data: { externalPort: 3001, deployTargetId: 'target-1' },
+    });
+    expect(prisma.environment.update).toHaveBeenNthCalledWith(2, {
+      where: { id: 'env-1' },
+      data: { externalPort: 10000, deployTargetId: 'target-1' },
+    });
+  });
 });
 
 describe('DeploymentService.getById workspace isolation', () => {
@@ -192,5 +212,61 @@ describe('DeploymentService.getLogs workspace isolation', () => {
 
     const result = await service.getLogs('deploy-1', 'ws-1');
     expect(result).toHaveLength(1);
+  });
+});
+
+describe('DeploymentService.createAutomated idempotency', () => {
+  let service: DeploymentService;
+  let prisma: MockPrismaService;
+  const input = {
+    projectId: 'proj-1',
+    environmentId: 'env-1',
+    branch: 'main',
+    commitSha: 'a'.repeat(40),
+    idempotencyKey: `github:proj-1:env-1:${'a'.repeat(40)}`,
+  };
+
+  beforeEach(() => {
+    prisma = createPrismaMock();
+    service = new DeploymentService(prisma as any);
+  });
+
+  it('persists trigger source and idempotency key in the original create transaction', async () => {
+    prisma.deployment.findFirst.mockResolvedValue(null);
+    prisma.project.findUnique.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
+    prisma.deployTarget.findFirst.mockResolvedValue({ id: 'target-1' });
+    const create = jest.spyOn(service, 'create').mockResolvedValue({ id: 'deploy-1' } as any);
+
+    const result = await service.createAutomated(input);
+
+    expect(create).toHaveBeenCalledWith(expect.objectContaining({
+      projectId: 'proj-1', environmentId: 'env-1', deployTargetId: 'target-1',
+    }), '', 'ws-1', {
+      triggerSource: 'GITHUB_WEBHOOK',
+      idempotencyKey: input.idempotencyKey,
+    });
+    expect(result).toEqual({ id: 'deploy-1', triggerSource: 'GITHUB_WEBHOOK' });
+  });
+
+  it('returns the transaction winner when a concurrent insert hits the unique key', async () => {
+    const winner = {
+      id: 'deploy-winner', projectId: 'proj-1', environmentId: 'env-1',
+      deployTargetId: 'target-1', branch: 'main', commitSha: input.commitSha,
+      status: 'PENDING', triggeredBy: null, accessUrl: null, startedAt: null,
+      finishedAt: null, errorMessage: null, createdAt: new Date('2026-08-20T00:00:00Z'),
+    };
+    prisma.deployment.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(winner as any);
+    prisma.project.findUnique.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
+    prisma.deployTarget.findFirst.mockResolvedValue({ id: 'target-1' });
+    jest.spyOn(service, 'create').mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }));
+
+    const result = await service.createAutomated(input);
+
+    expect(result.id).toBe('deploy-winner');
+    expect(prisma.deployment.findFirst).toHaveBeenLastCalledWith({
+      where: { idempotencyKey: input.idempotencyKey },
+    });
   });
 });
