@@ -20,7 +20,7 @@
   <a href="README.en.md">English Documentation</a>
 </p>
 
-> **当前状态（2026-09-02）**：项目继续推进 **R0 可信基线修复**。本地复跑 API 单元、API E2E、Web 与 CLI 均为绿；当前全量覆盖率为 API 78.02%/63.26%/65.07%/79.01%、Web 94.98%/84.88%/60.51%/94.98%、CLI 85.37%/87.06%/85.71%/85.37%（Statements/Branches/Functions/Lines）。当前 12 个 migration 已在临时 PostgreSQL 空库完整应用，重复执行幂等且 schema drift 为零；API 覆盖率、Web Functions、172 个跳过用例，以及真实升级库、Registry/SSH/HTTPS/部署与恢复演练仍未达到 R0/BASE/E2E 门槛。详细状态只看[项目重启路线图](docs/basic/项目重启路线图.md)和[交付验收规范](docs/basic/交付验收规范.md)。
+> **当前状态（2026-09-02）**：项目继续推进 **R0 可信基线修复**。本地复跑 API 单元、API E2E、Web 与 CLI 均为绿；当前全量覆盖率为 API 78.21%/63.67%/65.07%/79.02%、Web 94.98%/84.88%/60.51%/94.98%、CLI 85.37%/87.06%/85.71%/85.37%（Statements/Branches/Functions/Lines）。当前 12 个 migration 已在临时 PostgreSQL 空库完整应用，重复执行幂等且 schema drift 为零；API 覆盖率、Web Functions、172 个跳过用例，以及真实升级库、Registry/SSH/HTTPS/部署与恢复演练仍未达到 R0/BASE/E2E 门槛。详细状态只看[项目重启路线图](docs/basic/项目重启路线图.md)和[交付验收规范](docs/basic/交付验收规范.md)。
 
 ## Launchly 是什么
 
@@ -117,7 +117,7 @@ GitHub / GitLab + CI Checks
 
 | 范围 | 测试规模 | Statements | Branches | Functions | Lines |
 | --- | --- | ---: | ---: | ---: | ---: |
-| API | 44 suites / 1236 tests：1064 通过、172 跳过；另有 2 E2E suites / 94 通过 | 78.02% | 63.26% | 65.07% | 79.01% |
+| API | 45 suites / 1291 tests：1119 通过、172 跳过；另有 2 E2E suites / 94 通过 | 78.21% | 63.67% | 65.07% | 79.02% |
 | Web | 30 files / 354 tests | 94.98% | 84.88% | 60.51%（低于 70% 目标） | 94.98% |
 | CLI | 5 files / 56 tests | 85.37% | 87.06% | 85.71% | 85.37% |
 

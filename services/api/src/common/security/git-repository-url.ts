@@ -11,7 +11,13 @@ function hasUnsafePathSegment(pathname: string): boolean {
  */
 export function isSafeGitRepositoryUrl(value: unknown): value is string {
   if (typeof value !== 'string' || value.length === 0 || value.length > 1024 || value.trim() !== value) return false;
-  if (/[/\\\0\r\n\t ]/.test(value[0]) || value.startsWith('-')) return false;
+  // WHATWG URL parsing strips TAB/CR/LF and percent-encodes some other controls,
+  // while the original string would still be handed to `git` (and Node rejects NUL
+  // in process arguments). Reject every C0 control and DEL before parsing so the
+  // validated and consumed representations cannot diverge.
+  // eslint-disable-next-line no-control-regex
+  if (/[\u0000-\u001F\u007F]/.test(value)) return false;
+  if (/[/\\ ]/.test(value[0]) || value.startsWith('-')) return false;
 
   const scp = SCP_STYLE.exec(value);
   if (scp) {
