@@ -1,9 +1,9 @@
-import { Controller, Get, Post, Delete, Param, Body } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
 import { EnvironmentVariableService } from './environment-variable.service';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
-import { Roles } from '../common/decorators/roles.decorator';
 import { ProjectResourceAccessPolicy } from '../common/access/project-resource-access-policy';
 import { CreateEnvironmentVariableDto } from './dto/create-environment-variable.dto';
+import { UpdateEnvironmentVariableDto } from './dto/update-environment-variable.dto';
 
 @Controller('environments/:environmentId/variables')
 export class EnvironmentVariableController {
@@ -18,7 +18,16 @@ export class EnvironmentVariableController {
     return this.variableService.listByEnvironment(environmentId);
   }
 
-  @Roles('DEVELOPER')
+  @Put(':variableId')
+  async update(
+    @Param('variableId') variableId: string,
+    @Body() body: UpdateEnvironmentVariableDto,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
+    await this.accessPolicy.requireEnvironmentVariable(variableId, user.userId, user.workspaceId!, 'DEVELOPER');
+    return this.variableService.update(variableId, body, user.workspaceId!);
+  }
+
   @Post()
   async create(
     @Param('environmentId') environmentId: string,
@@ -29,7 +38,6 @@ export class EnvironmentVariableController {
     return this.variableService.create(environmentId, body, user.userId, user.workspaceId!);
   }
 
-  @Roles('DEVELOPER')
   @Delete(':variableId')
   async delete(
     @Param('environmentId') _: string,

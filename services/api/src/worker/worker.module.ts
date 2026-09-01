@@ -12,9 +12,10 @@ import { OciImageRunner } from './runners/oci-image.runner';
 import { TemplateSourceRunner } from './runners/template-source.runner';
 import { EnvironmentModule } from '../environment/environment.module';
 import { GitModule } from '../git/git.module';
+import { NotificationModule } from '../notification/notification.module';
 
 @Module({
-  imports: [EnvironmentModule, GitModule],
+  imports: [EnvironmentModule, GitModule, NotificationModule],
   providers: [
     WorkerService,
     GitRunner,

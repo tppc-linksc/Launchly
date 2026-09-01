@@ -239,7 +239,9 @@ describe('OciImageRunner.execute - success matrix (artifact upsert + deployment 
     // artifact.upsert
     expect(prisma.artifact.upsert).toHaveBeenCalledTimes(1);
     const upsertArgs = prisma.artifact.upsert.mock.calls[0][0];
-    expect(upsertArgs.where).toEqual({ deploymentId: 'deploy-1' });
+    expect(upsertArgs.where).toEqual({
+      projectId_digest: { projectId: 'proj-1', digest: `sha256:${FIXED_DIGEST}` },
+    });
     expect(upsertArgs.create).toEqual({
       deploymentId: 'deploy-1',
       projectId: 'proj-1',
@@ -258,7 +260,7 @@ describe('OciImageRunner.execute - success matrix (artifact upsert + deployment 
     expect(prisma.deployment.update).toHaveBeenCalledTimes(1);
     expect(prisma.deployment.update).toHaveBeenCalledWith({
       where: { id: 'deploy-1' },
-      data: { artifactDigest: `sha256:${FIXED_DIGEST}` },
+      data: { artifactId: 'artifact-1', artifactDigest: `sha256:${FIXED_DIGEST}` },
     });
 
     // success result
@@ -286,7 +288,9 @@ describe('OciImageRunner.execute - success matrix (artifact upsert + deployment 
     const result = await runner.execute(makeContext({ refId: 'deploy-2' }));
 
     const upsertArgs = prisma.artifact.upsert.mock.calls[0][0];
-    expect(upsertArgs.where).toEqual({ deploymentId: 'deploy-2' });
+    expect(upsertArgs.where).toEqual({
+      projectId_digest: { projectId: 'proj-7', digest: `sha256:${FIXED_DIGEST_B}` },
+    });
     expect(upsertArgs.create).toEqual({
       deploymentId: 'deploy-2',
       projectId: 'proj-7',
@@ -297,7 +301,7 @@ describe('OciImageRunner.execute - success matrix (artifact upsert + deployment 
     });
     expect(prisma.deployment.update).toHaveBeenCalledWith({
       where: { id: 'deploy-2' },
-      data: { artifactDigest: `sha256:${FIXED_DIGEST_B}` },
+      data: { artifactId: 'artifact-2', artifactDigest: `sha256:${FIXED_DIGEST_B}` },
     });
     expect(result.success).toBe(true);
     expect(result.stdout).toContain('registry.local:5000/org/team/sub/app:2.3.4-rc1');
@@ -324,7 +328,7 @@ describe('OciImageRunner.execute - success matrix (artifact upsert + deployment 
     expect(upsertArgs.create.imageRef).toBe('registry.example.com/team/app');
     expect(prisma.deployment.update).toHaveBeenCalledWith({
       where: { id: 'deploy-3' },
-      data: { artifactDigest: `sha256:${upper}` },
+      data: { artifactId: 'artifact-3', artifactDigest: `sha256:${upper}` },
     });
     expect(result.success).toBe(true);
   });
@@ -348,7 +352,7 @@ describe('OciImageRunner.execute - success matrix (artifact upsert + deployment 
     expect(upsertArgs.update.commitSha).toBeNull();
     expect(prisma.deployment.update).toHaveBeenCalledWith({
       where: { id: 'deploy-4' },
-      data: { artifactDigest: `sha256:${FIXED_DIGEST_C}` },
+      data: { artifactId: 'artifact-4', artifactDigest: `sha256:${FIXED_DIGEST_C}` },
     });
     expect(result.success).toBe(true);
   });

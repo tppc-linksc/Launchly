@@ -1,10 +1,12 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, Optional } from '@nestjs/common';
 import { Interval } from '@nestjs/schedule';
 import { hostname } from 'os';
+import { writeFileSync } from 'fs';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { RunnerFactory } from './runners/runner.factory';
 import { CommandExecutor } from './runners/command.executor';
 import { resolveBoundedInt } from '../common/config/env-integer';
+import { NotificationService } from '../notification/notification.service';
 import {
   ROLLBACK_STEP_ORDER,
   finalizeTimedOutTask,
@@ -53,6 +55,8 @@ interface TaskRow {
 @Injectable()
 export class WorkerService implements OnModuleInit {
   private readonly logger = new Logger(WorkerService.name);
+  private pollInProgress = false;
+  private timeoutScanInProgress = false;
   private readonly taskTimeoutMinutes = resolveBoundedInt(
     process.env.LAUNCHLY_WORKER_TIMEOUT_MINUTES,
     DEFAULT_TASK_TIMEOUT_MINUTES,
@@ -72,6 +76,7 @@ export class WorkerService implements OnModuleInit {
   constructor(
     private readonly prisma: PrismaService,
     private readonly runnerFactory: RunnerFactory,
+    @Optional() private readonly notifications?: NotificationService,
   ) {}
 
   async onModuleInit() {
@@ -86,54 +91,68 @@ export class WorkerService implements OnModuleInit {
       create: { workerId: this.workerId, status: 'READY', details: JSON.stringify({ pid: process.pid }) },
       update: { status: 'READY', details: JSON.stringify({ pid: process.pid }) },
     });
+    const healthFile = process.env.LAUNCHLY_WORKER_HEALTH_FILE;
+    if (healthFile) writeFileSync(healthFile, String(Date.now()), { mode: 0o600 });
   }
 
   /** 主轮询：认领下一个可执行任务并执行。 */
   @Interval(WorkerService.POLL_INTERVAL_MS)
   async poll() {
-    const task = await this.claimNextTask();
-    if (!task) return;
-    this.logger.log(`Worker claimed task ${task.id} type=${task.taskType} refId=${task.refId}`);
+    if (this.pollInProgress) return;
+    this.pollInProgress = true;
     try {
-      await this.executeTask(task);
-    } catch (e: any) {
-      this.logger.error(`Task ${task.id} execution failed: ${e?.message}`, e?.stack);
-      await this.handleTaskFailure(task, e?.message || '执行失败');
+      const task = await this.claimNextTask();
+      if (!task) return;
+      this.logger.log(`Worker claimed task ${task.id} type=${task.taskType} refId=${task.refId}`);
+      try {
+        await this.executeTask(task);
+      } catch (e: any) {
+        this.logger.error(`Task ${task.id} execution failed: ${e?.message}`, e?.stack);
+        await this.handleTaskFailure(task, e?.message || '执行失败');
+      }
+    } finally {
+      this.pollInProgress = false;
     }
   }
 
   /** 超时回收：把超时但未完成的任务按重试预算处理。 */
   @Interval(60000)
   async timeoutStuckTasks() {
-    const cutoff = new Date(Date.now() - this.taskTimeoutMinutes * 60 * 1000);
-    const stuckTasks = await this.prisma.task.findMany({
-      where: { status: 'RUNNING', startedAt: { lt: cutoff } },
-    });
+    if (this.timeoutScanInProgress) return;
+    this.timeoutScanInProgress = true;
+    try {
+      const cutoff = new Date(Date.now() - this.taskTimeoutMinutes * 60 * 1000);
+      const stuckTasks = await this.prisma.task.findMany({
+        where: { status: 'RUNNING', startedAt: { lt: cutoff }, leaseExpiresAt: { lt: new Date() } },
+      });
 
-    // 关键：每个任务独立 try/catch，单条失败不影响其余。
-    for (const task of stuckTasks) {
-      try {
-        await this.recoverTimedOutTask(task);
-      } catch (e: any) {
-        this.logger.error(`Failed to recover timed-out task ${task.id}: ${e?.message}`);
+      // 关键：每个任务独立 try/catch，单条失败不影响其余。
+      for (const task of stuckTasks) {
+        try {
+          await this.recoverTimedOutTask(task);
+        } catch (e: any) {
+          this.logger.error(`Failed to recover timed-out task ${task.id}: ${e?.message}`);
+        }
       }
+    } finally {
+      this.timeoutScanInProgress = false;
     }
   }
 
   /** 把单个超时任务按 attempts 决定回到 PENDING 还是标记 FAILED。 */
-  private async recoverTimedOutTask(task: { id: string; attempts: number; maxAttempts: number; refId: string; taskType: string }) {
+  private async recoverTimedOutTask(task: { id: string; attempts: number; maxAttempts: number; refId: string; taskType: string; leaseOwner?: string | null }) {
     this.logger.warn(`Task ${task.id} timed out after ${this.taskTimeoutMinutes} minutes`);
     const errorMessage = `任务超时：已运行超过 ${this.taskTimeoutMinutes} 分钟`;
     const stage = mapTaskTypeToStage(task.taskType);
 
     if (task.attempts < task.maxAttempts) {
       this.logger.log(`Retrying task ${task.id} (attempt ${task.attempts + 1}/${task.maxAttempts})`);
-      await rescheduleTimedOutTask(this.prisma, task.id, errorMessage);
+      await rescheduleTimedOutTask(this.prisma, task.id, errorMessage, task.leaseOwner);
       if (stage) {
         await this.writeStageLog(task.refId, stage, 'RUNNING', `Retry attempt ${task.attempts}/${task.maxAttempts}: ${errorMessage}`);
       }
     } else {
-      await finalizeTimedOutTask(this.prisma, task.id, errorMessage);
+      await finalizeTimedOutTask(this.prisma, task.id, errorMessage, task.leaseOwner);
       await this.failDeployment(task.refId, '任务超时失败，已无重试次数');
     }
   }
@@ -144,7 +163,7 @@ export class WorkerService implements OnModuleInit {
       const tasks = await tx.$queryRaw<TaskRow[]>`
         SELECT *
         FROM tasks
-        WHERE (status = 'PENDING' OR (status = 'RUNNING' AND lease_expires_at < NOW()))
+        WHERE status = 'PENDING'
           AND attempts < max_attempts
         ORDER BY created_at ASC
         FOR UPDATE SKIP LOCKED
@@ -156,8 +175,8 @@ export class WorkerService implements OnModuleInit {
         where: { id: task.id },
         data: {
           status: 'RUNNING',
-          startedAt: task.started_at || new Date(),
-          ...(task.status === 'PENDING' ? { attempts: { increment: 1 } } : {}),
+          startedAt: new Date(),
+          attempts: { increment: 1 },
           leaseOwner: this.workerId,
           leaseExpiresAt: new Date(Date.now() + this.taskTimeoutMinutes * 60 * 1000),
         },
@@ -176,7 +195,7 @@ export class WorkerService implements OnModuleInit {
     }
 
     // KI-025: payload 必须存在且为对象（数组/字符串/数字/null 全部拒绝）。
-    const payload = this.parseStrictObjectPayload(task.payload, task);
+    const payload = await this.parseStrictObjectPayload(task.payload, task);
     if (!payload) return;
 
     const deployment = await this.prisma.deployment.findUnique({ where: { id: deploymentId } });
@@ -189,28 +208,58 @@ export class WorkerService implements OnModuleInit {
 
     await this.writeStageLog(deploymentId, stage, 'RUNNING', `Starting ${task.taskType}...`);
 
-    const result = await this.runnerFactory.execute(task.taskType, {
-      taskType: task.taskType,
-      refId: deploymentId,
-      payload,
-      stageLogCallback: async (status: string, logText: string) => {
-        await this.writeStageLog(deploymentId, stage, status, logText);
-      },
-    });
+    const stopLeaseRenewal = this.startLeaseRenewal(task.id);
+    let result;
+    try {
+      result = await this.runnerFactory.execute(task.taskType, {
+        taskType: task.taskType,
+        refId: deploymentId,
+        payload,
+        stageLogCallback: async (status: string, logText: string) => {
+          await this.writeStageLog(deploymentId, stage, status, logText);
+        },
+      });
+    } finally {
+      stopLeaseRenewal();
+    }
 
     // KI-028: 终态日志统一走脱敏。
     const stageStatus = result.success ? 'SUCCEEDED' : 'FAILED';
-    const sanitizedLog = CommandExecutor.sanitize(result.success ? result.stdout : `${result.errorMessage}\n${result.stdout}`);
+    const sanitizedLog = CommandExecutor.sanitize(
+      result.success ? result.stdout : `${result.errorMessage}\n${result.stdout}`,
+      result.sensitiveValues,
+    );
     await this.writeStageLogFinal(deploymentId, stage, stageStatus, sanitizedLog);
 
     if (result.success) {
-      await this.prisma.task.update({
-        where: { id: task.id },
-        data: { status: 'SUCCEEDED', finishedAt: new Date(), leaseOwner: null, leaseExpiresAt: null },
-      });
+      try {
+        await this.prisma.task.update({
+          where: { id: task.id, status: 'RUNNING', leaseOwner: this.workerId },
+          data: { status: 'SUCCEEDED', finishedAt: new Date(), leaseOwner: null, leaseExpiresAt: null },
+        });
+      } catch (error: any) {
+        if (error?.code !== 'P2025') throw error;
+        this.logger.warn(`Ignoring stale completion for task ${task.id}; worker no longer owns its lease`);
+        return;
+      }
       await this.enqueueNextStage(task);
       if (task.taskType === 'ROLLBACK_DEPLOY') {
-        await this.prisma.deployment.update({ where: { id: deploymentId }, data: { status: 'ROLLED_BACK', finishedAt: new Date() } });
+        const rollbackDeployment = await this.prisma.deployment.update({
+          where: { id: deploymentId },
+          data: { status: 'ROLLED_BACK', finishedAt: new Date() },
+        });
+        if (rollbackDeployment?.environmentId) {
+          // Runner activates the existing immutable snapshot directory. Keep the
+          // environment pointer on that real snapshot so a later rollback never
+          // targets the audit-only rollback record, which has no remote directory.
+          const restoredDeploymentId = typeof payload.rollbackDeploymentId === 'string'
+            ? payload.rollbackDeploymentId
+            : deploymentId;
+          await this.prisma.environment.update({
+            where: { id: rollbackDeployment.environmentId },
+            data: { status: 'active', currentDeploymentId: restoredDeploymentId },
+          });
+        }
       } else {
         await this.checkAndUpdateDeployment(deploymentId);
       }
@@ -219,23 +268,43 @@ export class WorkerService implements OnModuleInit {
     }
   }
 
+  /**
+   * 长任务执行期间持续续租。只更新当前 Worker 仍持有的 RUNNING 任务，
+   * 因而超时扫描不会在 SSH/构建仍正常运行时把同一任务重新排队。
+   */
+  private startLeaseRenewal(taskId: string): () => void {
+    const timeoutMs = this.taskTimeoutMinutes * 60 * 1000;
+    const renewalIntervalMs = Math.max(10_000, Math.min(60_000, Math.floor(timeoutMs / 3)));
+    const timer = setInterval(() => {
+      void this.prisma.task.updateMany({
+        where: { id: taskId, status: 'RUNNING', leaseOwner: this.workerId },
+        data: { leaseExpiresAt: new Date(Date.now() + timeoutMs) },
+      }).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error);
+        this.logger.warn(`Failed to renew lease for task ${taskId}: ${message}`);
+      });
+    }, renewalIntervalMs);
+    timer.unref?.();
+    return () => clearInterval(timer);
+  }
+
   /** 严格解析 payload：空/null/非对象/数组 全部拒绝（KI-025）。返回 null 表示已记错误。 */
-  private parseStrictObjectPayload(payload: string | null, task: { id: string; refId: string; taskType: string }): Record<string, any> | null {
+  private async parseStrictObjectPayload(payload: string | null, task: { id: string; refId: string; taskType: string }): Promise<Record<string, any> | null> {
     if (typeof payload !== 'string' || payload.trim() === '') {
       // 兼容历史空 payload：当作空对象，但要求是 JSON 字符串或为空。
       // 为 fail closed，这里统一视为非法。
-      void this.handleTaskFatalFailure(task, '任务负载为空');
+      await this.handleTaskFatalFailure(task, '任务负载为空');
       return null;
     }
     let parsed: unknown;
     try {
       parsed = JSON.parse(payload);
     } catch (e: any) {
-      void this.handleTaskFatalFailure(task, `任务负载解析失败: ${e?.message}`);
+      await this.handleTaskFatalFailure(task, `任务负载解析失败: ${e?.message}`);
       return null;
     }
     if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      void this.handleTaskFatalFailure(task, '任务负载必须是 JSON 对象');
+      await this.handleTaskFatalFailure(task, '任务负载必须是 JSON 对象');
       return null;
     }
     return parsed as Record<string, any>;
@@ -244,16 +313,21 @@ export class WorkerService implements OnModuleInit {
   /** KI-025: 立即把任务标记 FAILED 并清除租约（不再回到 PENDING 等待重试）。 */
   private async handleTaskFatalFailure(task: { id: string; refId: string }, errorMessage: string) {
     this.logger.error(`Task ${task.id} fatal failure: ${errorMessage}`);
-    await this.prisma.task.update({
-      where: { id: task.id },
-      data: {
-        status: 'FAILED',
-        errorMessage,
-        finishedAt: new Date(),
-        leaseOwner: null,
-        leaseExpiresAt: null,
-      },
-    });
+    try {
+      await this.prisma.task.update({
+        where: { id: task.id, status: 'RUNNING', leaseOwner: this.workerId },
+        data: {
+          status: 'FAILED',
+          errorMessage,
+          finishedAt: new Date(),
+          leaseOwner: null,
+          leaseExpiresAt: null,
+        },
+      });
+    } catch (error: any) {
+      if (error?.code !== 'P2025') throw error;
+      return;
+    }
     await this.failDeployment(task.refId, errorMessage);
   }
 
@@ -268,26 +342,35 @@ export class WorkerService implements OnModuleInit {
       await this.retryTask(task.id);
     } else {
       this.logger.error(`Task ${task.id} failed permanently after ${task.attempts} attempts: ${errorMessage}`);
-      await this.prisma.task.update({
-        where: { id: task.id },
-        data: { status: 'FAILED', errorMessage, finishedAt: new Date(), leaseOwner: null, leaseExpiresAt: null },
-      });
+      try {
+        await this.prisma.task.update({
+          where: { id: task.id, status: 'RUNNING', leaseOwner: this.workerId },
+          data: { status: 'FAILED', errorMessage, finishedAt: new Date(), leaseOwner: null, leaseExpiresAt: null },
+        });
+      } catch (error: any) {
+        if (error?.code !== 'P2025') throw error;
+        return;
+      }
       await this.failDeployment(task.refId, errorMessage);
     }
   }
 
   private async retryTask(taskId: string) {
-    await this.prisma.task.update({
-      where: { id: taskId },
-      data: {
-        status: 'PENDING',
-        errorMessage: null,
-        startedAt: null,
-        finishedAt: null,
-        leaseOwner: null,
-        leaseExpiresAt: null,
-      },
-    });
+    try {
+      await this.prisma.task.update({
+        where: { id: taskId, status: 'RUNNING', leaseOwner: this.workerId },
+        data: {
+          status: 'PENDING',
+          errorMessage: null,
+          startedAt: null,
+          finishedAt: null,
+          leaseOwner: null,
+          leaseExpiresAt: null,
+        },
+      });
+    } catch (error: any) {
+      if (error?.code !== 'P2025') throw error;
+    }
   }
 
   /** 根据已完成的任务类型，决定下一阶段任务类型。 */
@@ -304,14 +387,19 @@ export class WorkerService implements OnModuleInit {
     const next = nextTypeMap[completedTask.taskType];
     if (!next) return;
 
-    await this.prisma.task.create({
-      data: {
-        taskType: next,
-        refId: completedTask.refId,
-        payload: completedTask.payload || '{}',
-        idempotencyKey: `${next}:${completedTask.refId}`,
-      },
-    });
+    try {
+      await this.prisma.task.create({
+        data: {
+          taskType: next,
+          refId: completedTask.refId,
+          payload: completedTask.payload || '{}',
+          idempotencyKey: `${next}:${completedTask.refId}`,
+        },
+      });
+    } catch (error: any) {
+      if (error?.code !== 'P2002') throw error;
+      this.logger.debug(`Next stage ${next} already exists for deployment ${completedTask.refId}`);
+    }
   }
 
   private async writeStageLog(deploymentId: string, stage: string, status: string, logText: string) {
@@ -348,7 +436,7 @@ export class WorkerService implements OnModuleInit {
     if (!deployment) return;
 
     const accessUrl = await this.computeAccessUrl(deployment);
-    await this.prisma.deployment.update({
+    const completed = await this.prisma.deployment.update({
       where: { id: deploymentId },
       data: { status: 'SUCCEEDED', finishedAt: new Date(), accessUrl },
     });
@@ -356,6 +444,9 @@ export class WorkerService implements OnModuleInit {
       where: { id: deployment.environmentId },
       data: { status: 'active', currentDeploymentId: deploymentId },
     });
+    if (completed?.triggeredBy) {
+      await this.notifications?.create(completed.triggeredBy, 'DEPLOYMENT_SUCCEEDED', '部署成功', `部署 ${deploymentId} 已通过健康检查`, deploymentId);
+    }
   }
 
   private async computeAccessUrl(deployment: { id: string; accessUrl: string | null; environmentId: string; deployTargetId: string | null }): Promise<string> {
@@ -371,10 +462,13 @@ export class WorkerService implements OnModuleInit {
   }
 
   private async failDeployment(deploymentId: string, errorMessage: string) {
-    await this.prisma.deployment.update({
+    const failed = await this.prisma.deployment.update({
       where: { id: deploymentId },
       data: { status: 'FAILED', errorMessage: errorMessage, finishedAt: new Date() },
     });
+    if (failed?.triggeredBy) {
+      await this.notifications?.create(failed.triggeredBy, 'DEPLOYMENT_FAILED', '部署失败', errorMessage, deploymentId);
+    }
     await this.scheduleAutomaticRollback(deploymentId, errorMessage);
   }
 
@@ -389,7 +483,7 @@ export class WorkerService implements OnModuleInit {
     const previousId = environment?.currentDeploymentId;
     if (!previousId || previousId === deploymentId) return;
     const previous = await this.prisma.deployment.findUnique({ where: { id: previousId } });
-    if (!previous || previous.status !== 'SUCCEEDED' || previous.deployTargetId !== failed.deployTargetId) return;
+    if (!previous || !['SUCCEEDED', 'ROLLED_BACK'].includes(previous.status) || previous.deployTargetId !== failed.deployTargetId) return;
 
     const exists = await this.prisma.task.findFirst({ where: { taskType: 'ROLLBACK_DEPLOY', refId: deploymentId } });
     if (exists) return;

@@ -79,10 +79,10 @@ curl -fsS http://127.0.0.1:8080/api/health
 预期是 `postgres` 健康、`migrate` 成功退出、`api` 和 `worker` 持续运行。若迁移失败，API/Worker 不应启动；查看日志：
 
 ```bash
-docker compose -f deploy/compose/docker-compose.yml --env-file .env logs --tail=200 migrate api worker
+docker compose -f deploy/compose/docker-compose.yml --env-file .env logs --tail=200 launchly-migrate launchly-api launchly-worker
 ```
 
-然后在电脑浏览器打开 `http://<NAS_IP>:8080/setup`，创建 Launchly Owner、密码和默认 Workspace，再登录。
+然后在电脑浏览器打开 `http://<NAS_IP>:8080/#/init`，创建 Launchly Owner、密码和默认 Workspace，再登录。
 
 ## 4. 把 Z4 Pro 添加为部署目标
 
@@ -124,7 +124,7 @@ Git 源码资源的 BuildKit 路径还需要“可推送 OCI Registry + 构建�
 更新前先备份数据库；然后拉取确定的 Git commit 并重建：
 
 ```bash
-docker compose -f deploy/compose/docker-compose.yml --env-file .env exec -T postgres pg_dump -U launchly launchly > launchly-backup.sql
+docker compose -f deploy/compose/docker-compose.yml --env-file .env exec -T launchly-postgres pg_dump -U launchly launchly > launchly-backup.sql
 git fetch origin master
 git pull --ff-only origin master
 docker compose -f deploy/compose/docker-compose.yml --env-file .env up -d --build

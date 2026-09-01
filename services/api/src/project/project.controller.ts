@@ -36,7 +36,6 @@ export class ProjectController {
     return this.projectService.getById(id, user.workspaceId!);
   }
 
-  @Roles('DEVELOPER')
   @Put(':id')
   async update(@Param('id') id: string, @Body() dto: CreateProjectDto, @CurrentUser() user: AuthPrincipal) {
     await this.access.require(id, user.userId, user.workspaceId!, 'DEVELOPER');

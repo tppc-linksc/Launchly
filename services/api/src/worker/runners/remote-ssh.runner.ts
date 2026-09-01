@@ -6,6 +6,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { assertSafeRefId } from './ref-id-safety';
 import * as path from 'path';
 import * as fs from 'fs';
+import { canonicalSshHostKey } from '../../common/security/ssh-host-key';
 
 /**
  * 远程 SSH 部署 Runner（KI-004 / KI-031 / KI-032 / KI-035 / R3）。
@@ -85,7 +86,12 @@ export class RemoteSshRunner {
         return this.failure('Target host, username, or pinned host key is invalid');
       }
 
-      const artifact = await this.prisma.artifact.findUnique({ where: { deploymentId: ctx.refId } });
+      const deploymentArtifact = await this.prisma.deployment.findUnique({
+        where: { id: ctx.refId },
+        select: { artifact: true },
+      });
+      const artifact = deploymentArtifact?.artifact
+        ?? await this.prisma.artifact.findUnique({ where: { deploymentId: ctx.refId } });
       if (!artifact || !SAFE_OCI_DIGEST.test(artifact.digest) || !SAFE_OCI_IMAGE_REFERENCE.test(artifact.imageRef)) {
         return this.failure('Deployment does not have a verified OCI artifact');
       }
@@ -98,7 +104,9 @@ export class RemoteSshRunner {
       keyPath = path.join(workDir, 'id_ed25519');
       knownHostsPath = path.join(workDir, 'known_hosts');
       fs.writeFileSync(keyPath, this.secrets.decrypt(target.encryptedCredential), { mode: 0o600 });
-      fs.writeFileSync(knownHostsPath, `[${target.host}]:${target.port} ${target.hostKey.trim()}\n`, { mode: 0o600 });
+      const targetHostKey = canonicalSshHostKey(target.hostKey);
+      if (!targetHostKey) return this.failure('Target pinned host key is invalid');
+      fs.writeFileSync(knownHostsPath, `[${target.host}]:${target.port} ${targetHostKey}\n`, { mode: 0o600 });
 
       const remote = `${target.username}@${target.host}`;
       const targetRoot = this.targetRoot(target.workRoot);
@@ -109,6 +117,7 @@ export class RemoteSshRunner {
 
       await ctx.stageLogCallback?.('RUNNING', 'Transferring deployment manifest for immutable registry artifact...');
       const envVars = await this.getEnvironmentVariables(environmentId);
+      const sensitiveValues = Object.values(envVars);
       composePath = path.join(workDir, 'compose.yml');
       envPath = path.join(workDir, 'app.env');
       const immutableImage = `${artifact.imageRef}@${artifact.digest}`;
@@ -127,11 +136,11 @@ export class RemoteSshRunner {
       const projectName = `launchly_${projectId}_${environmentId}`.replace(/-/g, '_');
       if (domain) {
         const proxy = await this.executor.execFile('ssh', [...this.sshArgs(keyPath, knownHostsPath, target.port), remote, this.proxyBootstrapCommand(targetRoot)], { timeout: 180 });
-        if (proxy.exitCode !== 0) return this.resultFrom(proxy, 'Unable to start the shared Launchly Nginx proxy; ensure ports 80 and 443 are available to Docker');
+        if (proxy.exitCode !== 0) return this.resultFrom(proxy, 'Unable to start the shared Launchly Nginx proxy; ensure ports 80 and 443 are available to Docker', sensitiveValues);
       }
       const remoteDeploy = `set -eu; docker pull '${immutableImage}'; docker compose --project-name '${projectName}' --env-file '${remoteDir}/${path.basename(envPath)}' -f '${remoteDir}/${path.basename(composePath)}' up -d --no-build`;
       const deploy = await this.executor.execFile('ssh', [...this.sshArgs(keyPath, knownHostsPath, target.port), remote, remoteDeploy], { timeout: 600 });
-      if (deploy.exitCode !== 0) return this.resultFrom(deploy, 'Remote deployment failed');
+      if (deploy.exitCode !== 0) return this.resultFrom(deploy, 'Remote deployment failed', sensitiveValues);
 
       if (domain && nginxPath) {
         const proxyConfig = `launchly-${projectId}-${environmentId}.conf`;
@@ -139,10 +148,25 @@ export class RemoteSshRunner {
         const activate = `set -eu; cp '${remoteDir}/${path.basename(nginxPath)}' '${proxyRoot}/conf.d/${proxyConfig}'; chmod 644 '${proxyRoot}/conf.d/${proxyConfig}'; if ! docker exec '${PROXY_CONTAINER}' nginx -t; then rm -f '${proxyRoot}/conf.d/${proxyConfig}'; exit 1; fi; docker exec '${PROXY_CONTAINER}' nginx -s reload`;
         await ctx.stageLogCallback?.('RUNNING', `Activating Nginx route for ${domain}...`);
         const configured = await this.executor.execFile('ssh', [...this.sshArgs(keyPath, knownHostsPath, target.port), remote, activate], { timeout: 120 });
-        if (configured.exitCode !== 0) return this.resultFrom(configured, 'Nginx route activation failed; deployment was not exposed at the configured domain');
+        if (configured.exitCode !== 0) return this.resultFrom(configured, 'Nginx route activation failed; deployment was not exposed at the configured domain', sensitiveValues);
       }
 
-      return { success: true, stdout: `${deploy.stdout}${domain ? `\nNginx route active: http://${domain}` : ''}`, stderr: deploy.stderr, exitCode: 0, errorMessage: '' };
+      // Keep only the five newest immutable snapshots per environment. The
+      // active Compose process has already loaded app.env; older plaintext
+      // manifests must not accumulate indefinitely on the target host.
+      const environmentRoot = `${targetRoot}/apps/${projectId}/${environmentId}`;
+      const retention = `set -eu; if [ -d '${environmentRoot}' ]; then find '${environmentRoot}' -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\\n' | sort -rn | tail -n +6 | cut -d' ' -f2- | while IFS= read -r old; do [ -n "$old" ] && rm -rf -- "$old"; done; fi`;
+      const pruned = await this.executor.execFile('ssh', [...this.sshArgs(keyPath, knownHostsPath, target.port), remote, retention], { timeout: 120 });
+      if (pruned.exitCode !== 0) await ctx.stageLogCallback?.('RUNNING', 'Warning: old remote deployment snapshots could not be pruned');
+
+      return {
+        success: true,
+        stdout: `${deploy.stdout}${domain ? `\nNginx route active: http://${domain}` : ''}`,
+        stderr: deploy.stderr,
+        exitCode: 0,
+        errorMessage: '',
+        sensitiveValues,
+      };
     } catch (error: any) {
       return this.failure(error?.message || 'SSH deployment failed');
     } finally {
@@ -186,11 +210,13 @@ export class RemoteSshRunner {
       keyPath = path.join(workDir, 'id_ed25519');
       knownHostsPath = path.join(workDir, 'known_hosts');
       fs.writeFileSync(keyPath, this.secrets.decrypt(target.encryptedCredential), { mode: 0o600 });
-      fs.writeFileSync(knownHostsPath, `[${target.host}]:${target.port} ${target.hostKey.trim()}\n`, { mode: 0o600 });
+      const targetHostKey = canonicalSshHostKey(target.hostKey);
+      if (!targetHostKey) return this.failure('Rollback pinned host key is invalid');
+      fs.writeFileSync(knownHostsPath, `[${target.host}]:${target.port} ${targetHostKey}\n`, { mode: 0o600 });
       const remote = `${target.username}@${target.host}`;
       const previousDir = `${this.targetRoot(target.workRoot)}/apps/${projectId}/${environmentId}/${rollbackDeploymentId}`;
       const projectName = `launchly_${projectId}_${environmentId}`.replace(/-/g, '_');
-      const remoteRollback = `set -eu; test -f '${previousDir}/${rollbackDeploymentId}.compose.yml'; test -f '${previousDir}/${rollbackDeploymentId}.env'; docker compose --project-name '${projectName}' --env-file '${previousDir}/${rollbackDeploymentId}.env' -f '${previousDir}/${rollbackDeploymentId}.compose.yml' up -d --no-build`;
+      const remoteRollback = `set -eu; test -f '${previousDir}/compose.yml'; test -f '${previousDir}/app.env'; docker compose --project-name '${projectName}' --env-file '${previousDir}/app.env' -f '${previousDir}/compose.yml' up -d --no-build`;
       await ctx.stageLogCallback?.('RUNNING', `Restoring previous immutable deployment ${rollbackDeploymentId}...`);
       const result = await this.executor.execFile('ssh', [...this.sshArgs(keyPath, knownHostsPath, target.port), remote, remoteRollback], { timeout: 300 });
       return result.exitCode === 0
@@ -254,7 +280,9 @@ export class RemoteSshRunner {
       knownHostsPath = path.join(workDir, 'known_hosts');
       bootstrapEnvPath = path.join(workDir, 'bootstrap.env');
       fs.writeFileSync(keyPath, this.secrets.decrypt(target.encryptedCredential), { mode: 0o600 });
-      fs.writeFileSync(knownHostsPath, `[${target.host}]:${target.port} ${target.hostKey.trim()}\n`, { mode: 0o600 });
+      const targetHostKey = canonicalSshHostKey(target.hostKey);
+      if (!targetHostKey) return this.failure('Bootstrap pinned host key is invalid');
+      fs.writeFileSync(knownHostsPath, `[${target.host}]:${target.port} ${targetHostKey}\n`, { mode: 0o600 });
       fs.writeFileSync(bootstrapEnvPath, this.generateEnvFile({
         LAUNCHLY_BOOTSTRAP_ADMIN_USERNAME: String(bootstrapAdminUsername || ''),
         LAUNCHLY_BOOTSTRAP_ADMIN_EMAIL: String(bootstrapAdminEmail || ''),
@@ -272,7 +300,7 @@ export class RemoteSshRunner {
         return this.resultFrom(copy, 'Bootstrap credential transfer failed');
       }
       const projectName = `launchly_${projectId}_${environmentId}`.replace(/-/g, '_');
-      const command = `set -eu; trap "rm -f '${remoteDir}/${path.basename(bootstrapEnvPath)}'" EXIT; set -a; . '${remoteDir}/${path.basename(bootstrapEnvPath)}'; set +a; docker compose --project-name '${projectName}' --env-file '${remoteDir}/${ctx.refId}.env' -f '${remoteDir}/${ctx.refId}.compose.yml' exec -T -e LAUNCHLY_BOOTSTRAP_ADMIN_USERNAME -e LAUNCHLY_BOOTSTRAP_ADMIN_EMAIL -e LAUNCHLY_BOOTSTRAP_ADMIN_PASSWORD app sh -lc ${this.shellQuote(bootstrapAdminCommand)}`;
+      const command = `set -eu; trap "rm -f '${remoteDir}/${path.basename(bootstrapEnvPath)}'" EXIT; set -a; . '${remoteDir}/${path.basename(bootstrapEnvPath)}'; set +a; docker compose --project-name '${projectName}' --env-file '${remoteDir}/app.env' -f '${remoteDir}/compose.yml' exec -T -e LAUNCHLY_BOOTSTRAP_ADMIN_USERNAME -e LAUNCHLY_BOOTSTRAP_ADMIN_EMAIL -e LAUNCHLY_BOOTSTRAP_ADMIN_PASSWORD app sh -lc ${this.shellQuote(bootstrapAdminCommand)}`;
       await ctx.stageLogCallback?.('RUNNING', 'Running the project-declared admin bootstrap command inside the application container...');
       const result = await this.executor.execFile('ssh', [...this.sshArgs(keyPath, knownHostsPath, target.port), remote, command], { timeout: 300 });
       if (result.exitCode !== 0) {
@@ -376,5 +404,11 @@ export class RemoteSshRunner {
   private safeUnlink(file: string) { try { fs.unlinkSync(file); } catch { /* 清理失败不抛错 */ } }
   private safeRmdir(dir: string) { try { fs.rmdirSync(dir); } catch { /* 可能非空或已删除 */ } }
   private failure(message: string): RunnerResult { return { success: false, stdout: '', stderr: message, exitCode: -1, errorMessage: message }; }
-  private resultFrom(result: { stdout: string; stderr: string; exitCode: number }, message: string): RunnerResult { return { success: false, ...result, errorMessage: message }; }
+  private resultFrom(
+    result: { stdout: string; stderr: string; exitCode: number },
+    message: string,
+    sensitiveValues?: string[],
+  ): RunnerResult {
+    return { success: false, ...result, errorMessage: message, sensitiveValues };
+  }
 }

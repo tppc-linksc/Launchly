@@ -11,8 +11,8 @@ export function createPrismaMock(): MockPrismaService {
   };
 
   const models = [
-    'user', 'workspace', 'workspaceMember', 'invitation',
-    'project', 'component', 'repositoryCredential',
+    'user', 'revokedRefreshToken', 'workspace', 'workspaceMember', 'invitation',
+    'project', 'component', 'repositoryCredential', 'artifact',
     'environment', 'environmentVariable',
     'deployment', 'deploymentStageLog',
     'deployTarget', 'task',
@@ -28,7 +28,10 @@ export function createPrismaMock(): MockPrismaService {
       findMany: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
       delete: jest.fn(),
+      deleteMany: jest.fn(),
+      upsert: jest.fn(),
       count: jest.fn(),
       aggregate: jest.fn(),
     };

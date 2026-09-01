@@ -89,6 +89,9 @@ let rmSyncSpy: ReturnType<typeof vi.spyOn>;
 const realCopyFileSync = fs.copyFileSync;
 const realCpSync = fs.cpSync;
 const realRmSync = fs.rmSync;
+const actualFs = await vi.importActual<typeof import('fs')>('fs');
+const realOpenSync = actualFs.openSync;
+const realCloseSync = actualFs.closeSync;
 
 const openSyncMock = fs.openSync as unknown as ReturnType<typeof vi.fn>;
 const readSyncMock = fs.readSync as unknown as ReturnType<typeof vi.fn>;
@@ -103,6 +106,9 @@ function formatDateForFilename(d: Date): string {
 
 function setConfirmInput(answer: string): void {
   openSyncMock.mockReturnValue(77);
+  closeSyncMock.mockImplementation((fd: number) => {
+    if (fd !== 77) realCloseSync(fd);
+  });
   if (answer.length === 0) {
     readSyncMock.mockReturnValue(0);
     return;
@@ -165,9 +171,12 @@ beforeEach(() => {
 
   openSyncMock.mockReset();
   readSyncMock.mockReset().mockReturnValue(0);
-  closeSyncMock.mockReset().mockImplementation(() => undefined as any);
-  openSyncMock.mockImplementation(() => {
-    throw new Error('setConfirmInput() must be called before any confirmation path');
+  closeSyncMock.mockReset().mockImplementation((fd: number) => realCloseSync(fd));
+  openSyncMock.mockImplementation((target: fs.PathLike, flags: fs.OpenMode, mode?: fs.Mode) => {
+    if (target === '/dev/stdin') {
+      throw new Error('setConfirmInput() must be called before any confirmation path');
+    }
+    return realOpenSync(target, flags, mode);
   });
 
   copyFileSyncSpy = vi.spyOn(fs, 'copyFileSync').mockImplementation((...args: any[]) => {
@@ -248,32 +257,46 @@ describe('CLI backup', () => {
     fs.mkdirSync(dataDir, { recursive: true });
     fs.mkdirSync(path.join(dataDir, 'launchly-data'), { recursive: true });
     fs.mkdirSync(path.join(dataDir, 'launchly-worker-data'), { recursive: true });
-    fs.writeFileSync(path.join(dataDir, '.env'), 'LAUNCHLY_DB_PASSWORD=x\n', { mode: 0o600 });
+    fs.writeFileSync(path.join(dataDir, '.env'), [
+      'LAUNCHLY_DB_PASSWORD=x',
+      'LAUNCHLY_JWT_SECRET=jwt-secret',
+      'LAUNCHLY_ENCRYPTION_KEY=encryption-secret',
+      'LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS=old-encryption-secret',
+      'LAUNCHLY_GITHUB_APP_PRIVATE_KEY_BASE64=private-key-material',
+      'LAUNCHLY_APP_PORT=8080',
+      '',
+    ].join('\n'), { mode: 0o600 });
     fs.writeFileSync(path.join(dataDir, 'launchly-data', 'app.data'), 'app');
     fs.writeFileSync(path.join(dataDir, 'launchly-worker-data', 'worker.data'), 'worker');
     fs.writeFileSync(path.join(dataDir, 'docker-compose.yml'), 'services:\n');
 
     const backupPath = path.join(dataDir, 'backups', `launchly-backup-${fixedTs}.tar.gz`);
     const tmpPath = path.join(dataDir, 'backups', `tmp_${fixedTs}`);
-    const dumpPath = path.join(dataDir, 'backups', 'db_dump.sql');
-
     queueExec({
       file: 'docker',
-      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), 'exec', '-T', 'launchly-postgres', 'pg_dumpall', '-U', 'launchly'],
-      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
-      stdout: 'create table t;\n',
+      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), 'exec', '-T', 'launchly-postgres', 'pg_dump', '-U', 'launchly', '-d', 'launchly', '--clean', '--if-exists', '--create'],
     });
+    queueExec({
+      file: 'docker',
+      args: ['run', '--rm', '-v', 'launchly_launchly-data:/source:ro', '-v', `${tmpPath}:/backup`, 'alpine:3.20', 'tar', '-cf', '/backup/launchly-data.tar', '-C', '/source', '.'],
+    });
+    queueExec({
+      file: 'docker',
+      args: ['run', '--rm', '-v', 'launchly_launchly-worker-data:/source:ro', '-v', `${tmpPath}:/backup`, 'alpine:3.20', 'tar', '-cf', '/backup/launchly-worker-data.tar', '-C', '/source', '.'],
+    });
+    let archivedEnv = '';
     queueExec({
       file: 'tar',
       args: ['-czf', backupPath, '-C', tmpPath, '.'],
       sideEffect: () => {
+        archivedEnv = fs.readFileSync(path.join(tmpPath, '.env'), 'utf-8');
         fs.writeFileSync(backupPath, 'archive\n');
       },
     });
 
     await runCli(['backup']);
 
-    expect(execCalls).toHaveLength(2);
+    expect(execCalls).toHaveLength(4);
     expect(execCalls[0].file).toBe('docker');
     expect(execCalls[0].args).toEqual([
       'compose',
@@ -282,27 +305,26 @@ describe('CLI backup', () => {
       'exec',
       '-T',
       'launchly-postgres',
-      'pg_dumpall',
+      'pg_dump',
       '-U',
       'launchly',
+      '-d',
+      'launchly',
+      '--clean',
+      '--if-exists',
+      '--create',
     ]);
-    expect(execCalls[1].file).toBe('tar');
-    expect(execCalls[1].args).toEqual(['-czf', backupPath, '-C', tmpPath, '.']);
+    expect(execCalls[3].file).toBe('tar');
+    expect(execCalls[3].args).toEqual(['-czf', backupPath, '-C', tmpPath, '.']);
 
-    expect(copyFileSyncSpy).toHaveBeenCalledWith(
-      path.join(dataDir, '.env'),
-      path.join(tmpPath, '.env'),
-    );
-    expect(cpSyncSpy).toHaveBeenCalledWith(
-      path.join(dataDir, 'launchly-data'),
-      path.join(tmpPath, 'launchly-data'),
-      { recursive: true },
-    );
-    expect(cpSyncSpy).toHaveBeenCalledWith(
-      path.join(dataDir, 'launchly-worker-data'),
-      path.join(tmpPath, 'launchly-worker-data'),
-      { recursive: true },
-    );
+    expect(archivedEnv).toContain('LAUNCHLY_APP_PORT=8080');
+    expect(archivedEnv).not.toContain('LAUNCHLY_DB_PASSWORD');
+    expect(archivedEnv).not.toContain('LAUNCHLY_JWT_SECRET');
+    expect(archivedEnv).not.toContain('LAUNCHLY_ENCRYPTION_KEY');
+    expect(archivedEnv).not.toContain('LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS');
+    expect(archivedEnv).not.toContain('LAUNCHLY_GITHUB_APP_PRIVATE_KEY_BASE64');
+    expect(execCalls[1].args).toContain('launchly_launchly-data:/source:ro');
+    expect(execCalls[2].args).toContain('launchly_launchly-worker-data:/source:ro');
 
     expect(getOutput()).toContain(`正在创建备份：${backupPath}`);
     expect(getOutput()).toContain(`备份已生成：${backupPath}`);
@@ -317,8 +339,7 @@ describe('CLI backup', () => {
     fs.mkdirSync(dataDir, { recursive: true });
     queueExec({
       file: 'docker',
-      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), 'exec', '-T', 'launchly-postgres', 'pg_dumpall', '-U', 'launchly'],
-      options: { encoding: 'utf-8', stdio: ['pipe', 'pipe', 'pipe'] },
+      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), 'exec', '-T', 'launchly-postgres', 'pg_dump', '-U', 'launchly', '-d', 'launchly', '--clean', '--if-exists', '--create'],
       throw: fail,
     });
     expectedExitCodes = [1];
@@ -326,7 +347,7 @@ describe('CLI backup', () => {
     await expect(runCli(['backup'])).rejects.toBeInstanceOf(Error);
     expect(execCalls).toHaveLength(1);
     expect(execCalls[0].file).toBe('docker');
-    expect(execCalls[0].args).toContain('pg_dumpall');
+    expect(execCalls[0].args).toContain('pg_dump');
     expect(getOutput()).toContain('错误：导出数据库失败');
     expect(getOutput()).toContain('请确认 Launchly 已启动');
     expect(exitSpy).toHaveBeenCalledWith(1);
@@ -373,7 +394,7 @@ describe('CLI restore', () => {
       sideEffect: () => {
         fs.mkdirSync(restoreDir, { recursive: true });
         fs.writeFileSync(backupDbFile, 'CREATE TABLE test;');
-        fs.writeFileSync(path.join(restoreDir, '.env'), 'LAUNCHLY_DB_PASSWORD=restored\nLAUNCHLY_JWT_SECRET=restored-jwt\n');
+        fs.writeFileSync(path.join(restoreDir, '.env'), 'LAUNCHLY_DB_PASSWORD=restored\nLAUNCHLY_JWT_SECRET=restored-jwt\nLAUNCHLY_ENCRYPTION_KEY=restored-key\n');
         fs.mkdirSync(path.join(restoreDir, 'launchly-data'), { recursive: true });
         fs.writeFileSync(path.join(restoreDir, 'launchly-data', 'restored.data'), 'restored-data');
         fs.mkdirSync(path.join(restoreDir, 'launchly-worker-data'), { recursive: true });
@@ -382,8 +403,7 @@ describe('CLI restore', () => {
     });
     queueExec({
       file: 'docker',
-      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), 'exec', '-T', 'launchly-postgres', 'psql', '-U', 'launchly', '-d', 'launchly'],
-      options: { input: 'CREATE TABLE test;', stdio: ['pipe', 'inherit', 'inherit'] },
+      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), 'exec', '-T', 'launchly-postgres', 'psql', '-U', 'launchly', '--set', 'ON_ERROR_STOP=on', '-d', 'postgres'],
       stdout: '',
     });
 
@@ -394,11 +414,11 @@ describe('CLI restore', () => {
     expect(execCalls[1].args).toContain('launchly-postgres');
     expect(execCalls[1].args).toContain('psql');
     expect(execCalls[1].args).toContain('-U');
-    expect(execCalls[1].args).toContain('launchly');
+    expect(execCalls[1].args).toContain('postgres');
     expect(execCalls[1].args).toContain('-d');
     expect(execCalls[1].args).toContain('launchly');
-    expect(execCalls[1].options).toEqual({ input: 'CREATE TABLE test;', stdio: ['pipe', 'inherit', 'inherit'] });
-    expect(copyFileSyncSpy).toHaveBeenCalledWith(path.join(restoreDir, '.env'), path.join(dataDir, '.env'));
+    expect(execCalls[1].options.stdio[0]).toEqual(expect.any(Number));
+    expect(execCalls[1].options.stdio.slice(1)).toEqual(['inherit', 'inherit']);
     expect(cpSyncSpy).toHaveBeenCalledWith(path.join(restoreDir, 'launchly-data'), path.join(dataDir, 'launchly-data'), {
       recursive: true,
     });
@@ -407,7 +427,8 @@ describe('CLI restore', () => {
       path.join(dataDir, 'launchly-worker-data'),
       { recursive: true },
     );
-    expect(fs.readFileSync(path.join(dataDir, '.env'), 'utf-8')).toContain('LAUNCHLY_DB_PASSWORD=restored');
+    expect(fs.readFileSync(path.join(dataDir, '.env'), 'utf-8')).toContain('LAUNCHLY_DB_PASSWORD=old');
+    expect(fs.readFileSync(path.join(dataDir, '.env'), 'utf-8')).toContain('LAUNCHLY_ENCRYPTION_KEY=restored-key');
     expect(fs.readFileSync(path.join(dataDir, 'launchly-data', 'restored.data'), 'utf-8')).toBe('restored-data');
     expect(fs.readFileSync(path.join(dataDir, 'launchly-worker-data', 'restored-worker.data'), 'utf-8')).toBe(
       'restored-worker-data',
@@ -425,6 +446,29 @@ describe('CLI restore', () => {
     expect(execCalls).toHaveLength(0);
     expect(getOutput()).toContain(`错误：找不到备份文件：${backupFile}`);
     expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it('refuses a sanitized backup before touching the database when current secrets are missing', async () => {
+    const backupFile = path.join(dataDir, 'sanitized-backup.tar.gz');
+    const restoreDir = path.join(dataDir, 'restore_tmp');
+    fs.mkdirSync(dataDir, { recursive: true });
+    fs.writeFileSync(path.join(dataDir, '.env'), 'LAUNCHLY_APP_PORT=8080\n', { mode: 0o600 });
+    fs.writeFileSync(backupFile, 'backup');
+
+    queueExec({
+      file: 'tar',
+      args: ['-xzf', backupFile, '-C', restoreDir],
+      sideEffect: () => {
+        fs.mkdirSync(restoreDir, { recursive: true });
+        fs.writeFileSync(path.join(restoreDir, 'db_dump.sql'), 'DROP DATABASE launchly;');
+        fs.writeFileSync(path.join(restoreDir, '.env'), 'LAUNCHLY_APP_PORT=9090\n');
+      },
+    });
+
+    await expect(runCli(['restore', '--force', backupFile])).rejects.toThrow('数据库尚未修改');
+    expect(execCalls).toHaveLength(1);
+    expect(execCalls[0].file).toBe('tar');
+    expect(fs.existsSync(restoreDir)).toBe(false);
   });
 });
 

@@ -90,8 +90,8 @@ describe('useGlobalSearch', () => {
     await settle()
     const dep = results.value.find(r => r.category === 'deployment')
     expect(dep).toBeTruthy()
-    expect(dep.title).toBe('部署 d-100')
-    expect(dep.path).toBe('/deployments/d-100')
+    expect(dep!.title).toBe('部署 d-100')
+    expect(dep!.path).toBe('/deployments/d-100')
   })
 
   it('GS.6 按 commit SHA 命中', async () => {
@@ -100,7 +100,7 @@ describe('useGlobalSearch', () => {
     await settle()
     const commit = results.value.find(r => r.category === 'commit')
     expect(commit).toBeTruthy()
-    expect(commit.title).toContain('deadbeef')
+    expect(commit!.title).toContain('deadbeef')
   })
 
   it('GS.7 按分支名命中（默认分支 + 部署分支）', async () => {
@@ -118,7 +118,7 @@ describe('useGlobalSearch', () => {
     await settle()
     const domain = results.value.find(r => r.category === 'domain')
     expect(domain).toBeTruthy()
-    expect(domain.title).toContain('github.com/acme/marketing')
+    expect(domain!.title).toContain('github.com/acme/marketing')
   })
 
   it('GS.9 结果按类别排序：项目 > 服务 > 部署 > 节点 > 分支 > commit > 域名', async () => {

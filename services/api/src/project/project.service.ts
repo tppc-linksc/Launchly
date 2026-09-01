@@ -3,6 +3,9 @@ import { PrismaService } from '../common/prisma/prisma.service';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { SecretValueService } from '../environment/secret-value.service';
 import { ResourceCatalogService } from './resource-catalog.service';
+import { isSafeGitRepositoryUrl } from '../common/security/git-repository-url';
+import { canonicalSshHostKey } from '../common/security/ssh-host-key';
+import { isGithubInstallationBoundToWorkspace } from '../common/security/github-installation-binding';
 
 const DEPLOYABLE_SOURCES = new Set(['GIT_PUBLIC', 'GITHUB_APP', 'DEPLOY_KEY', 'OCI_IMAGE']);
 const GIT_SOURCES = new Set(['GIT_PUBLIC', 'GITHUB_APP', 'DEPLOY_KEY']);
@@ -17,6 +20,7 @@ export class ProjectService {
 
   async create(dto: CreateProjectDto, workspaceId: string, userId: string) {
     const resource = this.normalizeResource(dto);
+    this.assertGithubInstallationBinding(resource.sourceType, dto.githubInstallationId, workspaceId);
     const repositoryCredential = this.prepareRepositoryCredential(dto, resource.sourceType);
     const bootstrapAdmin = this.prepareBootstrapAdmin(dto, true);
     const project = await this.prisma.$transaction(async (tx) => {
@@ -32,10 +36,11 @@ export class ProjectService {
           templateId: resource.templateId,
           imageReference: resource.imageReference,
           resourceConfig: resource.resourceConfig as any,
-          repositoryUrl: dto.repositoryUrl,
+          repositoryUrl: dto.repositoryUrl?.trim(),
           defaultBranch: dto.defaultBranch || 'main',
           gitProvider: dto.gitProvider,
           githubInstallationId: dto.githubInstallationId,
+          githubRepositoryId: dto.githubRepositoryId,
           registryRepository: dto.registryRepository,
           installCommand: dto.installCommand,
           buildCommand: dto.buildCommand,
@@ -89,6 +94,7 @@ export class ProjectService {
 
   async listByWorkspace(workspaceId: string, userId?: string) {
     const workspaceMember = userId ? await this.prisma.workspaceMember.findFirst({ where: { workspaceId, userId } }) : null;
+    if (userId && !workspaceMember) return [];
     return this.prisma.project.findMany({
       where: workspaceMember?.role === 'OWNER' || !userId
         ? { workspaceId }
@@ -112,6 +118,11 @@ export class ProjectService {
     }
 
     const resource = this.normalizeResource(dto, project);
+    this.assertGithubInstallationBinding(
+      resource.sourceType,
+      dto.githubInstallationId ?? project.githubInstallationId,
+      workspaceId,
+    );
     const repositoryCredential = this.prepareRepositoryCredential(dto, resource.sourceType);
     const bootstrapAdmin = this.prepareBootstrapAdmin(dto, false);
     const updated = await this.prisma.project.update({
@@ -126,10 +137,11 @@ export class ProjectService {
         ...(dto.templateId !== undefined && { templateId: resource.templateId }),
         ...(dto.imageReference !== undefined && { imageReference: resource.imageReference }),
         ...(dto.resourceConfig !== undefined && { resourceConfig: resource.resourceConfig as any }),
-        ...(dto.repositoryUrl !== undefined && { repositoryUrl: dto.repositoryUrl }),
+        ...(dto.repositoryUrl !== undefined && { repositoryUrl: dto.repositoryUrl.trim() }),
         ...(dto.defaultBranch !== undefined && { defaultBranch: dto.defaultBranch }),
         ...(dto.gitProvider !== undefined && { gitProvider: dto.gitProvider }),
         ...(dto.githubInstallationId !== undefined && { githubInstallationId: dto.githubInstallationId }),
+        ...(dto.githubRepositoryId !== undefined && { githubRepositoryId: dto.githubRepositoryId }),
         ...(dto.registryRepository !== undefined && { registryRepository: dto.registryRepository }),
         ...(dto.installCommand !== undefined && { installCommand: dto.installCommand }),
         ...(dto.buildCommand !== undefined && { buildCommand: dto.buildCommand }),
@@ -180,8 +192,28 @@ export class ProjectService {
     if (!['BUILDKIT', 'OCI_IMAGE', 'COMPOSE', 'DATABASE'].includes(runtimeMode)) {
       throw new BadRequestException('不支持的运行模式');
     }
-    if (GIT_SOURCES.has(sourceType) && !(dto.repositoryUrl ?? existing?.repositoryUrl)) {
+    const repositoryUrl = dto.repositoryUrl?.trim() ?? existing?.repositoryUrl;
+    if (GIT_SOURCES.has(sourceType) && !repositoryUrl) {
       throw new BadRequestException('Git 来源必须配置仓库地址');
+    }
+    if (GIT_SOURCES.has(sourceType) && !isSafeGitRepositoryUrl(repositoryUrl)) {
+      throw new BadRequestException('仓库地址仅支持无内嵌凭据的 HTTPS 或 SSH Git URL');
+    }
+    if (sourceType === 'GITHUB_APP') {
+      const installationId = dto.githubInstallationId ?? existing?.githubInstallationId;
+      const repositoryId = dto.githubRepositoryId ?? existing?.githubRepositoryId;
+      if (!/^\d+$/.test(installationId || '') || !/^\d+$/.test(repositoryId || '')) {
+        throw new BadRequestException('GitHub App 来源必须提供安装 ID 和仓库 ID');
+      }
+      try {
+        const parsed = new URL(repositoryUrl);
+        if (parsed.protocol !== 'https:' || parsed.hostname.toLowerCase() !== 'github.com') throw new Error();
+      } catch {
+        throw new BadRequestException('GitHub App 来源必须使用 HTTPS github.com 仓库地址');
+      }
+    }
+    if (sourceType === 'DEPLOY_KEY' && repositoryUrl.startsWith('https://')) {
+      throw new BadRequestException('Deploy Key 来源必须使用 SSH 仓库地址');
     }
     if (sourceType === 'OCI_IMAGE' && !this.isImmutableImage(imageReference)) {
       throw new BadRequestException('OCI 镜像必须使用完整的 @sha256: digest 引用');
@@ -199,15 +231,23 @@ export class ProjectService {
     if (!dto.repositoryCredential) return null;
     if (sourceType !== 'DEPLOY_KEY') throw new BadRequestException('仅 Deploy Key 来源可以保存仓库私钥');
     const { privateKey, hostKey } = dto.repositoryCredential;
-    if (!privateKey.includes('PRIVATE KEY') || !/^(?:ssh-|ecdsa-|sk-)\S+\s+\S+/.test(hostKey.trim())) {
+    const canonicalHostKey = canonicalSshHostKey(hostKey);
+    if (!privateKey.includes('PRIVATE KEY') || !canonicalHostKey) {
       throw new BadRequestException('Deploy Key 或仓库 Host Key 格式无效');
     }
     return {
       credentialType: 'DEPLOY_KEY',
       encryptedValue: this.secrets.encrypt(privateKey),
       maskedPreview: this.secrets.mask(privateKey),
-      hostKey: hostKey.trim(),
+      hostKey: canonicalHostKey,
     };
+  }
+
+  private assertGithubInstallationBinding(sourceType: string, installationId: string | null | undefined, workspaceId: string) {
+    if (sourceType !== 'GITHUB_APP') return;
+    if (!isGithubInstallationBoundToWorkspace(installationId, workspaceId)) {
+      throw new ForbiddenException('GitHub App installation 尚未由管理员绑定到当前工作空间');
+    }
   }
 
   private prepareBootstrapAdmin(dto: CreateProjectDto, isCreate: boolean) {

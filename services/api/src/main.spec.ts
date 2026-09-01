@@ -11,14 +11,14 @@ describe('resolveCorsConfig (KI-011)', () => {
     it('undefined → 反射任意来源，credentials 必须 false（与 CORS 规范一致）', () => {
       const cfg = resolveCorsConfig(undefined);
 
-      expect(cfg.origin).toBe(true);
+      expect(cfg.origin).toBe(false);
       expect(cfg.credentials).toBe(false);
     });
 
     it('空字符串 "" → 同上', () => {
       const cfg = resolveCorsConfig('');
 
-      expect(cfg.origin).toBe(true);
+      expect(cfg.origin).toBe(false);
       expect(cfg.credentials).toBe(false);
     });
 
@@ -32,7 +32,7 @@ describe('resolveCorsConfig (KI-011)', () => {
     it('纯空格字符串 "" → 视作未设置', () => {
       const cfg = resolveCorsConfig('   ');
 
-      expect(cfg.origin).toBe(true);
+      expect(cfg.origin).toBe(false);
       expect(cfg.credentials).toBe(false);
     });
 

@@ -1,7 +1,6 @@
 import { Controller, Get, Post, Put, Param, Body } from '@nestjs/common';
 import { ReleaseService } from './release.service';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
-import { Roles } from '../common/decorators/roles.decorator';
 import { ProjectResourceAccessPolicy } from '../common/access/project-resource-access-policy';
 import { CreateReleaseDto } from './dto/create-release.dto';
 import { ExemptGateDto } from './dto';
@@ -21,7 +20,6 @@ export class ReleaseController {
     private readonly accessPolicy: ProjectResourceAccessPolicy,
   ) {}
 
-  @Roles('DEVELOPER')
   @Post()
   async create(
     @Param('projectId') projectId: string,
@@ -50,14 +48,12 @@ export class ReleaseController {
     return this.releaseService.getGateStatus(id);
   }
 
-  @Roles('ADMIN')
   @Put(':id/publish')
   async publish(@Param('id') id: string, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireRelease(id, user.userId, user.workspaceId!, 'ADMIN');
     return this.releaseService.publish(id, user.userId);
   }
 
-  @Roles('ADMIN')
   @Post(':id/gates/:gateName/exempt')
   async exempt(
     @Param('id') id: string,

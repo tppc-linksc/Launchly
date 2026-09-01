@@ -16,7 +16,7 @@ describe('WebhookService', () => {
     process.env.LAUNCHLY_GITHUB_WEBHOOK_SECRET = secret;
     prisma = {
       gitWebhookDelivery: { create: jest.fn(), update: jest.fn() },
-      project: { findMany: jest.fn().mockResolvedValue([]) },
+      project: { findFirst: jest.fn().mockResolvedValue(null) },
       environment: { findFirst: jest.fn() },
     };
     deployments = { createAutomated: jest.fn() };
@@ -24,7 +24,10 @@ describe('WebhookService', () => {
     service = new WebhookService(prisma, deployments, githubApp);
   });
 
-  afterEach(() => { delete process.env.LAUNCHLY_GITHUB_WEBHOOK_SECRET; });
+  afterEach(() => {
+    delete process.env.LAUNCHLY_GITHUB_WEBHOOK_SECRET;
+    delete process.env.LAUNCHLY_GITHUB_INSTALLATION_BINDINGS;
+  });
 
   it('rejects webhook processing when no secret is configured', async () => {
     delete process.env.LAUNCHLY_GITHUB_WEBHOOK_SECRET;
@@ -41,5 +44,19 @@ describe('WebhookService', () => {
     await expect(service.receiveGithub({ deliveryId: 'd1', event: 'push', signature, rawBody, body }))
       .resolves.toEqual({ accepted: true, ignored: true });
     expect(deployments.createAutomated).not.toHaveBeenCalled();
+  });
+
+  it('rejects an exact repository match when its installation is not operator-bound to the workspace', async () => {
+    prisma.project.findFirst.mockResolvedValue({ id: 'p1', githubInstallationId: '123', workspaceId: 'w1' });
+    await expect((service as any).matchProject({ installationId: '123', repositoryId: '456' }))
+      .resolves.toBeNull();
+  });
+
+  it('accepts an exact repository match only when its installation is operator-bound to the workspace', async () => {
+    process.env.LAUNCHLY_GITHUB_INSTALLATION_BINDINGS = JSON.stringify({ '123': 'w1' });
+    const project = { id: 'p1', githubInstallationId: '123', workspaceId: 'w1' };
+    prisma.project.findFirst.mockResolvedValue(project);
+    await expect((service as any).matchProject({ installationId: '123', repositoryId: '456' }))
+      .resolves.toEqual(project);
   });
 });

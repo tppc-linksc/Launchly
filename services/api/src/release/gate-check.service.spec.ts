@@ -19,7 +19,7 @@ describe('GateCheckService.checkGates', () => {
     prisma.release.findUnique.mockResolvedValue(release);
     prisma.environment.findUnique.mockResolvedValue({ id: 'env-1', type: 'STAGING' });
     prisma.deployment.findUnique.mockResolvedValue({ id: 'deploy-1', status: 'SUCCEEDED' });
-    prisma.testRun.findMany.mockResolvedValue([]);
+    prisma.testRun.findMany.mockResolvedValue([{ id: 'tr-ok', status: 'SUCCEEDED', failedCases: 0 }]);
     prisma.issue.count.mockResolvedValue(0);
   });
 
@@ -37,6 +37,13 @@ describe('GateCheckService.checkGates', () => {
   });
 
   it('should pass health_check gate when deployment status is SUCCEEDED', async () => {
+    const result = await service.checkGates('rel-1');
+    const gate = result.gates.find(g => g.name === 'health_check');
+    expect(gate?.passed).toBe(true);
+  });
+
+  it('should pass health_check gate when deployment was successfully rolled back', async () => {
+    prisma.deployment.findUnique.mockResolvedValue({ id: 'deploy-1', status: 'ROLLED_BACK' });
     const result = await service.checkGates('rel-1');
     const gate = result.gates.find(g => g.name === 'health_check');
     expect(gate?.passed).toBe(true);

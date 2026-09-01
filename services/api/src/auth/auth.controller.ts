@@ -3,6 +3,7 @@ import { AuthService } from './auth.service';
 import { LoginRequestDto } from './dto/login-request.dto';
 import { SetupOwnerRequestDto } from './dto/setup-owner-request.dto';
 import { Public } from '../common/decorators/public.decorator';
+import { RefreshTokenRequestDto } from './dto/refresh-token-request.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -16,8 +17,14 @@ export class AuthController {
 
   @Public()
   @Post('refresh')
-  async refresh(@Body('refreshToken') refreshToken: string) {
-    return this.authService.refresh(refreshToken);
+  async refresh(@Body() dto: RefreshTokenRequestDto) {
+    return this.authService.refresh(dto.refreshToken);
+  }
+
+  @Post('logout')
+  @Public()
+  async logout(@Body() dto: RefreshTokenRequestDto) {
+    return this.authService.logout(dto.refreshToken);
   }
 }
 

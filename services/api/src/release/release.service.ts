@@ -32,10 +32,13 @@ export class ReleaseService {
 
     const deployment = await this.prisma.deployment.findUnique({
       where: { id: data.deploymentId },
-      select: { projectId: true },
+      select: { projectId: true, environmentId: true, status: true, artifactId: true },
     });
     if (!deployment) throw new BadRequestException('部署不存在');
     if (deployment.projectId !== projectId) throw new BadRequestException('部署不属于当前项目');
+    if (deployment.environmentId !== data.environmentId) throw new BadRequestException('部署不属于指定环境');
+    if (!['SUCCEEDED', 'ROLLED_BACK'].includes(deployment.status)) throw new BadRequestException('只能为已成功部署的制品创建发布');
+    if (!deployment.artifactId) throw new BadRequestException('部署缺少不可变制品，不能创建发布');
 
     return this.prisma.release.create({
       data: {
@@ -92,12 +95,11 @@ export class ReleaseService {
     }
 
     // EXEMPTED 状态判定：所有未通过的 gate 都已有豁免，且没有任何 unresolved failure。
-    const hasUnresolvedFailure = unresolvedFailures.length > 0;
     return this.prisma.release.update({
       where: { id },
       data: {
         status: 'PUBLISHED',
-        gateStatus: gateStatus.allPassed ? 'PASSED' : (hasUnresolvedFailure ? 'FAILED' : 'EXEMPTED'),
+        gateStatus: gateStatus.allPassed ? 'PASSED' : 'EXEMPTED',
         releasedBy: userId,
         releasedAt: new Date(),
       },

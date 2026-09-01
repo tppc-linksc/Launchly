@@ -307,18 +307,15 @@ describe('DeploymentDetailPage', () => {
     }))
   })
 
-  it('DD.10 SSE "logs" event updates the rendered timeline and "status" event updates deployment status then refreshes on terminal states', async () => {
+  it('DD.10 SSE snapshot updates logs and deployment status, then refreshes on terminal states', async () => {
     setRole('OWNER')
     vi.mocked(fetchDeployment)
       .mockResolvedValueOnce({ data: { ...FAILED_DEPLOY, status: 'PENDING' } } as any)
       .mockResolvedValueOnce({ data: { ...FAILED_DEPLOY, status: 'SUCCEEDED', accessUrl: 'https://app.example.com/new' } } as any)
     vi.mocked(fetchDeploymentLogs).mockResolvedValue({ data: [] } as any)
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(makeSseResponse([
-      'event: logs\n',
-      'data: [{"id":"l1","stage":"BUILD","status":"SUCCEEDED","log":"build finished"}]\n',
-      '\n',
-      'event: status\n',
-      'data: {"status":"SUCCEEDED","errorMessage":""}\n',
+      'event: snapshot\n',
+      'data: {"logs":[{"id":"l1","stage":"BUILD","status":"SUCCEEDED","log":"build finished"}],"status":"SUCCEEDED","errorMessage":""}\n',
       '\n',
     ]))
 

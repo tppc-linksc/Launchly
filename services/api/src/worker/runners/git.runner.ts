@@ -6,6 +6,9 @@ import { SecretValueService } from '../../environment/secret-value.service';
 import { GithubAppService } from '../../git/github-app.service';
 import { assertSafeRefId } from './ref-id-safety';
 import { BUILD_ROOT, buildContextDir } from './build-context';
+import { isSafeGitReference, isSafeGitRepositoryUrl } from '../../common/security/git-repository-url';
+import { canonicalSshHostKey } from '../../common/security/ssh-host-key';
+import { isGithubInstallationBoundToWorkspace } from '../../common/security/github-installation-binding';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -44,7 +47,7 @@ export class GitRunner {
       return this.failure(e?.message || 'Invalid identifier');
     }
 
-    if (!repoUrl || !this.safeGitReference(branch) || (commitSha && !this.safeGitReference(commitSha))) {
+    if (!isSafeGitRepositoryUrl(repoUrl) || !isSafeGitReference(branch) || (commitSha && !/^[a-f0-9]{7,64}$/i.test(commitSha))) {
       return this.failure('仓库 URL / branch / commit 非法');
     }
 
@@ -113,6 +116,9 @@ export class GitRunner {
       if (sourceType === 'GITHUB_APP') {
         const project = await this.prisma.project.findUnique({ where: { id: projectId } });
         if (!project?.githubInstallationId) throw new Error('GitHub App 源缺少 installation ID');
+        if (!isGithubInstallationBoundToWorkspace(project.githubInstallationId, project.workspaceId)) {
+          throw new Error('GitHub App installation 未绑定到项目工作空间');
+        }
         url = this.githubTokenUrl(repositoryUrl, await this.githubApp.installationToken(project.githubInstallationId));
       } else if (sourceType === 'DEPLOY_KEY') {
         const credential = await this.prisma.repositoryCredential.findUnique({ where: { projectId } });
@@ -126,7 +132,9 @@ export class GitRunner {
         privateKeyPath = path.join(BUILD_ROOT, `.git-key-${deploymentId}`);
         knownHostsPath = path.join(BUILD_ROOT, `.git-known-hosts-${deploymentId}`);
         fs.writeFileSync(privateKeyPath, this.secrets.decrypt(credential.encryptedValue), { mode: 0o600 });
-        fs.writeFileSync(knownHostsPath, `${host} ${credential.hostKey.trim()}\n`, { mode: 0o600 });
+        const hostKey = canonicalSshHostKey(credential.hostKey);
+        if (!hostKey) throw new Error('Deploy Key pinned host key 格式无效');
+        fs.writeFileSync(knownHostsPath, `${host} ${hostKey}\n`, { mode: 0o600 });
         env = {
           GIT_SSH_COMMAND: `ssh -i ${privateKeyPath} -o IdentitiesOnly=yes -o BatchMode=yes -o PasswordAuthentication=no -o StrictHostKeyChecking=yes -o UserKnownHostsFile=${knownHostsPath}`,
         };
@@ -134,7 +142,7 @@ export class GitRunner {
         throw new Error(`不支持的 Git 源类型: ${sourceType}`);
       }
       return {
-        result: await this.executor.execFile('git', ['clone', '--depth', '1', '--branch', branch, url, '.'], { cwd: workDir, timeout: 300, env }),
+        result: await this.executor.execFile('git', ['clone', '--depth', '1', '--branch', branch, '--', url, '.'], { cwd: workDir, timeout: 300, env }),
         env,
         privateKeyPath,
         knownHostsPath,
@@ -163,10 +171,6 @@ export class GitRunner {
       const url = new URL(repositoryUrl);
       return url.protocol === 'ssh:' ? url.hostname : null;
     } catch { return null; }
-  }
-
-  private safeGitReference(value: string): boolean {
-    return value.length <= 255 && !/[\0\r\n]/.test(value);
   }
 
   private safeUnlink(file: string) { try { fs.unlinkSync(file); } catch { /* 清理失败忽略 */ } }

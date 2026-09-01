@@ -132,10 +132,9 @@ async function connectSSE(id: string) {
           const data = line.slice(5).trim()
           if (!data) continue
           try {
-            if (currentEvent === 'logs') {
-              logs.value = JSON.parse(data)
-            } else if (currentEvent === 'status') {
+            if (currentEvent === 'snapshot') {
               const statusData = JSON.parse(data)
+              logs.value = Array.isArray(statusData.logs) ? statusData.logs : []
               if (deployment.value) {
                 deployment.value.status = statusData.status
                 deployment.value.errorMessage = statusData.errorMessage || ''

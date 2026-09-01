@@ -16,6 +16,7 @@ const ENCRYPTED_PRIVATE_KEY = 'v2:encrypted-private-key-do-not-leak';
 // KI-023 修复后 SAFE_HOST_KEY_LINE 要求 base64 段 ≥16 字符；这里用 36 字符的固定长度，
 // 同时仍走 'ssh-ed25519 key comment' 的标准 known_hosts 行结构。
 const HOST_KEY = 'ssh-ed25519 QUJDREVGR0hIbGlua0JBVEZBS0VORQ== trusted-nas';
+const CANONICAL_HOST_KEY = 'ssh-ed25519 QUJDREVGR0hIbGlua0JBVEZBS0VORQ==';
 const EXPECTED_HOST_KEY_B64 = 'QUJDREVGR0hIbGlua0JBVEZBS0VORQ==';
 const DEFAULT_WORK_ROOT = '/var/lib/launchly';
 
@@ -344,7 +345,7 @@ describe('DeployTargetService', () => {
           username: 'deployer',
           authMethod: 'KEY',
           encryptedCredential: ENCRYPTED_PRIVATE_KEY,
-          hostKey: HOST_KEY,
+          hostKey: CANONICAL_HOST_KEY,
           workRoot: '/srv/launchly',
         },
       });
@@ -570,7 +571,7 @@ describe('DeployTargetService', () => {
           username: 'admin',
           authMethod: 'KEY',
           encryptedCredential: ENCRYPTED_PRIVATE_KEY,
-          hostKey: 'ssh-ed25519 QUJDREVGR0hIbGlua0JBVEZBS0VORQ== trusted-nas',
+          hostKey: CANONICAL_HOST_KEY,
           workRoot: '/srv/new',
         },
       });
@@ -589,7 +590,7 @@ describe('DeployTargetService', () => {
       expect(data.port).toBe(22);
       expect(data.username).toBe('deployer');
       expect(data.authMethod).toBe('KEY');
-      expect(data.hostKey).toBe(HOST_KEY);
+      expect(data.hostKey).toBe(CANONICAL_HOST_KEY);
       expect(data.workRoot).toBe('/var/lib/launchly');
     });
 

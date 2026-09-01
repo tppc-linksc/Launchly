@@ -1,5 +1,5 @@
 import { Global, Module } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD } from '@nestjs/core';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { JwtModule } from '@nestjs/jwt';
 import { PrismaModule } from './prisma/prisma.module';
 import { EditionConfig } from './config/edition.config';
@@ -8,6 +8,7 @@ import { RolesGuard } from './guards/roles.guard';
 import { GlobalExceptionFilter } from './filters/global-exception.filter';
 import { SystemController, HealthController } from './controllers/system.controller';
 import { ProjectResourceAccessPolicy } from './access/project-resource-access-policy';
+import { AuditMutationInterceptor } from './interceptors/audit-mutation.interceptor';
 
 const JWT_SECRET = process.env.LAUNCHLY_JWT_SECRET;
 if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
@@ -30,6 +31,7 @@ if (!JWT_SECRET && process.env.NODE_ENV === 'production') {
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
     { provide: APP_FILTER, useClass: GlobalExceptionFilter },
+    { provide: APP_INTERCEPTOR, useClass: AuditMutationInterceptor },
   ],
   exports: [JwtModule, EditionConfig, PrismaModule, ProjectResourceAccessPolicy],
 })

@@ -15,7 +15,7 @@ import { AppModule } from './app.module';
 
 /** CORS 配置：origin=true 表示反射任意来源；list 表示白名单。 */
 export interface CorsConfig {
-  origin: true | string[];
+  origin: false | true | string[];
   credentials: boolean;
 }
 
@@ -23,14 +23,16 @@ export interface CorsConfig {
  * 解析 CORS 配置。
  *
  * 规则：
- * - 未设置 / 空 / `*` → 反射任意来源，credentials 必须 false（CORS 规范禁止 * + credentials）。
+ * - 未设置 / 空 → 禁用跨域，只允许同源调用。
+ * - `*` → 反射任意来源，credentials 必须 false（CORS 规范禁止 * + credentials）。
  * - 显式列表 → 使用列表，credentials 允许为 true。
  *
  * 拆成纯函数以便单测覆盖（KI-011）。
  */
 export function resolveCorsConfig(raw: string | undefined): CorsConfig {
   const value = raw?.trim();
-  if (!value || value === '*') {
+  if (!value) return { origin: false, credentials: false };
+  if (value === '*') {
     return { origin: true, credentials: false };
   }
   const list = value.split(',').map(entry => entry.trim()).filter(Boolean);

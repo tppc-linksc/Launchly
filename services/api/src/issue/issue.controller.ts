@@ -1,7 +1,6 @@
 import { Controller, Get, Post, Put, Param, Body, Query } from '@nestjs/common';
 import { IssueService } from './issue.service';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
-import { Roles } from '../common/decorators/roles.decorator';
 import { ProjectResourceAccessPolicy } from '../common/access/project-resource-access-policy';
 import { CreateIssueDto, UpdateIssueDto, IssueTransitionDto } from './dto';
 
@@ -12,14 +11,12 @@ export class IssueController {
     private readonly accessPolicy: ProjectResourceAccessPolicy,
   ) {}
 
-  @Roles('TESTER')
   @Post()
   async create(@Param('projectId') projectId: string, @Body() body: CreateIssueDto, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireProject(projectId, user.userId, user.workspaceId!, 'TESTER');
     return this.issueService.createIssue(projectId, body, user.userId);
   }
 
-  @Roles('TESTER')
   @Post('from-failed-test')
   async createFromFailedTest(
     @Param('projectId') projectId: string,
@@ -50,14 +47,12 @@ export class IssueController {
     return this.issueService.getIssue(id);
   }
 
-  @Roles('DEVELOPER')
   @Put(':id')
   async update(@Param('id') id: string, @Body() body: UpdateIssueDto, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireIssue(id, user.userId, user.workspaceId!, 'DEVELOPER');
     return this.issueService.updateIssue(id, body);
   }
 
-  @Roles('TESTER')
   @Put(':id/status')
   async transition(@Param('id') id: string, @Body() body: IssueTransitionDto, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireIssue(id, user.userId, user.workspaceId!, 'TESTER');

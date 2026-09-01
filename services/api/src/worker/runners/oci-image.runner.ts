@@ -12,12 +12,12 @@ export class OciImageRunner {
     if (!deployment?.project.imageReference) return this.failure('OCI image reference is missing');
     const parsed = this.parseImmutableReference(deployment.project.imageReference);
     if (!parsed) return this.failure('OCI image must use a complete sha256 digest reference');
-    await this.prisma.artifact.upsert({
-      where: { deploymentId: deployment.id },
+    const artifact = await this.prisma.artifact.upsert({
+      where: { projectId_digest: { projectId: deployment.projectId, digest: parsed.digest } },
       create: { deploymentId: deployment.id, projectId: deployment.projectId, imageRef: parsed.imageRef, digest: parsed.digest, commitSha: deployment.commitSha, sbomStatus: 'EXTERNAL' },
       update: { imageRef: parsed.imageRef, digest: parsed.digest, commitSha: deployment.commitSha },
     });
-    await this.prisma.deployment.update({ where: { id: deployment.id }, data: { artifactDigest: parsed.digest } });
+    await this.prisma.deployment.update({ where: { id: deployment.id }, data: { artifactId: artifact.id, artifactDigest: parsed.digest } });
     return { success: true, stdout: `Using immutable OCI image ${parsed.imageRef}@${parsed.digest}`, stderr: '', exitCode: 0, errorMessage: '' };
   }
 

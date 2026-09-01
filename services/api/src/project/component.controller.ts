@@ -10,7 +10,6 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
-import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
 import { ProjectAccessService } from './project-access.service';
 import { CreateComponentDto, UpdateComponentDto } from './dto';
@@ -35,7 +34,6 @@ export class ComponentController {
     return this.prisma.component.findMany({ where: { projectId } });
   }
 
-  @Roles('DEVELOPER')
   @Post()
   async create(
     @Param('projectId') projectId: string,
@@ -62,7 +60,6 @@ export class ComponentController {
     });
   }
 
-  @Roles('DEVELOPER')
   @Put(':id')
   async update(
     @Param('projectId') projectId: string,
@@ -89,7 +86,6 @@ export class ComponentController {
     });
   }
 
-  @Roles('ADMIN')
   @Delete(':id')
   async delete(
     @Param('projectId') projectId: string,

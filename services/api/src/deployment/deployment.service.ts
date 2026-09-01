@@ -122,9 +122,12 @@ export class DeploymentService {
   async rollback(deploymentId: string, userId: string, workspaceId: string) {
     const source = await this.prisma.deployment.findFirst({
       where: { id: deploymentId, project: { workspaceId } },
+      include: { artifact: true },
     });
     if (!source) throw new NotFoundException('Deployment not found');
-    if (!source.commitSha) throw new BadRequestException('Cannot rollback deployment without commitSha');
+    if (!['SUCCEEDED', 'ROLLED_BACK'].includes(source.status)) {
+      throw new BadRequestException('只能回滚到已成功发布的部署');
+    }
 
     const project = await this.prisma.project.findUnique({ where: { id: source.projectId } });
     if (!project) throw new ForbiddenException('无权操作');
@@ -133,9 +136,13 @@ export class DeploymentService {
     const env = await this.prisma.environment.findUnique({ where: { id: source.environmentId } });
     if (!env) throw new NotFoundException('环境不存在: ' + source.environmentId);
 
-    let target: any = null;
-    if (source.deployTargetId) {
-      target = await this.prisma.deployTarget.findUnique({ where: { id: source.deployTargetId } });
+    if (!source.deployTargetId) throw new BadRequestException('回滚部署缺少部署目标');
+    const target = await this.prisma.deployTarget.findUnique({ where: { id: source.deployTargetId } });
+    if (!target || target.projectId !== source.projectId) throw new BadRequestException('回滚部署目标无效');
+    const artifact = source.artifact
+      ?? await this.prisma.artifact.findUnique({ where: { deploymentId: source.id } });
+    if (!artifact || artifact.projectId !== source.projectId) {
+      throw new BadRequestException('回滚目标缺少已验证的不可变制品');
     }
 
     const rollback = await this.prisma.$transaction(async (tx) => {
@@ -147,28 +154,34 @@ export class DeploymentService {
           branch: source.branch,
           commitSha: source.commitSha,
           rollbackFromDeploymentId: source.id,
+          artifactId: artifact.id,
+          artifactDigest: artifact.digest,
           status: 'PENDING',
           triggeredBy: userId,
+          triggerSource: 'ROLLBACK',
         },
       });
 
-      const stages = this.deploymentStages(project);
-      await tx.deploymentStageLog.createMany({
-        data: stages.map(s => ({
+      await tx.deploymentStageLog.create({
+        data: {
           deploymentId: d.id,
-          stage: s.stage,
-          stepOrder: s.stepOrder,
-          status: s.status || 'PENDING',
-        })),
+          stage: 'ROLLBACK',
+          stepOrder: 1,
+          status: 'PENDING',
+        },
       });
 
-      const payload = this.buildWorkerPayload({ project, environment: env, target, branch: source.branch, commitSha: source.commitSha });
       await tx.task.create({
         data: {
-          taskType: this.initialTaskType(project),
+          taskType: 'ROLLBACK_DEPLOY',
           refId: d.id,
-          payload: JSON.stringify(payload),
-          idempotencyKey: `${this.initialTaskType(project).toLowerCase()}:${d.id}`,
+          payload: JSON.stringify({
+            projectId: source.projectId,
+            environmentId: source.environmentId,
+            deployTargetId: source.deployTargetId,
+            rollbackDeploymentId: source.id,
+          }),
+          idempotencyKey: `rollback:${d.id}`,
         },
       });
 
@@ -183,6 +196,7 @@ export class DeploymentService {
     const deployments = await this.prisma.deployment.findMany({
       where: { projectId, project: { workspaceId } },
       orderBy: { createdAt: 'desc' },
+      take: 200,
     });
     return this.enrichDeployments(deployments);
   }
@@ -191,6 +205,7 @@ export class DeploymentService {
     const deployments = await this.prisma.deployment.findMany({
       where: { environmentId, project: { workspaceId } },
       orderBy: { createdAt: 'desc' },
+      take: 200,
     });
     return this.enrichDeployments(deployments);
   }
@@ -199,6 +214,7 @@ export class DeploymentService {
     const deployments = await this.prisma.deployment.findMany({
       where: { project: { workspaceId } },
       orderBy: { createdAt: 'desc' },
+      take: 200,
     });
     return this.enrichDeployments(deployments);
   }
@@ -388,7 +404,31 @@ export class DeploymentService {
   }
 
   private async enrichDeployments(deployments: any[]) {
-    return Promise.all(deployments.map(d => this.enrichDeployment(d)));
+    const userIds = [...new Set(deployments.map(d => d.triggeredBy).filter(Boolean))] as string[];
+    const environmentIds = [...new Set(deployments.map(d => d.environmentId).filter(Boolean))] as string[];
+    const [users, environments] = await Promise.all([
+      userIds.length ? this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, displayName: true } }) : [],
+      environmentIds.length ? this.prisma.environment.findMany({ where: { id: { in: environmentIds } }, select: { id: true, name: true } }) : [],
+    ]);
+    const userNames = new Map<string, string | null>(users.map(user => [user.id, user.displayName] as [string, string | null]));
+    const environmentNames = new Map<string, string>(environments.map(environment => [environment.id, environment.name] as [string, string]));
+    return deployments.map(d => ({
+      id: d.id,
+      projectId: d.projectId,
+      environmentId: d.environmentId,
+      deployTargetId: d.deployTargetId,
+      branch: d.branch,
+      commitSha: d.commitSha,
+      status: d.status,
+      triggeredBy: d.triggeredBy,
+      accessUrl: d.accessUrl,
+      startedAt: d.startedAt?.toISOString(),
+      finishedAt: d.finishedAt?.toISOString(),
+      errorMessage: d.errorMessage,
+      createdAt: d.createdAt.toISOString(),
+      ...(d.triggeredBy && userNames.has(d.triggeredBy) ? { triggeredByName: userNames.get(d.triggeredBy) } : {}),
+      ...(d.environmentId && environmentNames.has(d.environmentId) ? { environmentName: environmentNames.get(d.environmentId) } : {}),
+    }));
   }
 
   private async enrichDeployment(d: any) {

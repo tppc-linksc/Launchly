@@ -40,7 +40,7 @@ describe('SecretValueService', () => {
   });
 
   describe('encrypt + decrypt', () => {
-    it('v2 ciphertext does not contain plaintext and decrypts back to original', () => {
+    it('v3 ciphertext does not contain plaintext and decrypts back to original', () => {
       delete process.env.LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS;
       process.env.LAUNCHLY_ENCRYPTION_KEY = 'test-current-key-for-encryption';
       delete process.env.NODE_ENV;
@@ -50,7 +50,7 @@ describe('SecretValueService', () => {
 
       const ciphertext = service.encrypt(plaintext);
 
-      expect(ciphertext.startsWith('v2:')).toBe(true);
+      expect(ciphertext.startsWith('v3:')).toBe(true);
       expect(ciphertext.includes(plaintext)).toBe(false);
       expect(service.decrypt(ciphertext)).toBe(plaintext);
     });
@@ -79,10 +79,10 @@ describe('SecretValueService', () => {
       const service = new SecretValueService();
       const ciphertext = service.encrypt('hello-world');
       const parts = ciphertext.split(':');
-      const payload = Buffer.from(parts[2], 'base64');
+      const payload = Buffer.from(parts[1], 'base64');
       // flip a bit inside the auth tag region (bytes 12..28)
       payload[15] = payload[15] ^ 0xff;
-      parts[2] = payload.toString('base64');
+      parts[1] = payload.toString('base64');
       const tampered = parts.join(':');
 
       expect(() => service.decrypt(tampered)).toThrow();
@@ -96,10 +96,10 @@ describe('SecretValueService', () => {
       const service = new SecretValueService();
       const ciphertext = service.encrypt('hello-world');
       const parts = ciphertext.split(':');
-      const payload = Buffer.from(parts[2], 'base64');
+      const payload = Buffer.from(parts[1], 'base64');
       // flip a bit in the ciphertext region (after byte 28)
       payload[30] = payload[30] ^ 0xff;
-      parts[2] = payload.toString('base64');
+      parts[1] = payload.toString('base64');
       const tampered = parts.join(':');
 
       expect(() => service.decrypt(tampered)).toThrow();
@@ -137,12 +137,9 @@ describe('SecretValueService', () => {
       delete process.env.NODE_ENV;
 
       const service = new SecretValueService();
-      const valid = service.encrypt('hello');
-      const validKeyId = valid.split(':')[1];
-
       // 28 bytes = 12 (iv) + 16 (tag); anything shorter is "malformed"
       const tooShort = Buffer.from('short').toString('base64');
-      expect(() => service.decrypt(`v2:${validKeyId}:${tooShort}`)).toThrow(/malformed/);
+      expect(() => service.decrypt(`v3:${tooShort}`)).toThrow(/Unable to decrypt/);
     });
   });
 
@@ -153,16 +150,11 @@ describe('SecretValueService', () => {
       delete process.env.NODE_ENV;
       const oldService = new SecretValueService();
       const oldCipher = oldService.encrypt('legacy-secret');
-      const oldKeyId = oldService.encrypt('x').split(':')[1]; // capture current key id under old config
 
       // Rotate: old key becomes "previous", new key is current
       process.env.LAUNCHLY_ENCRYPTION_KEY = 'new-key';
       process.env.LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS = 'old-key';
       const newService = new SecretValueService();
-
-      // The new key id must differ from the old key id
-      const newKeyId = newService.encrypt('y').split(':')[1];
-      expect(newKeyId).not.toBe(oldKeyId);
 
       // Decrypting the old ciphertext with the new service must still succeed
       expect(newService.decrypt(oldCipher)).toBe('legacy-secret');
@@ -174,18 +166,14 @@ describe('SecretValueService', () => {
       delete process.env.NODE_ENV;
       const oldService = new SecretValueService();
       const oldCipher = oldService.encrypt('rotated-secret');
-      const oldKeyId = oldCipher.split(':')[1];
 
       process.env.LAUNCHLY_ENCRYPTION_KEY = 'new-key';
       process.env.LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS = 'old-key';
       const newService = new SecretValueService();
-      const currentKeyId = newService.encrypt('x').split(':')[1];
-
       const reencrypted = newService.reencrypt(oldCipher);
 
-      expect(reencrypted.startsWith('v2:')).toBe(true);
-      expect(reencrypted.split(':')[1]).toBe(currentKeyId);
-      expect(reencrypted.split(':')[1]).not.toBe(oldKeyId);
+      expect(reencrypted.startsWith('v3:')).toBe(true);
+      expect(reencrypted).not.toBe(oldCipher);
       expect(newService.decrypt(reencrypted)).toBe('rotated-secret');
     });
   });

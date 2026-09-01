@@ -13,6 +13,8 @@ import { redact } from './secret-redactor';
 
 @Injectable()
 export class CommandExecutor {
+  private static readonly MAX_OUTPUT_BYTES = 1024 * 1024;
+
   private readonly logger = new Logger(CommandExecutor.name);
 
   /** 通过 bash -c 执行；只用于 Launchly 自身拼接的命令。 */
@@ -21,7 +23,7 @@ export class CommandExecutor {
     options: { cwd?: string; timeout?: number; env?: Record<string, string> } = {},
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     const timeout = options.timeout ?? 300;
-    const env = { ...process.env, ...options.env };
+    const env = this.childEnvironment(options.env);
     return new Promise((resolve, reject) => {
       const proc = spawn('bash', ['-c', command], {
         cwd: options.cwd,
@@ -30,8 +32,8 @@ export class CommandExecutor {
       });
       let stdout = '';
       let stderr = '';
-      proc.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
-      proc.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+      proc.stdout.on('data', (data: Buffer) => { stdout = this.appendBounded(stdout, data); });
+      proc.stderr.on('data', (data: Buffer) => { stderr = this.appendBounded(stderr, data); });
       proc.on('close', (code: number | null) => resolve({ stdout, stderr, exitCode: code ?? -1 }));
       proc.on('error', reject);
     });
@@ -44,13 +46,13 @@ export class CommandExecutor {
     options: { cwd?: string; timeout?: number; env?: Record<string, string> } = {},
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     const timeout = options.timeout ?? 300;
-    const env = { ...process.env, ...options.env };
+    const env = this.childEnvironment(options.env);
     return new Promise((resolve, reject) => {
       const proc = spawn(command, args, { cwd: options.cwd, env, timeout: timeout * 1000, shell: false });
       let stdout = '';
       let stderr = '';
-      proc.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
-      proc.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+      proc.stdout.on('data', (data: Buffer) => { stdout = this.appendBounded(stdout, data); });
+      proc.stderr.on('data', (data: Buffer) => { stderr = this.appendBounded(stderr, data); });
       proc.on('close', (code: number | null) => resolve({ stdout, stderr, exitCode: code ?? -1 }));
       proc.on('error', reject);
     });
@@ -60,7 +62,21 @@ export class CommandExecutor {
    * 对文本做脱敏；CommandExecutor 自身不再持有正则，
    * 真实规则统一在 secret-redactor.ts。
    */
-  static sanitize(text: string): string {
-    return redact(text);
+  static sanitize(text: string, registeredValues: readonly string[] = []): string {
+    return redact(text, registeredValues);
+  }
+
+  private childEnvironment(extra?: Record<string, string>): NodeJS.ProcessEnv {
+    const inherited = ['PATH', 'HOME', 'TMPDIR', 'LANG', 'LC_ALL', 'TZ', 'SSH_AUTH_SOCK'];
+    const env: NodeJS.ProcessEnv = {};
+    for (const key of inherited) if (process.env[key] !== undefined) env[key] = process.env[key];
+    return { ...env, ...extra };
+  }
+
+  private appendBounded(current: string, chunk: Buffer): string {
+    if (Buffer.byteLength(current, 'utf8') >= CommandExecutor.MAX_OUTPUT_BYTES) return current;
+    const remaining = CommandExecutor.MAX_OUTPUT_BYTES - Buffer.byteLength(current, 'utf8');
+    const next = chunk.subarray(0, remaining).toString();
+    return next.length < chunk.length ? `${current}${next}\n[output truncated]` : current + next;
   }
 }

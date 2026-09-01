@@ -48,11 +48,11 @@ export function mapTaskTypeToStage(taskType: string): string | null {
 
 /**
  * 把已超时但仍有重试预算的任务原子地回到 PENDING 状态。
- * 关键点：增加 attempts、清空 lease、重置 finishedAt。
+ * 关键点：清空 lease、重置运行时间；attempts 在下次原子认领时增加。
  */
-export async function rescheduleTimedOutTask(prisma: PrismaService, taskId: string, errorMessage: string) {
+export async function rescheduleTimedOutTask(prisma: PrismaService, taskId: string, errorMessage: string, leaseOwner?: string | null) {
   return prisma.task.update({
-    where: { id: taskId },
+    where: { id: taskId, status: 'RUNNING', leaseOwner: leaseOwner ?? null, leaseExpiresAt: { lt: new Date() } },
     data: {
       status: 'PENDING',
       errorMessage,
@@ -65,9 +65,9 @@ export async function rescheduleTimedOutTask(prisma: PrismaService, taskId: stri
 }
 
 /** 把已超时且无重试预算的任务标记 FAILED。 */
-export async function finalizeTimedOutTask(prisma: PrismaService, taskId: string, errorMessage: string) {
+export async function finalizeTimedOutTask(prisma: PrismaService, taskId: string, errorMessage: string, leaseOwner?: string | null) {
   return prisma.task.update({
-    where: { id: taskId },
+    where: { id: taskId, status: 'RUNNING', leaseOwner: leaseOwner ?? null, leaseExpiresAt: { lt: new Date() } },
     data: {
       status: 'FAILED',
       errorMessage,

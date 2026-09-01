@@ -32,4 +32,22 @@ export class HealthController {
       throw new ServiceUnavailableException({ status: 'degraded', database: 'unavailable' });
     }
   }
+
+  @Public()
+  @Get('worker')
+  async workerHealth() {
+    const heartbeat = await this.prisma.workerHeartbeat.findFirst({
+      orderBy: { updatedAt: 'desc' },
+    });
+    const ageMs = heartbeat ? Date.now() - heartbeat.updatedAt.getTime() : Number.POSITIVE_INFINITY;
+    if (!heartbeat || heartbeat.status !== 'READY' || ageMs > 45_000) {
+      throw new ServiceUnavailableException({ status: 'degraded', worker: 'unavailable' });
+    }
+    return {
+      status: 'ok',
+      worker: 'ready',
+      workerId: heartbeat.workerId,
+      lastHeartbeatAt: heartbeat.updatedAt.toISOString(),
+    };
+  }
 }

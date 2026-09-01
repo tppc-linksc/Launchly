@@ -43,12 +43,12 @@ describe('ProjectResourceAccessPolicy', () => {
   // A. requireProject — 公共校验
   // ============================================================
   describe('A. requireProject - workspace 边界', () => {
-    it('项目不存在或不属于当前工作空间 → ForbiddenException，不查 membership', async () => {
+    it('项目不存在或不属于当前工作空间 → NotFoundException，不查 membership', async () => {
       prisma.project.findFirst.mockResolvedValue(null);
 
       const rejection = policy.requireProject(projectId, userId, workspaceId);
-      await expect(rejection).rejects.toThrow(ForbiddenException);
-      await expect(rejection).rejects.toThrow('项目不存在或不属于当前工作空间');
+      await expect(rejection).rejects.toThrow(NotFoundException);
+      await expect(rejection).rejects.toThrow('项目不存在');
       expect(prisma.workspaceMember.findFirst).not.toHaveBeenCalled();
       expect((prisma as any).projectMember.findFirst).not.toHaveBeenCalled();
     });
@@ -58,7 +58,7 @@ describe('ProjectResourceAccessPolicy', () => {
 
       await expect(
         policy.requireProject(projectId, userId, workspaceId),
-      ).rejects.toThrow(ForbiddenException);
+      ).rejects.toThrow(NotFoundException);
 
       expect(prisma.project.findFirst).toHaveBeenCalledWith({
         where: { id: projectId, workspaceId },

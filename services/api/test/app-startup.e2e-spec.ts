@@ -68,6 +68,7 @@ describe('AppModule production startup', () => {
       'EnvironmentController',
       'EnvironmentVariableController',
       'HealthController',
+      'InvitationController',
       'IssueController',
       'MemberController',
       'NotificationController',
@@ -78,6 +79,7 @@ describe('AppModule production startup', () => {
       'TestCaseController',
       'TestRunController',
       'WebhookController',
+      'WorkspaceController',
     ]);
   });
 

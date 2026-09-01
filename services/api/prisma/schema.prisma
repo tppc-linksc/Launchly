@@ -1,5 +1,5 @@
 // Launchly v0.2 — Prisma Schema
-// Maps 14 SQL migrations (V1–V14) to a single Prisma schema.
+// Maps the 12 checked-in SQL migrations to a single Prisma schema.
 // PostgreSQL only. Run `npx prisma generate` after editing.
 
 generator client {
@@ -21,7 +21,7 @@ model User {
   passwordHash String     @map("password_hash") @db.VarChar(255)
   status       String     @default("ACTIVE") @db.VarChar(20)
   createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @default(now()) @map("updated_at")
+  updatedAt    DateTime   @updatedAt @map("updated_at")
 
   workspaceMembers WorkspaceMember[]
   auditLogs        AuditLog[]
@@ -33,6 +33,15 @@ model User {
   @@map("users")
 }
 
+model RevokedRefreshToken {
+  jti       String   @id @db.VarChar(64)
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([expiresAt])
+  @@map("revoked_refresh_tokens")
+}
+
 // ─── Workspace ─────────────────────────────────────────────────
 
 model Workspace {
@@ -40,7 +49,7 @@ model Workspace {
   name        String   @db.VarChar(255)
   description String?
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @default(now()) @map("updated_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   members     WorkspaceMember[]
   invitations Invitation[]
@@ -74,7 +83,7 @@ model Invitation {
   usedCount   Int      @default(0) @map("used_count")
   status      String   @default("ACTIVE") @db.VarChar(20)
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @default(now()) @map("updated_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   workspace Workspace @relation(fields: [workspaceId], references: [id])
 
@@ -113,7 +122,7 @@ model Project {
   bootstrapAdminEmail    String?  @map("bootstrap_admin_email") @db.VarChar(255)
   createdBy       String?  @map("created_by") @db.VarChar(36)
   createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @default(now()) @map("updated_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   workspace          Workspace            @relation(fields: [workspaceId], references: [id])
   components         Component[]
@@ -123,12 +132,15 @@ model Project {
   testCases          TestCase[]
   issues             Issue[]
   releases           Release[]
+  testRuns           TestRun[]
   artifacts          Artifact[]
   members            ProjectMember[]
   repoCredentials    RepositoryCredential[]
   bootstrapSecret    ProjectBootstrapSecret?
   bootstrapRuns      ProjectBootstrapRun[]
 
+  @@index([githubInstallationId, githubRepositoryId], map: "projects_github_installation_repo_idx")
+  @@index([resourceKind, sourceType], map: "projects_resource_kind_source_type_idx")
   @@map("projects")
 }
 
@@ -138,7 +150,7 @@ model ProjectMember {
   userId    String   @map("user_id") @db.VarChar(36)
   role      String   @db.VarChar(20)
   createdAt DateTime @default(now()) @map("created_at")
-  project   Project  @relation(fields: [projectId], references: [id])
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, userId])
   @@index([userId])
@@ -157,7 +169,7 @@ model Component {
   defaultPort     Int?     @map("default_port")
   isDefault       Boolean  @default(false) @map("is_default")
   createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @default(now()) @map("updated_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   project Project @relation(fields: [projectId], references: [id])
 
@@ -173,7 +185,7 @@ model RepositoryCredential {
   maskedPreview   String?  @map("masked_preview") @db.VarChar(255)
   hostKey         String?  @map("host_key") @db.Text
   createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @default(now()) @map("updated_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
 
   project Project @relation(fields: [projectId], references: [id])
 
@@ -185,7 +197,7 @@ model ProjectBootstrapSecret {
   encryptedPassword String @map("encrypted_password") @db.Text
   maskedPreview   String?  @map("masked_preview") @db.VarChar(255)
   createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @default(now()) @map("updated_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
   project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("project_bootstrap_secrets")
@@ -200,7 +212,7 @@ model ProjectBootstrapRun {
   completedAt   DateTime? @map("completed_at")
   lastError     String?  @map("last_error") @db.Text
   createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @default(now()) @map("updated_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
   project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, environmentId])
@@ -232,11 +244,14 @@ model Environment {
   requireCi          Boolean  @default(false) @map("require_ci")
   deployTargetId     String?  @map("deploy_target_id") @db.VarChar(36)
   createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @default(now()) @map("updated_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   project    Project             @relation(fields: [projectId], references: [id])
   variables  EnvironmentVariable[]
   deployments Deployment[]
+  testRuns    TestRun[]
+  issues      Issue[]
+  releases    Release[]
 
   @@index([projectId, type])
   @@index([domain])
@@ -253,7 +268,7 @@ model EnvironmentVariable {
   sensitive      Boolean  @default(false)
   description    String?  @db.VarChar(500)
   createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @default(now()) @map("updated_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   environment Environment @relation(fields: [environmentId], references: [id])
 
@@ -281,6 +296,7 @@ model Deployment {
   triggerSource           String    @default("MANUAL") @map("trigger_source") @db.VarChar(30)
   idempotencyKey          String?   @unique @map("idempotency_key") @db.VarChar(255)
   artifactDigest          String?   @map("artifact_digest") @db.VarChar(255)
+  artifactId              String?   @map("artifact_id") @db.VarChar(36)
   createdAt               DateTime  @default(now()) @map("created_at")
 
   project      Project              @relation(fields: [projectId], references: [id])
@@ -288,11 +304,17 @@ model Deployment {
   deployTarget DeployTarget?        @relation(fields: [deployTargetId], references: [id])
   triggeredByUser User?             @relation("TriggeredBy", fields: [triggeredBy], references: [id])
   stageLogs    DeploymentStageLog[]
+  artifact     Artifact?            @relation("DeploymentArtifact", fields: [artifactId], references: [id])
+  createdArtifact Artifact?         @relation("ArtifactOrigin")
+  testRuns     TestRun[]
+  issues       Issue[]
+  releases     Release[]
 
   @@index([projectId])
   @@index([environmentId])
   @@index([deployTargetId])
   @@index([status])
+  @@index([artifactId])
   @@map("deployments")
 }
 
@@ -314,16 +336,19 @@ model DeploymentStageLog {
 
 model Artifact {
   id           String   @id @default(uuid()) @db.VarChar(36)
-  deploymentId String   @unique @map("deployment_id") @db.VarChar(36)
+  deploymentId String?  @unique @map("deployment_id") @db.VarChar(36)
   projectId    String   @map("project_id") @db.VarChar(36)
   imageRef     String   @map("image_ref") @db.VarChar(512)
-  digest       String   @unique @db.VarChar(255)
+  digest       String   @db.VarChar(255)
   commitSha    String?  @map("commit_sha") @db.VarChar(255)
   sbomStatus   String   @default("PENDING") @map("sbom_status") @db.VarChar(30)
   createdAt    DateTime @default(now()) @map("created_at")
 
   project Project @relation(fields: [projectId], references: [id])
+  originDeployment Deployment? @relation("ArtifactOrigin", fields: [deploymentId], references: [id])
+  deployments Deployment[] @relation("DeploymentArtifact")
 
+  @@unique([projectId, digest])
   @@index([projectId, createdAt])
   @@map("artifacts")
 }
@@ -345,7 +370,7 @@ model DeployTarget {
   hostKey            String?   @map("host_key") @db.Text
   workRoot           String    @default("/var/lib/launchly") @map("work_root") @db.VarChar(500)
   createdAt          DateTime  @default(now()) @map("created_at")
-  updatedAt          DateTime  @default(now()) @map("updated_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   project     Project      @relation(fields: [projectId], references: [id])
   deployments Deployment[]
@@ -418,7 +443,7 @@ model TestCase {
   steps       String?  @db.Text
   expectedResult String? @map("expected_result") @db.Text
   createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @default(now()) @map("updated_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   project     Project       @relation(fields: [projectId], references: [id])
   testRunCases TestRunCase[]
@@ -443,6 +468,9 @@ model TestRun {
   createdAt      DateTime  @default(now()) @map("created_at")
 
   testRunCases TestRunCase[]
+  deployment   Deployment @relation(fields: [deploymentId], references: [id])
+  project      Project @relation(fields: [projectId], references: [id])
+  environment  Environment @relation(fields: [environmentId], references: [id])
 
   @@index([projectId])
   @@index([deploymentId])
@@ -484,9 +512,11 @@ model Issue {
   assigneeId       String?   @map("assignee_id") @db.VarChar(36)
   fixedCommitSha   String?   @map("fixed_commit_sha") @db.VarChar(255)
   createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @default(now()) @map("updated_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
 
   project  Project @relation(fields: [projectId], references: [id])
+  environment Environment? @relation(fields: [environmentId], references: [id])
+  deployment Deployment? @relation(fields: [deploymentId], references: [id])
   reporter User?   @relation("Reporter", fields: [reporterId], references: [id])
   assignee User?   @relation("Assignee", fields: [assigneeId], references: [id])
 
@@ -513,6 +543,8 @@ model Release {
   createdAt            DateTime  @default(now()) @map("created_at")
 
   project     Project         @relation(fields: [projectId], references: [id])
+  environment Environment     @relation(fields: [environmentId], references: [id])
+  deployment  Deployment      @relation(fields: [deploymentId], references: [id])
   exemptions  GateExemption[]
 
   @@index([projectId])

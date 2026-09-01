@@ -58,19 +58,21 @@ export class ProjectResourceAccessPolicy {
     workspaceId: string,
     minimumRole: ProjectRole | string = 'VIEWER',
   ) {
+    if (!projectId || !userId || !workspaceId) throw new ForbiddenException('缺少工作空间访问上下文');
     const requiredLevel = ROLE_LEVELS[requireKnownRole(minimumRole, 'minimumRole')];
 
     const project = await this.prisma.project.findFirst({
       where: { id: projectId, workspaceId },
     });
     if (!project) {
-      throw new ForbiddenException('项目不存在或不属于当前工作空间');
+      throw new NotFoundException('项目不存在');
     }
 
     const workspaceMember = await this.prisma.workspaceMember.findFirst({
       where: { workspaceId, userId },
     });
-    if (workspaceMember?.role === 'OWNER') return project;
+    if (!workspaceMember) throw new ForbiddenException('当前用户不是工作空间成员');
+    if (workspaceMember.role === 'OWNER') return project;
 
     const projectMember = await this.prisma.projectMember.findFirst({
       where: { projectId, userId },

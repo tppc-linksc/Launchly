@@ -17,6 +17,16 @@ import { containsSensitiveKey, redact } from './secret-redactor';
 // 在源码稳定之前，整套用例暂以 .skip 跳过，避免干扰 CI。
 // 解除方法：把 .skip 去掉即可。
 describe('secret-redactor.redact', () => {
+  it('redacts exact per-task secret values even when no sensitive key is present', () => {
+    const output = redact('application printed bare-value-123 in stdout', ['bare-value-123']);
+    expect(output).toBe('application printed [REDACTED] in stdout');
+  });
+
+  it('redacts overlapping registered values longest-first', () => {
+    expect(redact('token-extended token', ['token', 'token-extended']))
+      .toBe('[REDACTED] [REDACTED]');
+  });
+
   // ============================================================
   // A. JSON 风格敏感键值对
   // ============================================================

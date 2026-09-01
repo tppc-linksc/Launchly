@@ -84,6 +84,8 @@ jobs:
           - 5432:5432
     env:
       LAUNCHLY_DATABASE_URL: postgresql://launchly:launchly_ci_password@localhost:5432/launchly
+      LAUNCHLY_SHADOW_DATABASE_URL: postgresql://launchly:launchly_ci_password@localhost:5432/launchly_shadow
+      LAUNCHLY_REQUIRE_SCHEMA_DIFF: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -94,8 +96,10 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Apply migrations to an empty PostgreSQL database
-        run: pnpm --dir services/api prisma:migrate
+      - name: Create isolated shadow database
+        run: psql "$LAUNCHLY_DATABASE_URL" -c 'CREATE DATABASE launchly_shadow'
+      - name: Apply migrations and verify schema drift
+        run: ./scripts/verify-schema.sh
 
   build:
     name: Build

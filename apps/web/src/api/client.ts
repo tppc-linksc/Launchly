@@ -351,3 +351,23 @@ export function updateMemberRole(id: string, role: string) {
 export function removeMember(id: string) {
   return api.delete(`/members/${id}`)
 }
+
+export function updateWorkspace(data: { name: string }) {
+  return api.put('/workspace', data)
+}
+
+export function fetchSystemInfo() {
+  return api.get('/system/info')
+}
+
+export function createInvitation(data: { role: string; expiresInHours?: number; maxUses?: number }) {
+  return api.post('/invitations', data)
+}
+
+export function acceptInvitation(token: string, data: { account: string; password: string; displayName?: string }) {
+  return api.post(`/invitations/${encodeURIComponent(token)}/accept`, data)
+}
+
+export function logoutSession(refreshToken: string) {
+  return api.post('/auth/logout', { refreshToken })
+}

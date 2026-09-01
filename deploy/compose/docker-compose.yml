@@ -1,5 +1,7 @@
+name: launchly
+
 services:
-  postgres:
+  launchly-postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ${LAUNCHLY_DB_NAME:-launchly}
@@ -7,8 +9,8 @@ services:
       POSTGRES_PASSWORD: ${LAUNCHLY_DB_PASSWORD:?LAUNCHLY_DB_PASSWORD is required}
     volumes:
       - launchly-postgres-data:/var/lib/postgresql/data
-    ports:
-      - "127.0.0.1:${LAUNCHLY_DB_PORT:-5432}:5432"
+    networks:
+      - launchly-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
       interval: 5s
@@ -16,23 +18,35 @@ services:
       retries: 20
     mem_limit: ${LAUNCHLY_POSTGRES_MEMORY_LIMIT:-512m}
 
-  migrate:
+  launchly-migrate:
     image: ${LAUNCHLY_APP_IMAGE:-launchly-app:local}
     build:
       context: ../..
       dockerfile: services/api/Dockerfile
     environment: &launchly-env
-      LAUNCHLY_DATABASE_URL: postgresql://${LAUNCHLY_DB_USER:-launchly}:${LAUNCHLY_DB_PASSWORD:?LAUNCHLY_DB_PASSWORD is required}@postgres:5432/${LAUNCHLY_DB_NAME:-launchly}
+      LAUNCHLY_DATABASE_URL: postgresql://${LAUNCHLY_DB_USER:-launchly}:${LAUNCHLY_DB_PASSWORD:?LAUNCHLY_DB_PASSWORD is required}@launchly-postgres:5432/${LAUNCHLY_DB_NAME:-launchly}
       LAUNCHLY_JWT_SECRET: ${LAUNCHLY_JWT_SECRET:?LAUNCHLY_JWT_SECRET is required}
       LAUNCHLY_ENCRYPTION_KEY: ${LAUNCHLY_ENCRYPTION_KEY:?LAUNCHLY_ENCRYPTION_KEY is required}
+      LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS: ${LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS:-}
       LAUNCHLY_EDITION: ${LAUNCHLY_EDITION:-selfhost}
+      LAUNCHLY_CORS_ORIGIN: ${LAUNCHLY_CORS_ORIGIN:-}
+      LAUNCHLY_GITHUB_APP_ID: ${LAUNCHLY_GITHUB_APP_ID:-}
+      LAUNCHLY_GITHUB_APP_PRIVATE_KEY_BASE64: ${LAUNCHLY_GITHUB_APP_PRIVATE_KEY_BASE64:-}
+      LAUNCHLY_GITHUB_WEBHOOK_SECRET: ${LAUNCHLY_GITHUB_WEBHOOK_SECRET:-}
+      LAUNCHLY_GITHUB_INSTALLATION_BINDINGS: ${LAUNCHLY_GITHUB_INSTALLATION_BINDINGS:-}
+      LAUNCHLY_WORKER_TIMEOUT_MINUTES: ${LAUNCHLY_WORKER_TIMEOUT_MINUTES:-30}
+      LAUNCHLY_WORKER_POLL_INTERVAL_MS: ${LAUNCHLY_WORKER_POLL_INTERVAL_MS:-3000}
+      LAUNCHLY_WORKER_CLEANUP_TTL_HOURS: ${LAUNCHLY_WORKER_CLEANUP_TTL_HOURS:-24}
+      LAUNCHLY_DEFAULT_REGISTRY_REPOSITORY: ${LAUNCHLY_DEFAULT_REGISTRY_REPOSITORY:-}
     depends_on:
-      postgres:
+      launchly-postgres:
         condition: service_healthy
+    networks:
+      - launchly-net
     command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
     restart: "no"
 
-  api:
+  launchly-api:
     image: ${LAUNCHLY_APP_IMAGE:-launchly-app:local}
     build:
       context: ../..
@@ -42,8 +56,10 @@ services:
       - "${LAUNCHLY_APP_PORT:-8080}:8080"
     volumes:
       - launchly-data:/var/lib/launchly
+    networks:
+      - launchly-net
     depends_on:
-      migrate:
+      launchly-migrate:
         condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/health"]
@@ -54,7 +70,7 @@ services:
     restart: unless-stopped
     mem_limit: ${LAUNCHLY_API_MEMORY_LIMIT:-384m}
 
-  worker:
+  launchly-worker:
     image: ${LAUNCHLY_APP_IMAGE:-launchly-app:local}
     build:
       context: ../..
@@ -62,32 +78,49 @@ services:
     environment:
       <<: *launchly-env
       LAUNCHLY_PROCESS_ROLE: worker
-      LAUNCHLY_BUILDKIT_ADDR: tcp://buildkit:1234
+      LAUNCHLY_BUILDKIT_ADDR: tcp://launchly-buildkit:1234
+      LAUNCHLY_WORKER_HEALTH_FILE: /tmp/launchly-worker-heartbeat
       LAUNCHLY_REGISTRY_AUTH_JSON: ${LAUNCHLY_REGISTRY_AUTH_JSON:-}
     volumes:
       - launchly-worker-data:/var/lib/launchly-worker
     networks:
-      - default
-      - builder-internal
+      - launchly-net
+      - launchly-builder-net
     depends_on:
-      migrate:
+      launchly-migrate:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "const fs=require('fs');const p=process.env.LAUNCHLY_WORKER_HEALTH_FILE;if(!p||Date.now()-fs.statSync(p).mtimeMs>45000)process.exit(1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
     mem_limit: ${LAUNCHLY_WORKER_MEMORY_LIMIT:-384m}
 
-  buildkit:
+  launchly-buildkit:
     image: moby/buildkit:v0.16.0-rootless
-    command: ["buildkitd", "--addr", "tcp://0.0.0.0:1234"]
+    command: ["buildkitd", "--addr", "tcp://0.0.0.0:1234", "--oci-worker-no-process-sandbox"]
     security_opt:
-      - no-new-privileges:true
+      - seccomp=unconfined
+      - apparmor=unconfined
     networks:
-      - builder-internal
+      - launchly-builder-net
+    healthcheck:
+      test: ["CMD", "buildctl", "--addr", "tcp://127.0.0.1:1234", "debug", "workers"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
     profiles: ["builder"]
     mem_limit: ${LAUNCHLY_BUILDKIT_MEMORY_LIMIT:-1024m}
 
 networks:
-  builder-internal:
+  launchly-net:
+    driver: bridge
+  launchly-builder-net:
+    driver: bridge
     internal: true
 
 volumes:

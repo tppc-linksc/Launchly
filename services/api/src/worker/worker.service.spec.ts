@@ -168,6 +168,31 @@ function makeStageLog(over: Partial<any> = {}) {
   };
 }
 
+describe('WorkerService lease renewal', () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  it('extends only the RUNNING task still owned by this worker and stops cleanly', async () => {
+    jest.useFakeTimers();
+    jest.setSystemTime(FIXED_NOW);
+    const prisma = createPrismaMock();
+    attachModelMissingFromHelper(prisma);
+    const { service } = buildService(prisma);
+
+    const stop = (service as any).startLeaseRenewal('task-lease') as () => void;
+    await jest.advanceTimersByTimeAsync(60_000);
+
+    expect(prisma.task.updateMany).toHaveBeenCalledWith({
+      where: { id: 'task-lease', status: 'RUNNING', leaseOwner: WORKER_ID },
+      data: { leaseExpiresAt: new Date(FIXED_NOW_MS + TIMEOUT_MIN * 60 * 1000 + 60_000) },
+    });
+    stop();
+    expect(jest.getTimerCount()).toBe(0);
+  });
+});
+
 function attachSimpleTx(
   prisma: MockPrismaService,
   opts: {
@@ -297,8 +322,8 @@ describe('WorkerService.poll - claim transaction', () => {
     await service.poll();
     const sql = rawSqlText(tx.$queryRaw.mock.calls[0]);
     expect(sql).toContain('PENDING');
-    expect(sql).toContain('RUNNING');
-    expect(sql).toContain('lease_expires_at');
+    expect(sql).not.toContain("status = 'RUNNING'");
+    expect(sql).not.toContain('lease_expires_at');
     expect(sql).toContain('attempts');
     expect(sql).toContain('max_attempts');
     expect(sql).toContain('created_at');
@@ -328,7 +353,7 @@ describe('WorkerService.poll - claim transaction', () => {
     expect(args.data.leaseExpiresAt.getTime()).toBe(LEASE_EXPIRES_AT.getTime());
   });
 
-  it('preserves started_at from a PENDING raw row that already has one', async () => {
+  it('resets startedAt when a PENDING task is claimed for a new attempt', async () => {
     const past = new Date(FIXED_NOW_MS - 7 * 60 * 1000);
     const row = makePendingRow({ started_at: past, startedAt: past });
     const claimed = makeClaimedTask({ startedAt: past, attempts: 1 });
@@ -338,11 +363,11 @@ describe('WorkerService.poll - claim transaction', () => {
     await service.poll();
     const args = tx.task.update.mock.calls[0][0];
     const startedAt = args.data.startedAt as Date;
-    expect(startedAt.getTime()).toBe(past.getTime());
+    expect(startedAt.getTime()).toBe(FIXED_NOW_MS);
     expect(args.data.attempts).toEqual({ increment: 1 });
   });
 
-  it('re-claims an expired RUNNING row without incrementing attempts', async () => {
+  it('defensively treats any row returned by the PENDING-only claim query as a new attempt', async () => {
     const row = makeRunningRow({ attempts: 2 });
     const claimed = makeClaimedTask({ attempts: 2 });
     const tx = attachSimpleTx(prisma, { rows: [row], updatedTask: claimed });
@@ -351,11 +376,10 @@ describe('WorkerService.poll - claim transaction', () => {
     await service.poll();
     const args = tx.task.update.mock.calls[0][0];
     expect(args.data.status).toBe('RUNNING');
-    // No `attempts` key for re-claim (status is RUNNING, not PENDING).
-    expect(args.data).not.toHaveProperty('attempts');
+    expect(args.data.attempts).toEqual({ increment: 1 });
     const startedAt = args.data.startedAt as Date;
     const rowStartedAt = row.started_at as unknown as Date;
-    expect(startedAt.getTime()).toBe(rowStartedAt.getTime());
+    expect(startedAt.getTime()).toBe(FIXED_NOW_MS);
     expect(args.data.leaseOwner).toBe(WORKER_ID);
     expect(args.data.leaseExpiresAt.getTime()).toBe(LEASE_EXPIRES_AT.getTime());
   });
@@ -532,7 +556,7 @@ describe('WorkerService.poll - task type / stage mapping', () => {
     ]);
     expect(prisma.task.update.mock.calls.map(([args]) => args)).toEqual([
       {
-        where: { id: 'task-1' },
+        where: { id: 'task-1', status: 'RUNNING', leaseOwner: WORKER_ID },
         data: {
           status: 'SUCCEEDED',
           finishedAt: FIXED_NOW,
@@ -560,7 +584,7 @@ describe('WorkerService.poll - task type / stage mapping', () => {
     expect(runnerFactory.execute).not.toHaveBeenCalled();
     expect(prisma.task.update).toHaveBeenCalledTimes(1);
     const args = prisma.task.update.mock.calls[0][0];
-    expect(args.where).toEqual({ id: 'task-1' });
+    expect(args.where).toEqual({ id: 'task-1', status: 'RUNNING', leaseOwner: WORKER_ID });
     expect(args.data.status).toBe('FAILED');
     expect(args.data.leaseOwner).toBeNull();
     expect(args.data.leaseExpiresAt).toBeNull();
@@ -768,7 +792,7 @@ describe('WorkerService.poll - runner success', () => {
 
     expect(prisma.task.update.mock.calls.map(([args]) => args)).toEqual([
       {
-        where: { id: 'task-1' },
+        where: { id: 'task-1', status: 'RUNNING', leaseOwner: WORKER_ID },
         data: {
           status: 'SUCCEEDED',
           finishedAt: FIXED_NOW,
@@ -799,6 +823,50 @@ describe('WorkerService.poll - runner success', () => {
     expect(succeededWrite).toBeUndefined();
     // No next task created
     expect(prisma.task.create).not.toHaveBeenCalled();
+  });
+
+  it('automatic rollback points the environment back to the restored previous deployment', async () => {
+    const row = makePendingRow({
+      taskType: 'ROLLBACK_DEPLOY',
+      payload: JSON.stringify({ rollbackDeploymentId: 'deploy-previous' }),
+    });
+    attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ taskType: 'ROLLBACK_DEPLOY', payload: row.payload }) });
+    prisma.deployment.findUnique.mockResolvedValue(makePENDINGDeployment({ status: 'RUNNING' }));
+    prisma.deployment.update.mockResolvedValue({
+      ...makePENDINGDeployment({ status: 'ROLLED_BACK' }),
+      triggerSource: 'MANUAL',
+    });
+    prisma.deploymentStageLog.findFirst.mockResolvedValue(makeStageLog({ stage: 'ROLLBACK' }));
+    runnerFactory.execute.mockImplementation(async () => successResult());
+
+    await service.poll();
+
+    expect(prisma.environment.update).toHaveBeenCalledWith({
+      where: { id: 'env-1' },
+      data: { status: 'active', currentDeploymentId: 'deploy-previous' },
+    });
+  });
+
+  it('manual rollback keeps the environment on the restored immutable snapshot', async () => {
+    const row = makePendingRow({
+      taskType: 'ROLLBACK_DEPLOY',
+      payload: JSON.stringify({ rollbackDeploymentId: 'deploy-previous' }),
+    });
+    attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ taskType: 'ROLLBACK_DEPLOY', payload: row.payload }) });
+    prisma.deployment.findUnique.mockResolvedValue(makePENDINGDeployment({ status: 'RUNNING' }));
+    prisma.deployment.update.mockResolvedValue({
+      ...makePENDINGDeployment({ status: 'ROLLED_BACK' }),
+      triggerSource: 'ROLLBACK',
+    });
+    prisma.deploymentStageLog.findFirst.mockResolvedValue(makeStageLog({ stage: 'ROLLBACK' }));
+    runnerFactory.execute.mockImplementation(async () => successResult());
+
+    await service.poll();
+
+    expect(prisma.environment.update).toHaveBeenCalledWith({
+      where: { id: 'env-1' },
+      data: { status: 'active', currentDeploymentId: 'deploy-previous' },
+    });
   });
 });
 
@@ -1259,11 +1327,11 @@ describe('WorkerService.timeoutStuckTasks', () => {
     expect(prisma.deployment.update).not.toHaveBeenCalled();
   });
 
-  it('does NOT consider leaseExpiresAt as the timeout contract', async () => {
+  it('requires both runtime timeout and an expired lease before recovery', async () => {
     prisma.task.findMany.mockResolvedValue([]);
     await service.timeoutStuckTasks();
     const where = prisma.task.findMany.mock.calls[0][0].where;
-    expect(where).not.toHaveProperty('leaseExpiresAt');
+    expect(where.leaseExpiresAt.lt).toEqual(FIXED_NOW);
   });
 
   it('defaults timeout to 30 minutes when LAUNCHLY_WORKER_TIMEOUT_MINUTES is absent', async () => {
@@ -1301,7 +1369,12 @@ describe('WorkerService.timeoutStuckTasks', () => {
     const updates = prisma.task.update.mock.calls.map(c => c[0]);
     expect(updates).toHaveLength(1);
     const pendingWrite = updates[0];
-    expect(pendingWrite.where).toEqual({ id: 'task-1' });
+    expect(pendingWrite.where).toEqual({
+      id: 'task-1',
+      status: 'RUNNING',
+      leaseOwner: null,
+      leaseExpiresAt: { lt: FIXED_NOW },
+    });
     expect(pendingWrite.data.status).toBe('PENDING');
     expect(pendingWrite.data.errorMessage).toContain('30');
     expect(pendingWrite.data.errorMessage).toContain('分钟');

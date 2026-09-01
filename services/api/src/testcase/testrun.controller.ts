@@ -1,7 +1,6 @@
 import { Controller, Get, Post, Put, Param, Body, Query } from '@nestjs/common';
 import { TestService } from './test.service';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
-import { Roles } from '../common/decorators/roles.decorator';
 import { ProjectResourceAccessPolicy } from '../common/access/project-resource-access-policy';
 import { UpdateTestRunCaseDto } from './dto';
 
@@ -12,7 +11,6 @@ export class TestRunController {
     private readonly accessPolicy: ProjectResourceAccessPolicy,
   ) {}
 
-  @Roles('TESTER')
   @Post('deployments/:deploymentId/test-runs')
   async create(
     @Param('deploymentId') deploymentId: string,
@@ -42,7 +40,6 @@ export class TestRunController {
     return this.testService.getTestRunCases(id);
   }
 
-  @Roles('TESTER')
   @Put('test-runs/:testRunId/cases/:caseId')
   async updateCase(
     @Param('testRunId') testRunId: string,

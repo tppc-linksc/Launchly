@@ -2,6 +2,7 @@ import { Controller, Get, Put, Delete, Param, Body, ForbiddenException, Conflict
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';
+import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 
 @Controller('members')
 export class MemberController {
@@ -25,18 +26,22 @@ export class MemberController {
 
   @Roles('OWNER')
   @Put(':id/role')
-  async updateRole(@Param('id') id: string, @Body('role') newRole: string, @CurrentUser() user: AuthPrincipal) {
+  async updateRole(@Param('id') id: string, @Body() dto: UpdateMemberRoleDto, @CurrentUser() user: AuthPrincipal) {
     const member = await this.prisma.workspaceMember.findFirst({
       where: { id, workspaceId: user.workspaceId },
     });
     if (!member) throw new ForbiddenException('成员不存在');
 
-    const validRoles = ['OWNER', 'ADMIN', 'DEVELOPER', 'TESTER', 'VIEWER'];
-    if (!validRoles.includes(newRole)) throw new ForbiddenException('无效角色');
+    if (member.role === 'OWNER' && dto.role !== 'OWNER') {
+      const ownerCount = await this.prisma.workspaceMember.count({
+        where: { workspaceId: user.workspaceId, role: 'OWNER' },
+      });
+      if (ownerCount <= 1) throw new ConflictException('不能降级最后一个 Owner');
+    }
 
     await this.prisma.workspaceMember.update({
       where: { id },
-      data: { role: newRole },
+      data: { role: dto.role },
     });
     return { success: true };
   }
@@ -57,7 +62,15 @@ export class MemberController {
       if (ownerCount <= 1) throw new ConflictException('不能移除最后一个 Owner');
     }
 
-    await this.prisma.workspaceMember.delete({ where: { id } });
+    await this.prisma.$transaction(async tx => {
+      await tx.projectMember.deleteMany({
+        where: {
+          userId: member.userId,
+          project: { workspaceId: user.workspaceId },
+        },
+      });
+      await tx.workspaceMember.delete({ where: { id } });
+    });
     return { success: true };
   }
 }

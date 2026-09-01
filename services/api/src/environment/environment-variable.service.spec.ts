@@ -57,7 +57,7 @@ describe('EnvironmentVariableService', () => {
       expect(v.id).toBe(variableId);
       expect(v.environmentId).toBe(envId);
       expect(v.key).toBe('API_KEY');
-      expect(v.maskedValue).toBe('ma****');
+      expect(v.maskedValue).toBe('已设置');
       expect(v.sensitive).toBe(true);
       expect(v.description).toBe('a description');
     });
@@ -160,16 +160,16 @@ describe('EnvironmentVariableService', () => {
 
       // Ownership uses the real env.projectId
       expect(prisma.project.findUnique).toHaveBeenCalledWith({ where: { id: envRecord.projectId } });
-      // Both encrypt and mask were called with the original value
+      // Sensitive values are encrypted but never transformed into a partial plaintext mask.
       expect(secrets.encrypt).toHaveBeenCalledWith(SECRET_PLAINTEXT);
-      expect(secrets.mask).toHaveBeenCalledWith(SECRET_PLAINTEXT);
+      expect(secrets.mask).not.toHaveBeenCalled();
       // Persisted record contains both forms
       expect(prisma.environmentVariable.create).toHaveBeenCalledWith({
         data: {
           environmentId: envId,
           key: 'API_KEY',
           encryptedValue: 'v2:enc(' + SECRET_PLAINTEXT + ')',
-          maskedValue: 'MASKED-REDACTED-OUTPUT',
+          maskedValue: '已设置',
           sensitive: true,
           description: 'a description',
         },
@@ -180,7 +180,7 @@ describe('EnvironmentVariableService', () => {
       expect(v.id).toBe(variableId);
       expect(v.environmentId).toBe(envId);
       expect(v.key).toBe('API_KEY');
-      expect(v.maskedValue).toBe('MASKED-REDACTED-OUTPUT');
+      expect(v.maskedValue).toBe('已设置');
       expect(v.sensitive).toBe(true);
       expect(v.description).toBe('a description');
       expect('encryptedValue' in v).toBe(false);
@@ -218,7 +218,7 @@ describe('EnvironmentVariableService', () => {
       expect(v.id).toBe(variableId);
       expect(v.environmentId).toBe(envId);
       expect(v.key).toBe('A');
-      expect(v.maskedValue).toBe('MASKED-REDACTED-OUTPUT');
+      expect(v.maskedValue).toBe(expectedSensitive ? '已设置' : 'MASKED-REDACTED-OUTPUT');
       expect(v.sensitive).toBe(expectedSensitive);
       expect('encryptedValue' in v).toBe(false);
       const serialised = JSON.stringify(result);

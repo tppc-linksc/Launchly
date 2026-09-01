@@ -5,6 +5,7 @@
         <h2 style="margin: 0;">成员管理</h2>
         <p style="color: #8c8c8c; margin: 4px 0 0;">管理工作空间成员与角色。</p>
       </div>
+      <el-button v-if="isOwner" type="primary" @click="inviteVisible = true">邀请成员</el-button>
     </div>
 
     <el-card>
@@ -53,13 +54,20 @@
         </el-table-column>
       </el-table>
     </el-card>
+    <el-dialog v-model="inviteVisible" title="创建邀请" width="480px">
+      <el-form label-position="top">
+        <el-form-item label="角色"><el-select v-model="inviteRole" style="width: 100%"><el-option v-for="role in ['ADMIN','DEVELOPER','TESTER','VIEWER']" :key="role" :value="role" :label="roleMap[role]" /></el-select></el-form-item>
+        <el-form-item v-if="inviteUrl" label="邀请链接"><el-input :model-value="inviteUrl" readonly /></el-form-item>
+      </el-form>
+      <template #footer><el-button @click="inviteVisible = false">关闭</el-button><el-button type="primary" :loading="inviting" @click="handleInvite">生成链接</el-button></template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { fetchMembers, updateMemberRole, removeMember } from '../api/client'
+import { fetchMembers, updateMemberRole, removeMember, createInvitation } from '../api/client'
 import { formatTime } from '../utils/display'
 import { usePermission } from '../composables/usePermission'
 
@@ -67,6 +75,10 @@ const { isOwner } = usePermission()
 
 const members = ref<any[]>([])
 const loading = ref(false)
+const inviteVisible = ref(false)
+const inviting = ref(false)
+const inviteRole = ref('DEVELOPER')
+const inviteUrl = ref('')
 
 const roleMap: Record<string, string> = {
   OWNER: '所有者',
@@ -115,6 +127,19 @@ async function handleRemove(id: string) {
     } else {
       ElMessage.error(e.response?.data?.message || '移除失败')
     }
+  }
+}
+
+async function handleInvite() {
+  inviting.value = true
+  try {
+    const response = await createInvitation({ role: inviteRole.value })
+    inviteUrl.value = `${window.location.origin}${window.location.pathname}#/invite/${response.data.token}`
+    ElMessage.success('邀请链接已生成')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '创建邀请失败')
+  } finally {
+    inviting.value = false
   }
 }
 

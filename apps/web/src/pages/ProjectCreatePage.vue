@@ -34,6 +34,9 @@
           <el-form-item v-if="form.sourceType === 'GITHUB_APP'" label="GitHub App Installation ID" required>
             <el-input v-model="form.githubInstallationId" placeholder="GitHub App 在此仓库的 installation ID" />
           </el-form-item>
+          <el-form-item v-if="form.sourceType === 'GITHUB_APP'" label="GitHub Repository ID" required>
+            <el-input v-model="form.githubRepositoryId" placeholder="GitHub 仓库的数字 ID（不是仓库名称）" />
+          </el-form-item>
           <template v-if="form.sourceType === 'DEPLOY_KEY'">
             <el-alert type="info" :closable="false" style="margin: 0 0 16px" title="私钥仅在提交时通过 TLS 发送，并使用 Launchly 主密钥加密保存；之后不会再返回页面或日志。" />
             <el-form-item label="仓库 Deploy Key（私钥）" required>
@@ -110,7 +113,7 @@ const loading = ref(false)
 const error = ref('')
 const form = reactive({
   name: '', description: '', projectType: 'CUSTOM', resourceKind: 'APPLICATION', sourceType: 'GIT_PUBLIC', runtimeMode: 'BUILDKIT', templateId: '',
-  repositoryUrl: '', defaultBranch: 'main', gitProvider: 'GITHUB', githubInstallationId: '', registryRepository: '', imageReference: '',
+  repositoryUrl: '', defaultBranch: 'main', gitProvider: 'GITHUB', githubInstallationId: '', githubRepositoryId: '', registryRepository: '', imageReference: '',
   installCommand: '', buildCommand: '', startCommand: '', testCommand: '', healthCheckPath: '/health', defaultPort: 3000,
   topology: 'SINGLE_SERVICE', repositoryPrivateKey: '', repositoryHostKey: '',
 })
@@ -135,7 +138,7 @@ async function onSubmit() {
   if (!form.name.trim()) { error.value = '请填写资源名称'; return }
   if (usesGit.value && !form.repositoryUrl.trim()) { error.value = '请填写仓库地址'; return }
   if (form.sourceType === 'OCI_IMAGE' && !form.imageReference.includes('@sha256:')) { error.value = 'OCI 镜像必须使用 @sha256: digest'; return }
-  if (form.sourceType === 'GITHUB_APP' && !form.githubInstallationId.trim()) { error.value = '请填写 GitHub App Installation ID'; return }
+  if (form.sourceType === 'GITHUB_APP' && (!/^\d+$/.test(form.githubInstallationId.trim()) || !/^\d+$/.test(form.githubRepositoryId.trim()))) { error.value = '请填写数字格式的 GitHub App Installation ID 和 Repository ID'; return }
   if (form.sourceType === 'DEPLOY_KEY' && (!form.repositoryPrivateKey.trim() || !form.repositoryHostKey.trim())) { error.value = 'Deploy Key 与仓库 Host Key 都是必填项'; return }
   loading.value = true; error.value = ''
   try {
@@ -143,6 +146,7 @@ async function onSubmit() {
     delete payload.topology; delete payload.repositoryPrivateKey; delete payload.repositoryHostKey
     if (!payload.templateId) delete payload.templateId
     if (!payload.githubInstallationId) delete payload.githubInstallationId
+    if (!payload.githubRepositoryId) delete payload.githubRepositoryId
     if (!payload.repositoryUrl) delete payload.repositoryUrl
     if (!payload.registryRepository) delete payload.registryRepository
     if (!payload.imageReference) delete payload.imageReference

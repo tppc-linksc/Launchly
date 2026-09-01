@@ -344,7 +344,7 @@ describe('EnvironmentListPage', () => {
     // Find the popconfirm inside the variable dialog and confirm it.
     const dialogRoot = w.findAllComponents({ name: 'ElDialog' })[0]
     const pop = dialogRoot.findComponent({ name: 'ElPopconfirm' })
-    expect(pop).exists
+    expect(pop.exists()).toBe(true)
     await pop.vm.$emit('confirm')
     await flushPromises()
 

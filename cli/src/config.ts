@@ -40,7 +40,9 @@ export function generateEnv(port: string = '8080'): string {
 }
 
 export function composeTemplate(): string {
-  return `services:
+  return `name: launchly
+
+services:
   launchly-postgres:
     image: postgres:16-alpine
     container_name: launchly-postgres
@@ -62,10 +64,20 @@ export function composeTemplate(): string {
 
   launchly-migrate:
     image: \${LAUNCHLY_APP_IMAGE:-ghcr.io/tppc-linksc/launchly:latest}
-    environment:
+    environment: &launchly-env
       LAUNCHLY_DATABASE_URL: postgresql://launchly:\${LAUNCHLY_DB_PASSWORD}@launchly-postgres:5432/launchly
       LAUNCHLY_JWT_SECRET: \${LAUNCHLY_JWT_SECRET}
       LAUNCHLY_ENCRYPTION_KEY: \${LAUNCHLY_ENCRYPTION_KEY}
+      LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS: \${LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS:-}
+      LAUNCHLY_CORS_ORIGIN: \${LAUNCHLY_CORS_ORIGIN:-}
+      LAUNCHLY_GITHUB_APP_ID: \${LAUNCHLY_GITHUB_APP_ID:-}
+      LAUNCHLY_GITHUB_APP_PRIVATE_KEY_BASE64: \${LAUNCHLY_GITHUB_APP_PRIVATE_KEY_BASE64:-}
+      LAUNCHLY_GITHUB_WEBHOOK_SECRET: \${LAUNCHLY_GITHUB_WEBHOOK_SECRET:-}
+      LAUNCHLY_GITHUB_INSTALLATION_BINDINGS: \${LAUNCHLY_GITHUB_INSTALLATION_BINDINGS:-}
+      LAUNCHLY_WORKER_TIMEOUT_MINUTES: \${LAUNCHLY_WORKER_TIMEOUT_MINUTES:-30}
+      LAUNCHLY_WORKER_POLL_INTERVAL_MS: \${LAUNCHLY_WORKER_POLL_INTERVAL_MS:-3000}
+      LAUNCHLY_WORKER_CLEANUP_TTL_HOURS: \${LAUNCHLY_WORKER_CLEANUP_TTL_HOURS:-24}
+      LAUNCHLY_DEFAULT_REGISTRY_REPOSITORY: \${LAUNCHLY_DEFAULT_REGISTRY_REPOSITORY:-}
     command: ["./node_modules/.bin/prisma", "migrate", "deploy"]
     networks:
       - launchly-net
@@ -78,10 +90,7 @@ export function composeTemplate(): string {
     image: \${LAUNCHLY_APP_IMAGE:-ghcr.io/tppc-linksc/launchly:latest}
     ports:
       - "\${LAUNCHLY_APP_PORT:-8080}:8080"
-    environment: &launchly-env
-      LAUNCHLY_DATABASE_URL: postgresql://launchly:\${LAUNCHLY_DB_PASSWORD}@launchly-postgres:5432/launchly
-      LAUNCHLY_JWT_SECRET: \${LAUNCHLY_JWT_SECRET}
-      LAUNCHLY_ENCRYPTION_KEY: \${LAUNCHLY_ENCRYPTION_KEY}
+    environment: *launchly-env
     volumes:
       - launchly-data:/var/lib/launchly
     networks:
@@ -103,6 +112,7 @@ export function composeTemplate(): string {
       <<: *launchly-env
       LAUNCHLY_PROCESS_ROLE: worker
       LAUNCHLY_BUILDKIT_ADDR: tcp://launchly-buildkit:1234
+      LAUNCHLY_WORKER_HEALTH_FILE: /tmp/launchly-worker-heartbeat
       LAUNCHLY_REGISTRY_AUTH_JSON: \${LAUNCHLY_REGISTRY_AUTH_JSON:-}
     volumes:
       - launchly-worker-data:/var/lib/launchly-worker
@@ -112,16 +122,29 @@ export function composeTemplate(): string {
     depends_on:
       launchly-migrate:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "const fs=require('fs');const p=process.env.LAUNCHLY_WORKER_HEALTH_FILE;if(!p||Date.now()-fs.statSync(p).mtimeMs>45000)process.exit(1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped
     mem_limit: \${LAUNCHLY_WORKER_MEMORY_LIMIT:-384m}
 
   launchly-buildkit:
     image: moby/buildkit:v0.16.0-rootless
-    command: ["buildkitd", "--addr", "tcp://0.0.0.0:1234"]
+    command: ["buildkitd", "--addr", "tcp://0.0.0.0:1234", "--oci-worker-no-process-sandbox"]
     security_opt:
-      - no-new-privileges:true
+      - seccomp=unconfined
+      - apparmor=unconfined
     networks:
       - launchly-builder-net
+    healthcheck:
+      test: ["CMD", "buildctl", "--addr", "tcp://127.0.0.1:1234", "debug", "workers"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     restart: unless-stopped
     profiles: ["builder"]
     mem_limit: \${LAUNCHLY_BUILDKIT_MEMORY_LIMIT:-1024m}

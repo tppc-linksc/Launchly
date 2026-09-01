@@ -31,7 +31,7 @@
         <el-card header="系统信息" style="margin-bottom: 16px;">
           <el-descriptions border size="small" :column="1">
             <el-descriptions-item label="应用名称">Launchly</el-descriptions-item>
-            <el-descriptions-item label="版本">1.0.0-beta</el-descriptions-item>
+            <el-descriptions-item label="版本">{{ systemInfo.version || '-' }}</el-descriptions-item>
             <el-descriptions-item label="数据库">PostgreSQL</el-descriptions-item>
             <el-descriptions-item label="数据目录">~/.launchly</el-descriptions-item>
           </el-descriptions>
@@ -50,10 +50,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, computed } from 'vue'
+import { reactive, ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
 import { usePermission } from '../composables/usePermission'
+import { fetchSystemInfo, updateWorkspace } from '../api/client'
 
 const auth = useAuthStore()
 const { role } = usePermission()
@@ -63,6 +64,7 @@ const workspaceForm = reactive({
 })
 
 const saving = ref(false)
+const systemInfo = reactive({ version: '' })
 
 const roleLabel = computed(() => {
   const map: Record<string, string> = {
@@ -81,8 +83,11 @@ const roleType = computed(() => {
 async function saveWorkspace() {
   saving.value = true
   try {
-    // TODO: 调用 API 保存工作空间设置
-    // await updateWorkspace({ name: workspaceForm.name })
+    const name = workspaceForm.name.trim()
+    if (!name) throw new Error('工作空间名称不能为空')
+    const response = await updateWorkspace({ name })
+    workspaceForm.name = response.data.name
+    if (auth.workspace) auth.workspace.name = response.data.name
     ElMessage.success('工作空间设置已保存')
   } catch (e: any) {
     ElMessage.error(e.response?.data?.message || '保存失败')
@@ -90,4 +95,11 @@ async function saveWorkspace() {
     saving.value = false
   }
 }
+
+onMounted(async () => {
+  try {
+    const response = await fetchSystemInfo()
+    systemInfo.version = response.data.version || ''
+  } catch { /* 系统信息不可用不影响设置页 */ }
+})
 </script>

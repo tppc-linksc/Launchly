@@ -26,7 +26,7 @@ export class EnvironmentVariableService {
       id: v.id,
       environmentId: v.environmentId,
       key: v.key,
-      maskedValue: v.maskedValue,
+      maskedValue: v.sensitive ? '已设置' : v.maskedValue,
       sensitive: v.sensitive,
       description: v.description,
     }));
@@ -50,7 +50,7 @@ export class EnvironmentVariableService {
     }
 
     const encryptedValue = this.secrets.encrypt(data.value);
-    const maskedValue = this.secrets.mask(data.value);
+    const maskedValue = data.sensitive ? '已设置' : this.secrets.mask(data.value);
 
     const variable = await this.prisma.environmentVariable.create({
       data: {
@@ -67,9 +67,44 @@ export class EnvironmentVariableService {
       id: variable.id,
       environmentId: variable.environmentId,
       key: variable.key,
-      maskedValue: variable.maskedValue,
+      maskedValue: variable.sensitive ? '已设置' : variable.maskedValue,
       sensitive: variable.sensitive,
       description: variable.description,
+    };
+  }
+
+  async update(
+    variableId: string,
+    data: { value?: string; sensitive?: boolean; description?: string },
+    workspaceId: string,
+  ) {
+    const variable = await this.prisma.environmentVariable.findUnique({
+      where: { id: variableId },
+      include: { environment: true },
+    });
+    if (!variable) throw new ForbiddenException('变量不存在');
+    await this.verifyOwnership(variable.environmentId, workspaceId);
+
+    const sensitive = data.sensitive ?? variable.sensitive;
+    const updated = await this.prisma.environmentVariable.update({
+      where: { id: variableId },
+      data: {
+        ...(data.value !== undefined && {
+          encryptedValue: this.secrets.encrypt(data.value),
+          maskedValue: sensitive ? '已设置' : this.secrets.mask(data.value),
+        }),
+        ...(data.value === undefined && data.sensitive === true && { maskedValue: '已设置' }),
+        ...(data.sensitive !== undefined && { sensitive: data.sensitive }),
+        ...(data.description !== undefined && { description: data.description }),
+      },
+    });
+    return {
+      id: updated.id,
+      environmentId: updated.environmentId,
+      key: updated.key,
+      maskedValue: updated.sensitive ? '已设置' : updated.maskedValue,
+      sensitive: updated.sensitive,
+      description: updated.description,
     };
   }
 

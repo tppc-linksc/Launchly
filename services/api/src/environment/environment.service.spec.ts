@@ -87,6 +87,7 @@ describe('EnvironmentService', () => {
       prisma.project.findUnique.mockResolvedValue(projectInWorkspace);
       prisma.environment.update.mockResolvedValue({ id: envId });
       prisma.environment.findFirst.mockResolvedValue(null);
+      prisma.deployTarget.findUnique.mockResolvedValue({ projectId });
     });
 
     it('uses where = { id: current environmentId } and writes only the single allowed field', async () => {
@@ -158,6 +159,7 @@ describe('EnvironmentService', () => {
       prisma.project.findUnique.mockResolvedValue(projectInWorkspace);
       prisma.environment.update.mockResolvedValue({ id: envId });
       prisma.environment.findFirst.mockResolvedValue(null);
+      prisma.deployTarget.findUnique.mockResolvedValue({ projectId });
     });
 
     it('normalises a valid domain to lowercased + trimmed and writes it', async () => {
@@ -220,6 +222,7 @@ describe('EnvironmentService', () => {
       prisma.project.findUnique.mockResolvedValue(projectInWorkspace);
       prisma.environment.update.mockResolvedValue({ id: envId });
       prisma.environment.findFirst.mockResolvedValue(null);
+      prisma.deployTarget.findUnique.mockResolvedValue({ projectId });
     });
 
     it('writes externalPort=0 (the guard is != null, so 0 is treated as present)', async () => {
@@ -245,11 +248,11 @@ describe('EnvironmentService', () => {
       expect(data.deployTargetId).toBe('target-1');
     });
 
-    it('writes deployTargetId="" because the guard is != null (empty string is not null/undefined)', async () => {
+    it('normalizes deployTargetId="" to null to detach the target', async () => {
       await service.update(envId, { deployTargetId: '' }, workspaceId);
 
       const data = (prisma.environment.update as jest.Mock).mock.calls[0][0].data;
-      expect(data.deployTargetId).toBe('');
+      expect(data.deployTargetId).toBeNull();
     });
 
     it('skips deployTargetId when it is null (per the != null guard)', async () => {

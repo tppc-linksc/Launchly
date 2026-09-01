@@ -31,7 +31,7 @@ export class GateCheckService {
     const env = await this.prisma.environment.findUnique({
       where: { id: release.environmentId },
     });
-    const hasStaging = env?.type === 'STAGING' || env?.type === 'PRODUCTION';
+    const hasStaging = env?.type === 'STAGING';
     return {
       name: 'staging_deploy',
       passed: hasStaging,
@@ -43,7 +43,7 @@ export class GateCheckService {
     const deployment = await this.prisma.deployment.findUnique({
       where: { id: release.deploymentId },
     });
-    const passed = deployment?.status === 'SUCCEEDED';
+    const passed = ['SUCCEEDED', 'ROLLED_BACK'].includes(deployment?.status ?? '');
     return {
       name: 'health_check',
       passed,
@@ -55,11 +55,13 @@ export class GateCheckService {
     const testRuns = await this.prisma.testRun.findMany({
       where: { deploymentId: release.deploymentId },
     });
-    const hasP0Failure = testRuns.some(r => r.failedCases > 0);
+    const completedRuns = testRuns.filter(r => r.status === 'SUCCEEDED' || r.status === 'FAILED');
+    const hasFailure = completedRuns.some(r => r.status !== 'SUCCEEDED' || r.failedCases > 0);
+    const hasEvidence = completedRuns.length > 0;
     return {
       name: 'p0_tests',
-      passed: !hasP0Failure,
-      message: hasP0Failure ? '存在失败的测试用例' : '所有测试通过',
+      passed: hasEvidence && !hasFailure,
+      message: !hasEvidence ? '缺少已完成的测试运行' : hasFailure ? '存在失败的测试用例' : '所有测试通过',
     };
   }
 

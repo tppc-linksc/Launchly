@@ -36,15 +36,17 @@ Object.defineProperty(window, 'location', {
 })
 
 // KI-014 全局搜索的 API Mock。
-const { fetchProjects, fetchDeployments, fetchAllDeployTargets } = vi.hoisted(() => ({
+const { fetchProjects, fetchDeployments, fetchAllDeployTargets, logoutSession } = vi.hoisted(() => ({
   fetchProjects: vi.fn(),
   fetchDeployments: vi.fn(),
   fetchAllDeployTargets: vi.fn(),
+  logoutSession: vi.fn().mockResolvedValue({ data: { success: true } }),
 }))
 vi.mock('../api/client', () => ({
   fetchProjects,
   fetchDeployments,
   fetchAllDeployTargets,
+  logoutSession,
 }))
 
 import AppLayout from './AppLayout.vue'

@@ -88,6 +88,10 @@ export class CreateProjectDto {
 
   @IsString()
   @IsOptional()
+  githubRepositoryId?: string;
+
+  @IsString()
+  @IsOptional()
   registryRepository?: string;
 
   @IsString()

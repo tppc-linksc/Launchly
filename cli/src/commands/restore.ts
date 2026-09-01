@@ -4,6 +4,7 @@ import { execFileSync } from 'child_process'
 import { getDataDir, fileExists, ENV_FILE, COMPOSE_FILE } from '../config.js'
 import { absoluteDataDir, toAbsolutePath } from '../paths.js'
 import { confirmPrompt } from '../prompts.js'
+import { hasRequiredRestoreKeys, mergeRestoredEnv } from '../backup-env.js'
 
 // ── restore（KI-042 修复点） ───────────────────────────────────────────────
 // 修复点：
@@ -57,44 +58,73 @@ export function cmdRestore(backupFile: string, options: RestoreOptions = {}): vo
       stdio: 'inherit',
     })
 
+    // 在任何破坏性数据库写入前先验证恢复后的运行密钥是否完整。
+    const restoredEnv = path.join(restoreDir, ENV_FILE)
+    const currentEnv = path.join(dataDir, ENV_FILE)
+    const mergedEnv = fileExists(restoredEnv)
+      ? mergeRestoredEnv(
+        fileExists(currentEnv) ? fs.readFileSync(currentEnv, 'utf-8') : '',
+        fs.readFileSync(restoredEnv, 'utf-8'),
+      )
+      : (fileExists(currentEnv) ? fs.readFileSync(currentEnv, 'utf-8') : '')
+    if (!hasRequiredRestoreKeys(mergedEnv)) {
+      throw new Error('恢复需要当前实例预先配置 LAUNCHLY_DB_PASSWORD、LAUNCHLY_JWT_SECRET 和 LAUNCHLY_ENCRYPTION_KEY；数据库尚未修改')
+    }
+
     // 恢复数据库
     const dumpFile = path.join(restoreDir, 'db_dump.sql')
     if (fileExists(dumpFile)) {
       console.log('正在恢复数据库 ...')
-      const data = fs.readFileSync(dumpFile, 'utf-8')
-      // 不传 --env-file：psql 通过 stdin 接收 dump，环境变量无需注入；
-      // 这与历史实现一致，也减少 psql 被 .env 注入影响的可能性。
-      execFileSync(
-        'docker',
-        [
-          'compose',
-          '-f',
-          path.join(dataDir, COMPOSE_FILE),
-          'exec',
-          '-T',
-          'launchly-postgres',
-          'psql',
-          '-U',
-          'launchly',
-          '-d',
-          'launchly',
-        ],
-        { input: data, stdio: ['pipe', 'inherit', 'inherit'] },
-      )
+      const dumpFd = fs.openSync(dumpFile, 'r')
+      try {
+        // 直接把 dump 文件描述符接到 psql stdin，避免大型备份完整读入 Node 内存。
+        execFileSync(
+          'docker',
+          [
+            'compose',
+            '-f',
+            path.join(dataDir, COMPOSE_FILE),
+            'exec',
+            '-T',
+            'launchly-postgres',
+            'psql',
+            '-U',
+            'launchly',
+            '--set',
+            'ON_ERROR_STOP=on',
+            '-d',
+            'postgres',
+          ],
+          { stdio: [dumpFd, 'inherit', 'inherit'] },
+        )
+      } finally {
+        fs.closeSync(dumpFd)
+      }
     }
 
     // 恢复 .env
-    const restoredEnv = path.join(restoreDir, ENV_FILE)
     if (fileExists(restoredEnv)) {
-      fs.copyFileSync(restoredEnv, path.join(dataDir, ENV_FILE))
+      fs.writeFileSync(currentEnv, mergedEnv, { mode: 0o600 })
     }
 
-    // 恢复挂载目录（launchly-data / launchly-worker-data）
-    for (const dir of ['launchly-data', 'launchly-worker-data']) {
-      const volumeDir = path.join(restoreDir, dir)
-      if (fileExists(volumeDir) && fs.statSync(volumeDir).isDirectory()) {
-        fs.rmSync(path.join(dataDir, dir), { recursive: true, force: true })
-        fs.cpSync(volumeDir, path.join(dataDir, dir), { recursive: true })
+    // 恢复真实 Docker named volumes；旧版目录格式仍保留兼容。
+    for (const volume of ['launchly-data', 'launchly-worker-data']) {
+      const volumeArchive = path.join(restoreDir, `${volume}.tar`)
+      if (fileExists(volumeArchive)) {
+        const dockerVolume = `launchly_${volume}`
+        execFileSync('docker', [
+          'run', '--rm',
+          '-v', `${dockerVolume}:/destination`,
+          '-v', `${restoreDir}:/backup:ro`,
+          'alpine:3.20',
+          'sh', '-c', `find /destination -mindepth 1 -delete && tar -xf /backup/${volume}.tar -C /destination`,
+        ], { stdio: 'inherit' })
+        continue
+      }
+      const legacyDir = path.join(restoreDir, volume)
+      if (fileExists(legacyDir) && fs.statSync(legacyDir).isDirectory()) {
+        fs.rmSync(path.join(dataDir, volume), { recursive: true, force: true })
+        fs.cpSync(legacyDir, path.join(dataDir, volume), { recursive: true })
       }
     }
 

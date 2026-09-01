@@ -123,6 +123,33 @@ describe('AuthService', () => {
     expect(refresh).toMatchObject({ uid: 'u-real', typ: 'refresh', aud: 'launchly:refresh', jti: expect.any(String) });
   });
 
+  describe('logout', () => {
+    it('persists revocation for a valid refresh token', async () => {
+      jwtService.verify.mockReturnValue({ uid: 'u1', typ: 'refresh', jti: 'jti-1', exp: 2_000_000_000 } as any);
+      prisma.revokedRefreshToken.upsert.mockResolvedValue({});
+      prisma.revokedRefreshToken.deleteMany.mockResolvedValue({ count: 0 });
+
+      await expect(service.logout('refresh-token')).resolves.toEqual({ success: true });
+      expect(prisma.revokedRefreshToken.upsert).toHaveBeenCalledWith({
+        where: { jti: 'jti-1' },
+        create: { jti: 'jti-1', expiresAt: new Date(2_000_000_000_000) },
+        update: {},
+      });
+    });
+
+    it('is idempotent for an invalid or expired token', async () => {
+      jwtService.verify.mockImplementation(() => { throw new Error('expired'); });
+      await expect(service.logout('expired-token')).resolves.toEqual({ success: true });
+      expect(prisma.revokedRefreshToken.upsert).not.toHaveBeenCalled();
+    });
+
+    it('does not report success when a valid token cannot be revoked', async () => {
+      jwtService.verify.mockReturnValue({ uid: 'u1', typ: 'refresh', jti: 'jti-1' } as any);
+      prisma.revokedRefreshToken.upsert.mockRejectedValue(new Error('database unavailable'));
+      await expect(service.logout('refresh-token')).rejects.toThrow('database unavailable');
+    });
+  });
+
   describe('getStatus', () => {
     it('should return initialized true when users exist', async () => {
       prisma.user.count.mockResolvedValue(3);

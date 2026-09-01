@@ -1,5 +1,6 @@
 import { execFileSync } from 'child_process'
 import * as path from 'path'
+import * as fs from 'fs'
 import { fileExists, COMPOSE_FILE, ENV_FILE } from './config.js'
 
 // ── docker compose 调用封装（KI-041 修复） ─────────────────────────────────
@@ -52,6 +53,17 @@ export function runComposeCapture(
   }) as string | Buffer
   if (typeof result === 'string') return result
   return Buffer.from(result).toString('utf-8')
+}
+
+/** Stream command stdout directly to a file so large database dumps never sit in memory. */
+export function runComposeToFile(dataDir: string, extra: string[], outputFile: string): void {
+  const args = ['compose', '-f', path.join(dataDir, COMPOSE_FILE), ...extra]
+  const outputFd = fs.openSync(outputFile, 'w', 0o600)
+  try {
+    execFileSync('docker', args, { stdio: ['ignore', outputFd, 'inherit'] })
+  } finally {
+    fs.closeSync(outputFd)
+  }
 }
 
 /**

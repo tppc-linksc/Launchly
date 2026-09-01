@@ -135,7 +135,8 @@ describe('worker-state-machine', () => {
       const after = Date.now();
 
       const args = (prisma.task.update as jest.Mock).mock.calls[0][0];
-      expect(args.where).toEqual({ id: 't-1' });
+      expect(args.where).toEqual(expect.objectContaining({ id: 't-1', status: 'RUNNING', leaseOwner: null }));
+      expect(args.where.leaseExpiresAt.lt).toBeInstanceOf(Date);
       expect(args.data.status).toBe('PENDING');
       expect(args.data.errorMessage).toBe('timeout');
       expect(args.data.startedAt).toBeNull();
@@ -175,7 +176,8 @@ describe('worker-state-machine', () => {
       const after = Date.now();
 
       const args = (prisma.task.update as jest.Mock).mock.calls[0][0];
-      expect(args.where).toEqual({ id: 't-1' });
+      expect(args.where).toEqual(expect.objectContaining({ id: 't-1', status: 'RUNNING', leaseOwner: null }));
+      expect(args.where.leaseExpiresAt.lt).toBeInstanceOf(Date);
       expect(args.data.status).toBe('FAILED');
       expect(args.data.errorMessage).toBe('dead');
       expect(args.data.leaseOwner).toBeNull();

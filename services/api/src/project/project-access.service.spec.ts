@@ -1,4 +1,4 @@
-import { ForbiddenException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { ProjectAccessService } from './project-access.service';
 import { createPrismaMock, MockPrismaService } from '../../test/helpers/prisma-mock';
 
@@ -21,12 +21,12 @@ describe('ProjectAccessService.require', () => {
   });
 
   describe('project lookup', () => {
-    it('throws ForbiddenException with the workspace message when the project does not exist', async () => {
+    it('throws NotFoundException when the workspace-scoped project does not exist', async () => {
       prisma.project.findFirst.mockResolvedValue(null);
 
       const rejection = service.require(projectId, userId, workspaceId);
-      await expect(rejection).rejects.toThrow(ForbiddenException);
-      await expect(rejection).rejects.toThrow('项目不存在或不属于当前工作空间');
+      await expect(rejection).rejects.toThrow(NotFoundException);
+      await expect(rejection).rejects.toThrow('项目不存在');
       expect(prisma.workspaceMember.findFirst).not.toHaveBeenCalled();
       expect(prisma.projectMember.findFirst).not.toHaveBeenCalled();
     });
@@ -34,7 +34,7 @@ describe('ProjectAccessService.require', () => {
     it('rejects when the workspace-scoped lookup cannot find the project', async () => {
       prisma.project.findFirst.mockResolvedValue(null);
 
-      await expect(service.require(projectId, userId, workspaceId)).rejects.toThrow(/项目不存在或不属于当前工作空间/);
+      await expect(service.require(projectId, userId, workspaceId)).rejects.toThrow(NotFoundException);
       expect(prisma.project.findFirst).toHaveBeenCalledWith({ where: { id: projectId, workspaceId } });
       expect(prisma.workspaceMember.findFirst).not.toHaveBeenCalled();
       expect(prisma.projectMember.findFirst).not.toHaveBeenCalled();

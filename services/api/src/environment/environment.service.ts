@@ -49,7 +49,20 @@ export class EnvironmentService {
     if (dto.autoDeploy != null) data.autoDeploy = dto.autoDeploy;
     if (dto.branchPattern != null) data.branchPattern = dto.branchPattern;
     if (dto.requireCi != null) data.requireCi = dto.requireCi;
-    if (dto.deployTargetId != null) data.deployTargetId = dto.deployTargetId;
+    if (dto.deployTargetId != null) {
+      if (dto.deployTargetId === '') {
+        data.deployTargetId = null;
+      } else {
+        const target = await this.prisma.deployTarget.findUnique({
+          where: { id: dto.deployTargetId },
+          select: { projectId: true },
+        });
+        if (!target || target.projectId !== env.projectId) {
+          throw new ForbiddenException('部署目标不存在或不属于当前项目');
+        }
+        data.deployTargetId = dto.deployTargetId;
+      }
+    }
 
     return this.prisma.environment.update({ where: { id }, data });
   }

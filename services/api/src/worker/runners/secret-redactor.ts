@@ -147,15 +147,25 @@ function redactPEMs(text: string): string {
 }
 
 /** 公开 API：对任意文本统一脱敏。 */
-export function redact(input: unknown): string {
+export function redact(input: unknown, registeredValues: readonly string[] = []): string {
   if (input === null || input === undefined) return '';
   let text = typeof input === 'string' ? input : safeStringify(input);
-  // 顺序：先 DSN/PEM/GitHub/Header 等独立模式，最后 key=value（避免 token 段被截断）。
+  // 任务实际解密出的值优先精确替换；正则只作为不知道真实值时的兜底。
+  text = redactRegisteredValues(text, registeredValues);
+  // 顺序：再处理 DSN/PEM/GitHub/Header 等独立模式，最后 key=value（避免 token 段被截断）。
   text = redactDSNs(text);
   text = redactPEMs(text);
   text = redactGithubTokens(text);
   text = redactHeaders(text);
   text = maskKeyValues(text);
+  return text;
+}
+
+function redactRegisteredValues(text: string, values: readonly string[]): string {
+  const uniqueValues = [...new Set(values)]
+    .filter(value => typeof value === 'string' && value.length > 0 && value !== REDACTED)
+    .sort((a, b) => b.length - a.length);
+  for (const value of uniqueValues) text = text.split(value).join(REDACTED);
   return text;
 }
 

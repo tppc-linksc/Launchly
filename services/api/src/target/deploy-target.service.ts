@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { PrismaService } from '../common/prisma/prisma.service';
 import { SecretValueService } from '../environment/secret-value.service';
 import { Client } from 'ssh2';
+import { canonicalSshHostKey, parseSshHostKey } from '../common/security/ssh-host-key';
 
 /**
  * 部署目标 Service（KI-023 / KI-024 / R0-08 / R1-02）。
@@ -23,9 +24,6 @@ const SAFE_USER = /^[a-z_][a-z0-9_-]{0,31}$/;
 const SAFE_NAME = /^[A-Za-z0-9._ -]{1,255}$/;
 /** port：1-65535 整数。 */
 const SAFE_PORT_RANGE = (n: number) => Number.isInteger(n) && n >= 1 && n <= 65535;
-/** known_hosts 行：[host] keytype base64 [comment]，base64 段 >= 16 字符。 */
-const SAFE_HOST_KEY_LINE = /^(?:(?:\*|[a-zA-Z0-9][a-zA-Z0-9.\-]*|\[[0-9a-fA-F:]+\]) )?(?:ssh-(?:rsa|dss|ed25519)|ecdsa-sha2-[a-z0-9-]+) [A-Za-z0-9+/=]{16,}(?: .+)?$/;
-
 export interface TargetView {
   id: string;
   projectId: string;
@@ -114,7 +112,7 @@ export class DeployTargetService {
         username: data.username,
         authMethod: 'KEY',
         encryptedCredential,
-        hostKey: data.hostKey!,
+        hostKey: canonicalSshHostKey(data.hostKey)!,
         workRoot,
       },
     });
@@ -155,7 +153,7 @@ export class DeployTargetService {
       port: merged.port,
       username: merged.username,
       authMethod: 'KEY',
-      hostKey: merged.hostKey,
+      hostKey: canonicalSshHostKey(merged.hostKey)!,
       workRoot: this.normalizeWorkRoot(merged.workRoot),
     };
     if (data.credential !== undefined) {
@@ -187,8 +185,8 @@ export class DeployTargetService {
     if (target.authMethod !== 'KEY' || !target.hostKey) {
       return { success: false, message: '仅支持带固定 Host Key 的密钥认证' };
     }
-    const hostKey = target.hostKey.trim().split(/\s+/)[1];
-    if (!hostKey) return { success: false, message: 'Host Key 格式无效' };
+    const parsedHostKey = parseSshHostKey(target.hostKey);
+    if (!parsedHostKey) return { success: false, message: 'Host Key 格式无效' };
 
     let settled = false;
     const client = new Client();
@@ -241,7 +239,7 @@ export class DeployTargetService {
           username: target.username,
           privateKey: this.secrets.decrypt(target.encryptedCredential),
           readyTimeout: 15_000,
-          hostVerifier: (key: Buffer) => key.toString('base64') === hostKey,
+          hostVerifier: (key: Buffer) => key.toString('base64') === parsedHostKey.key,
         });
       });
 
@@ -291,7 +289,7 @@ export class DeployTargetService {
     if (typeof input.credential !== 'string' || !input.credential.trim()) {
       throw new BadRequestException('credential（私钥）不能为空');
     }
-    if (typeof input.hostKey !== 'string' || !SAFE_HOST_KEY_LINE.test(input.hostKey.trim())) {
+    if (!parseSshHostKey(input.hostKey)) {
       throw new BadRequestException('hostKey 必须是合法的 known_hosts 行');
     }
   }

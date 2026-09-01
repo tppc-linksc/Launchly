@@ -20,7 +20,7 @@
   <a href="README.en.md">English Documentation</a>
 </p>
 
-> **当前状态（2026-08-20）**：项目继续推进 **R0 可信基线修复**。本地复跑 API 单元、API E2E、Web 与 CLI 均为绿；当前全量覆盖率为 API 78.86%/64.04%/64.34%/79.12%、Web 96.33%/85.12%/62.13%/96.33%、CLI 86.83%/85.05%/86.20%/86.83%（Statements/Branches/Functions/Lines）。API 与 Web Functions 尚未达到 R0 门槛，且真实数据库、迁移升级、Registry/SSH/HTTPS 等 BASE/E2E 验收仍未完成；没有对应证据的能力不得对外称为完成。详细状态只看[项目重启路线图](docs/basic/项目重启路线图.md)和[交付验收规范](docs/basic/交付验收规范.md)。
+> **当前状态（2026-09-02）**：项目继续推进 **R0 可信基线修复**。本地复跑 API 单元、API E2E、Web 与 CLI 均为绿；当前全量覆盖率为 API 78.02%/63.26%/65.07%/79.01%、Web 94.98%/84.88%/60.51%/94.98%、CLI 85.37%/87.06%/85.71%/85.37%（Statements/Branches/Functions/Lines）。当前 12 个 migration 已在临时 PostgreSQL 空库完整应用，重复执行幂等且 schema drift 为零；API 覆盖率、Web Functions、172 个跳过用例，以及真实升级库、Registry/SSH/HTTPS/部署与恢复演练仍未达到 R0/BASE/E2E 门槛。详细状态只看[项目重启路线图](docs/basic/项目重启路线图.md)和[交付验收规范](docs/basic/交付验收规范.md)。
 
 ## Launchly 是什么
 
@@ -111,17 +111,17 @@ GitHub / GitLab + CI Checks
 
 ## 当前真实状态
 
-基线 `eb8c933` 已包含 Vue/NestJS/Prisma/CLI、项目/环境/部署/Test/Issue/Release/审计模块，以及部分 Webhook、Worker、BuildKit、OCI 和 SSH 代码路径。
+当前代码已包含 Vue/NestJS/Prisma/CLI、项目/环境/部署/Test/Issue/Release/邀请/审计模块，以及部分 Webhook、Worker、BuildKit、OCI 和 SSH 代码路径。
 
 最近一次本地覆盖率命令 `pnpm test:coverage` 的结果：
 
 | 范围 | 测试规模 | Statements | Branches | Functions | Lines |
 | --- | --- | ---: | ---: | ---: | ---: |
-| API | 39 suites / 1212 tests：1040 通过、172 跳过；另有 2 E2E suites / 94 通过 | 78.86% | 64.04% | 64.34% | 79.12% |
-| Web | 30 files / 354 tests | 96.33% | 85.12% | 62.13%（低于 70% 目标） | 96.33% |
-| CLI | 4 files / 52 tests | 86.83% | 85.05% | 86.20% | 86.83% |
+| API | 44 suites / 1236 tests：1064 通过、172 跳过；另有 2 E2E suites / 94 通过 | 78.02% | 63.26% | 65.07% | 79.01% |
+| Web | 30 files / 354 tests | 94.98% | 84.88% | 60.51%（低于 70% 目标） | 94.98% |
+| CLI | 5 files / 56 tests | 85.37% | 87.06% | 85.71% | 85.37% |
 
-这些数字只说明当前自动化测试可复跑，仍不能取代 BASE-11 真实验收。API 的 Statements/Lines 接近但未达到 80%，Branches/Functions 仍有明显缺口；Web Functions 也低于 70% 目标。双 Workspace、迁移升级、备份恢复、真实 SSH/Registry/GitHub/HTTPS、回滚和故障恢复仍没有完整 E2E 证据。剩余工作见[项目重启路线图](docs/basic/项目重启路线图.md)的下一批工作。
+这些数字只说明当前自动化测试可复跑，仍不能取代 BASE-11 真实验收。API 四项均未达到门槛，Web Functions 也低于 70% 目标。临时 PostgreSQL 已证明空库 migration、幂等执行和 schema 无漂移，但双 Workspace 真实数据库、上一版本升级、备份恢复、真实 SSH/Registry/GitHub/HTTPS、回滚和故障恢复仍没有完整 E2E 证据。剩余工作见[项目重启路线图](docs/basic/项目重启路线图.md)的下一批工作。
 
 ## 项目路线图
 

@@ -2,7 +2,7 @@ import { createRouter, createWebHashHistory } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 
 // Routes that do not require an authenticated session.
-const PUBLIC_PATHS = new Set<string>(['/login', '/init'])
+const PUBLIC_PATHS = new Set<string>(['/login', '/init', '/invite'])
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -41,6 +41,11 @@ const router = createRouter({
       component: () => import('../pages/InitPage.vue'),
     },
     {
+      path: '/invite/:token',
+      name: 'invite',
+      component: () => import('../pages/AcceptInvitationPage.vue'),
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('../pages/LoginPage.vue'),
@@ -64,7 +69,7 @@ export function runAuthGuard(to: { path: string }): true | { path: string } {
   const auth = useAuthStore()
   auth.restoreSession()
 
-  if (PUBLIC_PATHS.has(to.path)) return true
+  if (PUBLIC_PATHS.has(to.path) || to.path.startsWith('/invite/')) return true
   if (auth.user?.id) return true
   return { path: '/login' }
 }

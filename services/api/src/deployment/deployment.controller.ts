@@ -3,7 +3,6 @@ import { Observable, defer, interval, switchMap, takeWhile, map } from 'rxjs';
 import { DeploymentService } from './deployment.service';
 import { CreateDeploymentDto } from './dto/create-deployment.dto';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
-import { Roles } from '../common/decorators/roles.decorator';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { ProjectResourceAccessPolicy } from '../common/access/project-resource-access-policy';
 
@@ -15,7 +14,6 @@ export class DeploymentController {
     private readonly accessPolicy: ProjectResourceAccessPolicy,
   ) {}
 
-  @Roles('DEVELOPER')
   @Post()
   async create(@Body() dto: CreateDeploymentDto, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireProject(dto.projectId, user.userId, user.workspaceId!, 'DEVELOPER');
@@ -78,12 +76,11 @@ export class DeploymentController {
           status: deployment?.status,
           errorMessage: deployment?.errorMessage,
         }),
-        type: 'logs',
+        type: 'snapshot',
       })),
     );
   }
 
-  @Roles('DEVELOPER')
   @Post(':id/rollback')
   async rollback(@Param('id') id: string, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireDeployment(id, user.userId, user.workspaceId!, 'DEVELOPER');

@@ -1,6 +1,5 @@
 import { Controller, Get, Post, Put, Delete, Param, Body } from '@nestjs/common';
 import { TestService } from './test.service';
-import { Roles } from '../common/decorators/roles.decorator';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
 import { ProjectResourceAccessPolicy } from '../common/access/project-resource-access-policy';
 import { TestCaseRequestDto, UpdateTestCaseDto } from './dto';
@@ -18,7 +17,6 @@ export class TestCaseController {
     private readonly accessPolicy: ProjectResourceAccessPolicy,
   ) {}
 
-  @Roles('TESTER')
   @Post()
   async create(
     @Param('projectId') projectId: string,
@@ -41,7 +39,6 @@ export class TestCaseController {
     return this.testService.getTestCase(id);
   }
 
-  @Roles('TESTER')
   @Put(':id')
   async update(
     @Param('id') id: string,
@@ -52,7 +49,6 @@ export class TestCaseController {
     return this.testService.updateTestCase(id, body);
   }
 
-  @Roles('TESTER')
   @Delete(':id')
   async delete(@Param('id') id: string, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireTestCase(id, user.userId, user.workspaceId!, 'TESTER');

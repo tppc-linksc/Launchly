@@ -702,7 +702,9 @@ describe('BuildkitRunner.execute - data writes', () => {
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext());
     const upsertCall = prisma.artifact.upsert.mock.calls[0][0];
-    expect(upsertCall.where).toEqual({ deploymentId: 'deploy-1' });
+    expect(upsertCall.where).toEqual({
+      projectId_digest: { projectId: 'proj-1', digest: `sha256:${FIXED_DIGEST}` },
+    });
     expect(upsertCall.create).toEqual({
       deploymentId: 'deploy-1',
       projectId: 'proj-1',
@@ -726,7 +728,10 @@ describe('BuildkitRunner.execute - data writes', () => {
     prisma.deployment.update.mockResolvedValueOnce({ id: 'd' });
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext());
-    expect(prisma.deployment.update).toHaveBeenCalledWith({ where: { id: 'deploy-1' }, data: { artifactDigest: `sha256:${FIXED_DIGEST}` } });
+    expect(prisma.deployment.update).toHaveBeenCalledWith({
+      where: { id: 'deploy-1' },
+      data: { artifactId: 'a', artifactDigest: `sha256:${FIXED_DIGEST}` },
+    });
   });
 
   it('artifact.upsert is called BEFORE deployment.update (the non-atomic ordering fixed by KI-031)', async () => {

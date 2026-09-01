@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as crypto from 'crypto';
 
-type EncryptionKey = { id: string; value: Buffer };
+type EncryptionKey = { legacyId: string; legacyValue: Buffer; value: Buffer };
 
 @Injectable()
 export class SecretValueService {
@@ -18,8 +18,9 @@ export class SecretValueService {
     }
     const rawKeys = [current || 'launchly-development-encryption-key-not-for-production', ...(process.env.LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS || '').split(',').filter(Boolean)];
     this.keys = rawKeys.map(raw => ({
-      id: crypto.createHash('sha256').update(raw).digest('hex').slice(0, 12),
-      value: crypto.createHash('sha256').update(raw).digest(),
+      legacyId: crypto.createHash('sha256').update(raw).digest('hex').slice(0, 12),
+      legacyValue: crypto.createHash('sha256').update(raw).digest(),
+      value: crypto.scryptSync(raw, 'launchly-secret-value:v3', 32, { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }),
     }));
   }
 
@@ -29,19 +30,27 @@ export class SecretValueService {
     const cipher = crypto.createCipheriv(this.algorithm, key.value, iv);
     const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
     const tag = cipher.getAuthTag();
-    return `v2:${key.id}:${Buffer.concat([iv, tag, encrypted]).toString('base64')}`;
+    // v3 deliberately carries no password-derived key identifier. Decryption
+    // tries the small configured rotation keyring and authenticates with GCM.
+    return `v3:${Buffer.concat([iv, tag, encrypted]).toString('base64')}`;
   }
 
   decrypt(encryptedValue: string): string {
     const [version, keyId, encoded] = encryptedValue.split(':', 3);
+    if (version === 'v3' && keyId) {
+      for (const key of this.keys) {
+        try { return this.decryptWithKey(keyId, key.value); } catch { /* try rotated key */ }
+      }
+      throw new Error('Unable to decrypt value with configured encryption keys');
+    }
     if (version === 'v2' && keyId && encoded) {
-      const key = this.keys.find(candidate => candidate.id === keyId);
+      const key = this.keys.find(candidate => candidate.legacyId === keyId);
       if (!key) throw new Error('Encrypted value requires an unavailable encryption key');
-      return this.decryptWithKey(encoded, key.value);
+      return this.decryptWithKey(encoded, key.legacyValue);
     }
     if (version === 'v1' && keyId) {
       for (const key of this.keys) {
-        try { return this.decryptWithKey(keyId, key.value); } catch { /* try rotated key */ }
+        try { return this.decryptWithKey(keyId, key.legacyValue); } catch { /* try rotated key */ }
       }
       throw new Error('Unable to decrypt legacy value with configured encryption keys');
     }

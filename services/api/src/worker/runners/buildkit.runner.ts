@@ -56,12 +56,12 @@ export class BuildkitRunner {
       };
       const digest = this.readDigest(metadataPath);
       if (!digest) return this.failure('BuildKit did not return an OCI image digest');
-      await this.prisma.artifact.upsert({
-        where: { deploymentId: deployment.id },
+      const artifact = await this.prisma.artifact.upsert({
+        where: { projectId_digest: { projectId: deployment.projectId, digest } },
         create: { deploymentId: deployment.id, projectId: deployment.projectId, imageRef: repository, digest, commitSha: deployment.commitSha, sbomStatus: 'PENDING' },
         update: { imageRef: repository, digest, commitSha: deployment.commitSha },
       });
-      await this.prisma.deployment.update({ where: { id: deployment.id }, data: { artifactDigest: digest } });
+      await this.prisma.deployment.update({ where: { id: deployment.id }, data: { artifactId: artifact.id, artifactDigest: digest } });
       completed = true;
       return {
         success: true,

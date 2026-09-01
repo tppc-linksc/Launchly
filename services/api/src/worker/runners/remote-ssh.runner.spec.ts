@@ -179,6 +179,9 @@ function makePrisma(): PrismaService {
     return fn;
   };
   return {
+    deployment: {
+      findUnique: jest.fn().mockResolvedValue(null),
+    },
     deployTarget: {
       findUnique: unexpected('deployTarget', 'findUnique'),
       findFirst: unexpected('deployTarget', 'findFirst'),

@@ -3,6 +3,7 @@ import { createHash, createHmac, timingSafeEqual } from 'crypto';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { DeploymentService } from '../deployment/deployment.service';
 import { GithubAppService } from './github-app.service';
+import { isGithubInstallationBoundToWorkspace } from '../common/security/github-installation-binding';
 
 /**
  * GitHub Webhook 接收服务（KI-012 / R2-01 / R2-02）。
@@ -10,8 +11,7 @@ import { GithubAppService } from './github-app.service';
  * 关键约束：
  * - HMAC 签名必须用 timing-safe 比较；缺失或非法直接 401。
  * - delivery 去重走 Prisma 唯一约束（P2002 = 重复）。
- * - 项目匹配优先使用 installationId + repositoryId（KI-012）；
- *   仅有 URL 时降级使用规范化比较，并标注低置信度，便于人工排查。
+ * - 项目仅按 installationId + repositoryId 精确匹配；禁止跨租户 URL 兜底。
  * - 创建部署必须经 DeploymentService.createAutomated；幂等键 = github:{projectId}:{envId}:{commit}。
  * - 推送非默认分支 / CI 未通过 / 环境禁用等都会落 IGNORED / BLOCKED_CI 状态以便回溯。
  */
@@ -80,7 +80,7 @@ export class WebhookService {
     const branch = ref.slice('refs/heads/'.length);
 
     // KI-012: 优先按 installationId + repositoryId 定位项目；URL 仅做兜底。
-    const project = await this.matchProject({ installationId, repositoryId, repositoryUrl });
+    const project = await this.matchProject({ installationId, repositoryId });
     if (!project) {
       await this.recordDelivery(input.deliveryId, { commitSha, status: 'IGNORED' });
       return { accepted: true, ignored: true };
@@ -129,26 +129,18 @@ export class WebhookService {
     return { accepted: true, deploymentId: deployment.id };
   }
 
-  /** KI-012: 三级匹配：installation+repo > installation only > URL 兜底。 */
-  private async matchProject(criteria: { installationId: string | null; repositoryId: string | null; repositoryUrl: string }): Promise<{ id: string; githubInstallationId: string | null; workspaceId: string } | null> {
-    const projects = await this.prisma.project.findMany({
-      where: { repositoryUrl: { not: null } },
-      select: { id: true, repositoryUrl: true, githubInstallationId: true, githubRepositoryId: true, workspaceId: true },
+  private async matchProject(criteria: { installationId: string | null; repositoryId: string | null }): Promise<{ id: string; githubInstallationId: string | null; workspaceId: string } | null> {
+    if (!criteria.installationId || !criteria.repositoryId) return null;
+    const project = await this.prisma.project.findFirst({
+      where: {
+        sourceType: 'GITHUB_APP',
+        githubInstallationId: criteria.installationId,
+        githubRepositoryId: criteria.repositoryId,
+      },
+      select: { id: true, githubInstallationId: true, workspaceId: true },
     });
-
-    if (criteria.installationId && criteria.repositoryId) {
-      const exact = projects.find(p => p.githubInstallationId === criteria.installationId && p.githubRepositoryId === criteria.repositoryId);
-      if (exact) return { id: exact.id, githubInstallationId: exact.githubInstallationId, workspaceId: exact.workspaceId };
-    }
-    if (criteria.installationId) {
-      const byInstall = projects.filter(p => p.githubInstallationId === criteria.installationId);
-      // 同 installation 下按 URL 进一步收敛，避免多个 repo 串扰。
-      const refined = byInstall.find(p => this.sameRepository(p.repositoryUrl!, criteria.repositoryUrl));
-      if (refined) return { id: refined.id, githubInstallationId: refined.githubInstallationId, workspaceId: refined.workspaceId };
-    }
-    const byUrl = projects.find(p => this.sameRepository(p.repositoryUrl!, criteria.repositoryUrl));
-    if (byUrl) return { id: byUrl.id, githubInstallationId: byUrl.githubInstallationId, workspaceId: byUrl.workspaceId };
-    return null;
+    if (!project || !isGithubInstallationBoundToWorkspace(criteria.installationId, project.workspaceId)) return null;
+    return project;
   }
 
   private async recordDelivery(
@@ -178,12 +170,4 @@ export class WebhookService {
     return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(received, 'hex'));
   }
 
-  private sameRepository(left: string, right: string): boolean {
-    const normalize = (value: string) =>
-      value.trim().toLowerCase()
-        .replace(/^git@github\.com:/, 'https://github.com/')
-        .replace(/\.git\/?$/, '')
-        .replace(/\/$/, '');
-    return normalize(left) === normalize(right);
-  }
 }

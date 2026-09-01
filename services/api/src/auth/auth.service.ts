@@ -12,8 +12,8 @@ import { Prisma } from '@prisma/client';
  * - Access/Refresh Token 使用不同的 audience（`launchly:api` / `launchly:refresh`），
  *   并在 payload 中加入 `typ` 字段做语义区分；即便签名有效，
  *   用 access token 调用 refresh 也会因 aud/typ 校验失败而被拒绝。
- * - Refresh Token 内嵌 jti（128-bit 随机），并支持服务端撤销（in-memory Set）。
- *   实际生产应换成持久化存储（Redis/DB），目前仅用于本地和测试。
+ * - Refresh Token 内嵌 jti（128-bit 随机），撤销记录持久化到数据库，
+ *   因而重启和多实例之间保持一致，并定期清理过期记录。
  */
 
 const TOKEN_TYPE_ACCESS = 'access';
@@ -37,15 +37,11 @@ interface RefreshTokenPayload {
   jti: string;
   typ: typeof TOKEN_TYPE_REFRESH;
   aud?: string | string[];
+  exp?: number;
 }
 
 @Injectable()
 export class AuthService {
-  /**
-   * 已撤销的 Refresh Token jti 集合。
-   * 多实例部署应改为 Redis 或数据库表；目前为单实例内存实现，足以通过 R0 BASE 验收。
-   */
-  private readonly revokedRefreshJtis = new Set<string>();
   private readonly loginFailures = new Map<string, { count: number; resetAt: number }>();
 
   constructor(
@@ -97,15 +93,23 @@ export class AuthService {
     if (payload.typ !== TOKEN_TYPE_REFRESH) {
       throw new UnauthorizedException('Refresh Token 类型或受众错误');
     }
-    if (!payload.jti || this.revokedRefreshJtis.has(payload.jti)) {
+    await this.pruneExpiredRefreshRevocations();
+    if (!payload.jti || await this.prisma.revokedRefreshToken.findUnique({ where: { jti: payload.jti } })) {
       throw new UnauthorizedException('Refresh Token 已撤销');
     }
 
     const user = await this.prisma.user.findUnique({ where: { id: payload.uid } });
     if (!user) throw new UnauthorizedException('用户不存在');
 
-    // 旋转：先撤销本次使用的 refresh，再签发新对。
-    this.revokedRefreshJtis.add(payload.jti);
+    // 旋转：先持久化撤销本次 refresh，再签发新对。唯一主键关闭并发重放窗口。
+    try {
+      await this.prisma.revokedRefreshToken.create({
+        data: { jti: payload.jti, expiresAt: this.refreshExpiry(payload) },
+      });
+    } catch (error: any) {
+      if (error?.code === 'P2002') throw new UnauthorizedException('Refresh Token 已撤销');
+      throw error;
+    }
 
     const member = await this.prisma.workspaceMember.findFirst({
       where: { userId: user.id },
@@ -122,17 +126,24 @@ export class AuthService {
     );
   }
 
-  /** 主动登出：尝试撤销提供的 Refresh Token。出错也视为登出成功（幂等）。 */
+  /** 主动登出：非法/过期 Token 幂等成功；有效 Token 的持久化撤销失败必须显式报错。 */
   async logout(refreshToken: string | undefined | null) {
     if (!refreshToken || typeof refreshToken !== 'string') return { success: true };
+    let payload: RefreshTokenPayload;
     try {
-      const payload = this.jwtService.verify<RefreshTokenPayload>(refreshToken, { audience: REFRESH_AUDIENCE });
-      if (payload.typ === TOKEN_TYPE_REFRESH && payload.jti) {
-        this.revokedRefreshJtis.add(payload.jti);
-      }
+      payload = this.jwtService.verify<RefreshTokenPayload>(refreshToken, { audience: REFRESH_AUDIENCE });
     } catch {
       // 已过期或非法，视为已登出。
+      return { success: true };
     }
+    if (payload.typ === TOKEN_TYPE_REFRESH && payload.jti) {
+      await this.prisma.revokedRefreshToken.upsert({
+        where: { jti: payload.jti },
+        create: { jti: payload.jti, expiresAt: this.refreshExpiry(payload) },
+        update: {},
+      });
+    }
+    await this.pruneExpiredRefreshRevocations();
     return { success: true };
   }
 
@@ -223,6 +234,15 @@ export class AuthService {
     return [...crypto.getRandomValues(new Uint8Array(16))]
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
+  }
+
+  private refreshExpiry(payload: RefreshTokenPayload): Date {
+    const expiresAt = typeof payload.exp === 'number' ? payload.exp * 1000 : Date.now() + 30 * 24 * 60 * 60 * 1000;
+    return new Date(expiresAt);
+  }
+
+  private async pruneExpiredRefreshRevocations(): Promise<void> {
+    await this.prisma.revokedRefreshToken.deleteMany({ where: { expiresAt: { lt: new Date() } } });
   }
 
   private assertLoginAllowed(key: string): void {

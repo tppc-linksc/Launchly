@@ -41,8 +41,10 @@ const unexpectedSync = (name: string) => (...args: unknown[]) => {
 };
 
 let warnSpy: jest.SpyInstance;
+const originalGithubBindings = process.env.LAUNCHLY_GITHUB_INSTALLATION_BINDINGS;
 
 beforeEach(() => {
+  process.env.LAUNCHLY_GITHUB_INSTALLATION_BINDINGS = JSON.stringify({ 'inst-1': 'ws-1' });
   for (const fn of Object.values(fsMock)) {
     fn.mockReset();
   }
@@ -56,6 +58,8 @@ beforeEach(() => {
 
 afterEach(() => {
   warnSpy.mockRestore();
+  if (originalGithubBindings === undefined) delete process.env.LAUNCHLY_GITHUB_INSTALLATION_BINDINGS;
+  else process.env.LAUNCHLY_GITHUB_INSTALLATION_BINDINGS = originalGithubBindings;
 });
 
 // ─── Test double builders ──────────────────────────────────────────────────
@@ -190,7 +194,7 @@ describe('GitRunner.execute - input gate rejects before any side effect', () => 
 
     expect(result.success).toBe(true);
     expect(deps.executor.execFile.mock.calls[0][1]).toEqual([
-      'clone', '--depth', '1', '--branch', 'main', PUBLIC_URL, '.',
+      'clone', '--depth', '1', '--branch', 'main', '--', PUBLIC_URL, '.',
     ]);
   });
 });
@@ -214,7 +218,7 @@ describe('GitRunner.execute - GIT_PUBLIC path', () => {
     expect(fsMock.mkdirSync).toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1', { recursive: true, mode: 0o700 });
     const call = deps.executor.execFile.mock.calls[0];
     expect(call[0]).toBe('git');
-    expect(call[1]).toEqual(['clone', '--depth', '1', '--branch', 'main', PUBLIC_URL, '.']);
+    expect(call[1]).toEqual(['clone', '--depth', '1', '--branch', 'main', '--', PUBLIC_URL, '.']);
     expect(call[2]).toEqual({ cwd: '/tmp/launchly-builds/deploy-1', timeout: 300, env: undefined });
   });
 
@@ -339,13 +343,13 @@ describe('GitRunner.execute - GIT_PUBLIC path', () => {
       .mockResolvedValueOnce({ stdout: 'cloned', stderr: '', exitCode: 0 }) // clone
       .mockResolvedValueOnce({ stdout: 'fetched', stderr: '', exitCode: 0 }) // fetch
       .mockResolvedValueOnce({ stdout: 'switched', stderr: '', exitCode: 0 }) // checkout
-      .mockResolvedValueOnce({ stdout: 'differentcommit', stderr: '', exitCode: 0 }); // rev-parse HEAD differs
+      .mockResolvedValueOnce({ stdout: 'deadbeef', stderr: '', exitCode: 0 }); // rev-parse HEAD differs
     const runner = makeRunner(deps);
-    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: 'requested-sha' } }));
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', commitSha: 'cafebabe' } }));
     expect(result.success).toBe(false);
     expect(result.errorMessage).toContain('实际 HEAD 与请求 commit 不一致');
-    expect(result.errorMessage).toContain('requested-sha');
-    expect(result.errorMessage).toContain('differentcommit');
+    expect(result.errorMessage).toContain('cafebabe');
+    expect(result.errorMessage).toContain('deadbeef');
   });
 
   it('commitSha present: fetch non-zero fails closed with "拉取失败" (KI-033)', async () => {
@@ -432,16 +436,31 @@ describe('GitRunner.execute - GITHUB_APP source', () => {
     expect(result.errorMessage).toBe('GitHub App 源缺少 installation ID');
   });
 
+  it('rejects an installation that is not operator-bound to the project workspace', async () => {
+    const deps = makeDeps();
+    fsMock.existsSync.mockReturnValueOnce(false);
+    fsMock.mkdirSync.mockReturnValueOnce(undefined);
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', workspaceId: 'ws-other', githubInstallationId: 'inst-1' });
+    const runner = makeRunner(deps);
+
+    const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: PUBLIC_URL, branch: 'main', sourceType: 'GITHUB_APP' } }));
+
+    expect(result.success).toBe(false);
+    expect(result.errorMessage).toContain('未绑定到项目工作空间');
+    expect(deps.githubApp.installationToken).not.toHaveBeenCalled();
+    expect(deps.executor.execFile).not.toHaveBeenCalled();
+  });
+
   it('rejects non-HTTPS repository URLs (http://)', async () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
-    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: 'inst-1' });
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', workspaceId: 'ws-1', githubInstallationId: 'inst-1' });
     deps.githubApp.installationToken.mockResolvedValueOnce('ghs_TESTSECRET123');
     const runner = makeRunner(deps);
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'http://github.com/acme/app.git', branch: 'main', sourceType: 'GITHUB_APP' } }));
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('GitHub App 源必须是 HTTPS github.com 仓库 URL');
+    expect(result.errorMessage).toBe('仓库 URL / branch / commit 非法');
     expect(deps.executor.execFile).not.toHaveBeenCalled();
   });
 
@@ -449,7 +468,7 @@ describe('GitRunner.execute - GITHUB_APP source', () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
-    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: 'inst-1' });
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', workspaceId: 'ws-1', githubInstallationId: 'inst-1' });
     deps.githubApp.installationToken.mockResolvedValueOnce('ghs_TESTSECRET123');
     const runner = makeRunner(deps);
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'https://gitlab.com/acme/app.git', branch: 'main', sourceType: 'GITHUB_APP' } }));
@@ -461,7 +480,7 @@ describe('GitRunner.execute - GITHUB_APP source', () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
-    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: 'inst-1' });
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', workspaceId: 'ws-1', githubInstallationId: 'inst-1' });
     deps.githubApp.installationToken.mockResolvedValueOnce('ghs_TESTSECRET123');
     const runner = makeRunner(deps);
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'https://github.com.evil.com/acme/app.git', branch: 'main', sourceType: 'GITHUB_APP' } }));
@@ -473,20 +492,19 @@ describe('GitRunner.execute - GITHUB_APP source', () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
-    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: 'inst-1' });
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', workspaceId: 'ws-1', githubInstallationId: 'inst-1' });
     deps.githubApp.installationToken.mockResolvedValueOnce('ghs_TESTSECRET123');
     const runner = makeRunner(deps);
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'not a url at all', branch: 'main', sourceType: 'GITHUB_APP' } }));
     expect(result.success).toBe(false);
-    // `new URL('not a url at all')` throws "Invalid URL"; the GitRunner's catch forwards the original message.
-    expect(result.errorMessage).toBe('Invalid URL');
+    expect(result.errorMessage).toBe('仓库 URL / branch / commit 非法');
   });
 
   it('on success: passes x-access-token URL to execFile but does not leak the token in stdout/stderr', async () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
-    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: 'inst-1' });
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', workspaceId: 'ws-1', githubInstallationId: 'inst-1' });
     deps.githubApp.installationToken.mockResolvedValueOnce('ghs_TESTSECRET123');
     deps.executor.execFile.mockResolvedValueOnce({
       stdout: 'remote https://x-access-token:ghs_TESTSECRET123@github.com/acme/app.git',
@@ -496,7 +514,7 @@ describe('GitRunner.execute - GITHUB_APP source', () => {
     const runner = makeRunner(deps);
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'https://github.com/acme/app.git', branch: 'main', sourceType: 'GITHUB_APP' } }));
     expect(result.success).toBe(true);
-    const urlPassed = deps.executor.execFile.mock.calls[0][1][5];
+    const urlPassed = deps.executor.execFile.mock.calls[0][1][6];
     expect(urlPassed).toBe('https://x-access-token:ghs_TESTSECRET123@github.com/acme/app.git');
     expect(result.stdout).not.toContain('ghs_TESTSECRET123');
     expect(result.stderr).not.toContain('ghs_TESTSECRET123');
@@ -509,7 +527,7 @@ describe('GitRunner.execute - GITHUB_APP source', () => {
     const deps = makeDeps();
     fsMock.existsSync.mockReturnValueOnce(false);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
-    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', githubInstallationId: 'inst-1' });
+    deps.prisma.project.findUnique.mockResolvedValueOnce({ id: 'proj-1', workspaceId: 'ws-1', githubInstallationId: 'inst-1' });
     deps.githubApp.installationToken.mockRejectedValueOnce(new Error('Unable to obtain GitHub installation token'));
     const runner = makeRunner(deps);
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'https://github.com/acme/app.git', branch: 'main', sourceType: 'GITHUB_APP' } }));
@@ -580,7 +598,7 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     const runner = makeRunner(deps);
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: '://broken', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
     expect(result.success).toBe(false);
-    expect(result.errorMessage).toBe('Deploy Key 源必须是 SSH 仓库 URL');
+    expect(result.errorMessage).toBe('仓库 URL / branch / commit 非法');
   });
 
   it('scp-style URL writes task-local private key and known_hosts with mode 0600', async () => {
@@ -603,11 +621,11 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     // writeFileSync called twice with mode 0600
     expect(fsMock.writeFileSync).toHaveBeenCalledTimes(2);
     expect(fsMock.writeFileSync.mock.calls[0]).toEqual(['/tmp/launchly-builds/.git-key-deploy-1', PRIVATE_KEY_DECRYPTED, { mode: 0o600 }]);
-    expect(fsMock.writeFileSync.mock.calls[1]).toEqual(['/tmp/launchly-builds/.git-known-hosts-deploy-1', `${HOST} ${HOST_KEY.trim()}\n`, { mode: 0o600 }]);
+    expect(fsMock.writeFileSync.mock.calls[1]).toEqual(['/tmp/launchly-builds/.git-known-hosts-deploy-1', `${HOST} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIABCDEFGHIJKLMNOPQRSTUVWXYZ\n`, { mode: 0o600 }]);
     // execFile called with git clone and the SSH env
     const call = deps.executor.execFile.mock.calls[0];
     expect(call[0]).toBe('git');
-    expect(call[1]).toEqual(['clone', '--depth', '1', '--branch', 'main', 'git@github.com:acme/app.git', '.']);
+    expect(call[1]).toEqual(['clone', '--depth', '1', '--branch', 'main', '--', 'git@github.com:acme/app.git', '.']);
     const env = call[2].env;
     expect(env.GIT_SSH_COMMAND).toContain('IdentitiesOnly=yes');
     expect(env.GIT_SSH_COMMAND).toContain('BatchMode=yes');
@@ -630,7 +648,7 @@ describe('GitRunner.execute - DEPLOY_KEY source', () => {
     const runner = makeRunner(deps);
     const result = await runner.execute(makeContext({ payload: { projectId: 'proj-1', repositoryUrl: 'ssh://git@github.com/acme/app.git', branch: 'main', sourceType: 'DEPLOY_KEY' } }));
     expect(result.success).toBe(true);
-    expect(fsMock.writeFileSync.mock.calls[1][1]).toBe(`${HOST} ${HOST_KEY.trim()}\n`);
+    expect(fsMock.writeFileSync.mock.calls[1][1]).toBe(`${HOST} ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIABCDEFGHIJKLMNOPQRSTUVWXYZ\n`);
   });
 
   it('secrets.decrypt throws: failure propagates and no execFile call', async () => {

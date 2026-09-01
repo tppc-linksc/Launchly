@@ -28,10 +28,15 @@ Object.defineProperty(globalThis, 'localStorage', {
 })
 
 const { elMessageSuccess } = vi.hoisted(() => ({ elMessageSuccess: vi.fn() }))
+const { updateWorkspace, fetchSystemInfo } = vi.hoisted(() => ({
+  updateWorkspace: vi.fn(),
+  fetchSystemInfo: vi.fn(),
+}))
 vi.mock('element-plus', async (orig) => {
   const actual = await (orig() as any)
   return { ...actual, ElMessage: { ...actual.ElMessage, success: elMessageSuccess } }
 })
+vi.mock('../api/client', () => ({ updateWorkspace, fetchSystemInfo }))
 
 import { useAuthStore } from '../stores/auth'
 import SettingsPage from './SettingsPage.vue'
@@ -59,6 +64,8 @@ describe('SettingsPage', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     elMessageSuccess.mockReset()
+    updateWorkspace.mockReset().mockResolvedValue({ data: { id: 'w-1', name: 'X' } })
+    fetchSystemInfo.mockReset().mockResolvedValue({ data: { version: 'test' } })
   })
 
   it('SP.1 renders the workspace form pre-filled with auth.workspace.name', async () => {
@@ -119,7 +126,7 @@ describe('SettingsPage', () => {
     }
   })
 
-  it('SP.5 clicking 保存 shows a success toast (the page currently no-ops the API call)', async () => {
+  it('SP.5 clicking 保存 persists the workspace name and shows a success toast', async () => {
     setUser({ role: 'OWNER', workspace: { id: 'w-1', name: 'X' } })
     const router = makeRouter()
     await router.push('/settings')
@@ -132,6 +139,7 @@ describe('SettingsPage', () => {
     await saveBtn!.trigger('click')
     await flushPromises()
 
+    expect(updateWorkspace).toHaveBeenCalledWith({ name: 'X' })
     expect(elMessageSuccess).toHaveBeenCalledWith('工作空间设置已保存')
   })
 

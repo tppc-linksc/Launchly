@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { fetchSetupStatus } from '../api/client'
+import { fetchSetupStatus, logoutSession } from '../api/client'
 
 export interface AuthUser {
   id: string
@@ -97,6 +97,8 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   function logout() {
+    const refreshToken = localStorage.getItem('refreshToken')
+    if (refreshToken) void logoutSession(refreshToken).catch(() => undefined)
     localStorage.removeItem('accessToken')
     localStorage.removeItem('refreshToken')
     user.value = null

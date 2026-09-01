@@ -20,6 +20,8 @@ export interface RunnerResult {
   stderr: string;
   exitCode: number;
   errorMessage: string;
+  /** 仅在当前任务内存中使用，Worker 持久化日志前按精确值脱敏。 */
+  sensitiveValues?: string[];
 }
 
 @Injectable()

@@ -216,7 +216,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     // bogus green tests in this project).
     const models = [
       'user', 'workspace', 'workspaceMember', 'invitation',
-      'project', 'projectMember', 'component', 'repositoryCredential',
+      'project', 'projectMember', 'component', 'repositoryCredential', 'artifact',
       'environment', 'environmentVariable',
       'deployment', 'deploymentStageLog',
       'deployTarget', 'task',
@@ -281,7 +281,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     (prisma as any).projectMember = Object.fromEntries(allOps.map(op => [op, jest.fn()]));
     for (const m of [
       'user', 'workspace', 'workspaceMember', 'invitation',
-      'project', 'component', 'repositoryCredential',
+      'project', 'component', 'repositoryCredential', 'artifact',
       'environment', 'environmentVariable',
       'deployment', 'deploymentStageLog',
       'deployTarget', 'task',
@@ -357,7 +357,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     // would be the first call across the entire suite, not the current test.
     for (const m of [
       'user', 'workspace', 'workspaceMember', 'invitation',
-      'project', 'projectMember', 'component', 'repositoryCredential',
+      'project', 'projectMember', 'component', 'repositoryCredential', 'artifact',
       'environment', 'environmentVariable',
       'deployment', 'deploymentStageLog',
       'deployTarget', 'task',
@@ -380,7 +380,19 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     // 通用 default 桩: 任何未被显式 stub 的查询都返回空/空数组
     stub('project.findFirst', null);
     stub('project.findUnique', null);
-    stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: 'unused', role: 'VIEWER' });
+    stubImpl('workspaceMember.findFirst', ({ where }: any) => {
+      const roles: Record<string, string> = {
+        [USER_A_OWNER]: 'OWNER',
+        [USER_A_ADMIN]: 'ADMIN',
+        [USER_A_DEVELOPER]: 'DEVELOPER',
+        [USER_A_TESTER]: 'TESTER',
+        [USER_A_VIEWER]: 'VIEWER',
+        [USER_A_NO_PROJECT]: 'VIEWER',
+        [USER_B_OWNER]: 'OWNER',
+      };
+      const role = roles[where?.userId];
+      return role ? { workspaceId: where.workspaceId, userId: where.userId, role } : null;
+    });
     stub('projectMember.findFirst', null);
     stub('user.findUnique', null);
     stub('environment.findUnique', null);
@@ -401,6 +413,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     stub('deployment.update', (() => ({ id: DEPLOYMENT_A, status: 'PENDING' })) as any);
     stub('deployment.count', 0);
     stub('deploymentStageLog.createMany', undefined);
+    stub('deploymentStageLog.create', undefined);
     stub('deploymentStageLog.findMany', []);
     stub('deployTarget.findUnique', null);
     stub('deployTarget.findFirst', null);
@@ -480,10 +493,9 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expectUnauth(res);
     });
 
-    it('returns 403 for unknown minimum role in ProjectResourceAccessPolicy (KI-018 reproduction)', async () => {
-      // 真实控制器不允许直接传 minimumRole,所以此处通过 Service 路径不可达;
-      // 我们验证 RolesGuard 在 user.role 不被识别时仍按 0 处理,要求角色的人会 403
-      // 模拟 unknown workspace role:
+    it('fails closed for an unknown persisted project role (KI-018 reproduction)', async () => {
+      // 项目资源写操作由 ProjectResourceAccessPolicy 负责授权。数据库中的未知角色
+      // 表示权限数据损坏，策略应 fail closed 并返回 500，而不是降级成任意已知角色。
       const unknown = makeJwt(jwt, 'user-x', WORKSPACE_A, 'GHOST');
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: 'user-x', role: 'GHOST' });
       // ENVIRONMENT list 是 VIEWER,要求角色不严格;改测一个 DEVELOPER 接口
@@ -494,7 +506,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
         token: unknown,
         body: { name: 'updated' },
       });
-      expectForbidden(res);
+      expect(res.status).toBe(500);
     });
   });
 
@@ -517,17 +529,17 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expectUnauth(res);
     });
 
-    it('GET /environments?projectId=OTHER_WORKSPACE 403 (cross-workspace)', async () => {
+    it('GET /environments?projectId=OTHER_WORKSPACE 404 (cross-workspace)', async () => {
       // user in workspace A tries to list workspace B's project
       const res = await request('GET', '/environments?projectId=' + PROJECT_X, { token: tokens.aOwner });
       // project.findFirst returns null because projectId=PROJECT_X is in workspace B
-      expectForbidden(res);
+      expectNotFound(res);
     });
 
-    it('GET /environments?projectId= 403 when project does not exist', async () => {
+    it('GET /environments?projectId= 404 when project does not exist', async () => {
       stub('project.findFirst', null);
       const res = await request('GET', '/environments?projectId=does-not-exist', { token: tokens.aOwner });
-      expectForbidden(res);
+      expectNotFound(res);
     });
 
     it('GET /environments 403 when user has no project membership', async () => {
@@ -593,13 +605,13 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_VIEWER, role: 'VIEWER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_VIEWER, role: 'VIEWER' });
       stub('environmentVariable.findMany', [
-        { id: VARIABLE_A, environmentId: ENVIRONMENT_A, key: 'API_KEY', maskedValue: '****', sensitive: true, description: null },
+        { id: VARIABLE_A, environmentId: ENVIRONMENT_A, key: 'API_KEY', maskedValue: '已设置', sensitive: true, description: null },
       ]);
 
       const res = await request('GET', `/environments/${ENVIRONMENT_A}/variables`, { token: tokens.aViewer });
       expect(res.status).toBe(200);
       expect(res.body).toEqual([
-        { id: VARIABLE_A, environmentId: ENVIRONMENT_A, key: 'API_KEY', maskedValue: '****', sensitive: true, description: null },
+        { id: VARIABLE_A, environmentId: ENVIRONMENT_A, key: 'API_KEY', maskedValue: '已设置', sensitive: true, description: null },
       ]);
       // KI-004 reproduction: listByEnvironment does NOT take workspaceId parameter
       // so it would leak if env.projectId resolution is bypassed. Confirmed via
@@ -897,10 +909,10 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expect(Array.isArray(res.body)).toBe(true);
     });
 
-    it('GET /deployments?projectId=OTHER 403 (cross-workspace)', async () => {
+    it('GET /deployments?projectId=OTHER 404 (cross-workspace)', async () => {
       // project.findFirst for PROJECT_X with workspaceId=ws-a returns null
       const res = await request('GET', '/deployments?projectId=' + PROJECT_X, { token: tokens.aOwner });
-      expectForbidden(res);
+      expectNotFound(res);
     });
 
     it('GET /deployments/:id 200 (own deployment)', async () => {
@@ -942,7 +954,20 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
 
     it('POST /deployments/:id/rollback 200 for DEVELOPER', async () => {
       // Access policy uses findUnique, service.rollback uses findFirst — stub both
-      const fullDeployment = { id: DEPLOYMENT_A, projectId: PROJECT_A, environmentId: ENVIRONMENT_A, deployTargetId: DEPLOY_TARGET_A, branch: 'main', commitSha: 'abc', rollbackFromDeploymentId: null, status: 'SUCCEEDED', createdAt: new Date(), triggeredBy: null };
+      const fullDeployment = {
+        id: DEPLOYMENT_A,
+        projectId: PROJECT_A,
+        environmentId: ENVIRONMENT_A,
+        deployTargetId: DEPLOY_TARGET_A,
+        branch: 'main',
+        commitSha: 'abc',
+        rollbackFromDeploymentId: null,
+        status: 'SUCCEEDED',
+        artifactId: 'artifact-a',
+        artifact: { id: 'artifact-a', projectId: PROJECT_A, digest: `sha256:${'a'.repeat(64)}` },
+        createdAt: new Date(),
+        triggeredBy: null,
+      };
       stub('deployment.findUnique', { projectId: PROJECT_A });
       stub('deployment.findFirst', fullDeployment);
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
@@ -950,7 +975,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_DEVELOPER, role: 'VIEWER' });
       stub('environment.findUnique', { id: ENVIRONMENT_A, projectId: PROJECT_A, deployMode: 'local', deployDir: '/srv/x' });
-      stub('deployTarget.findUnique', null);
+      stub('deployTarget.findUnique', { id: DEPLOY_TARGET_A, projectId: PROJECT_A });
       stub('deployment.create', (() => ({ id: 'rb-1', projectId: PROJECT_A, environmentId: ENVIRONMENT_A, status: 'PENDING', rollbackFromDeploymentId: DEPLOYMENT_A, branch: 'main', commitSha: 'abc', deployTargetId: null, triggeredBy: USER_A_DEVELOPER, createdAt: new Date() })) as any);
       stub('deploymentStageLog.createMany', undefined);
       stub('task.create', (() => ({ id: 't-rb' })) as any);
@@ -987,7 +1012,13 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_DEVELOPER, role: 'VIEWER' });
       stub('environment.findUnique', { id: ENVIRONMENT_A, projectId: PROJECT_A });
-      stub('deployment.findUnique', { id: DEPLOYMENT_A, projectId: PROJECT_A });
+      stub('deployment.findUnique', {
+        id: DEPLOYMENT_A,
+        projectId: PROJECT_A,
+        environmentId: ENVIRONMENT_A,
+        status: 'SUCCEEDED',
+        artifactId: 'artifact-a',
+      });
       stub('release.create', (() => ({ id: RELEASE_A, projectId: PROJECT_A, status: 'PENDING' })) as any);
 
       const res = await request('POST', '/projects/' + PROJECT_A + '/releases', {
@@ -1459,12 +1490,12 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expect(res.status).toBe(200);
     });
 
-    it('GET /deploy-targets/:id 403 when target belongs to other workspace', async () => {
+    it('GET /deploy-targets/:id 404 when target belongs to other workspace', async () => {
       stub('deployTarget.findUnique', { id: DEPLOY_TARGET_X, projectId: PROJECT_X });
       const res = await request('GET', '/deploy-targets/' + DEPLOY_TARGET_X, { token: tokens.aOwner });
       // requireDeployTarget → looks up target.projectId = PROJECT_X
-      // requireProject(PROJECT_X, ...) in workspace A → 403
-      expectForbidden(res);
+      // requireProject(PROJECT_X, ...) in workspace A hides resource existence.
+      expectNotFound(res);
     });
 
     it('DELETE /deploy-targets/:id 200 for ADMIN', async () => {
@@ -1717,7 +1748,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
   describe('Cross-workspace isolation (Workspace B user cannot read workspace A resources)', () => {
     it('workspace B owner is rejected when listing workspace A environments', async () => {
       const res = await request('GET', '/environments?projectId=' + PROJECT_A, { token: tokens.bOwner });
-      expectForbidden(res);
+      expectNotFound(res);
     });
 
     it('workspace B owner is rejected when reading workspace A deployment', async () => {
@@ -1729,27 +1760,27 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
 
     it('workspace B owner is rejected when listing workspace A deploy-targets', async () => {
       const res = await request('GET', '/projects/' + PROJECT_A + '/deploy-targets', { token: tokens.bOwner });
-      expectForbidden(res);
+      expectNotFound(res);
     });
 
     it('workspace B owner is rejected when listing workspace A releases', async () => {
       const res = await request('GET', '/projects/' + PROJECT_A + '/releases', { token: tokens.bOwner });
-      expectForbidden(res);
+      expectNotFound(res);
     });
 
     it('workspace B owner is rejected when listing workspace A issues', async () => {
       const res = await request('GET', '/projects/' + PROJECT_A + '/issues', { token: tokens.bOwner });
-      expectForbidden(res);
+      expectNotFound(res);
     });
 
     it('workspace B owner is rejected when listing workspace A test-cases', async () => {
       const res = await request('GET', '/projects/' + PROJECT_A + '/test-cases', { token: tokens.bOwner });
-      expectForbidden(res);
+      expectNotFound(res);
     });
 
     it('workspace B owner is rejected when listing workspace A test-runs', async () => {
       const res = await request('GET', '/test-runs?projectId=' + PROJECT_A, { token: tokens.bOwner });
-      expectForbidden(res);
+      expectNotFound(res);
     });
   });
 });

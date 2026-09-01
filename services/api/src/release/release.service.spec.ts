@@ -37,7 +37,12 @@ describe('ReleaseService', () => {
   describe('createRelease', () => {
     it('persists the exact DTO fields plus releasedBy=userId', async () => {
       prisma.environment.findUnique.mockResolvedValue({ projectId });
-      prisma.deployment.findUnique.mockResolvedValue({ projectId });
+      prisma.deployment.findUnique.mockResolvedValue({
+        projectId,
+        environmentId: 'env-1',
+        status: 'SUCCEEDED',
+        artifactId: 'artifact-1',
+      });
       const created = { ...baseRelease, id: 'rel-new' };
       prisma.release.create.mockResolvedValue(created);
 

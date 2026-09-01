@@ -16,6 +16,7 @@ Object.defineProperty(globalThis, 'localStorage', { value: localStorageMock, wri
 
 vi.mock('../api/client', () => ({
   fetchSetupStatus: vi.fn(),
+  logoutSession: vi.fn().mockResolvedValue({ data: { success: true } }),
 }))
 
 import { fetchSetupStatus } from '../api/client'
