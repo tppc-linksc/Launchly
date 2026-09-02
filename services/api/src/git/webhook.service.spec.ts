@@ -19,12 +19,12 @@ describe('WebhookService', () => {
   beforeEach(() => {
     process.env.LAUNCHLY_GITHUB_WEBHOOK_SECRET = secret;
     prisma = {
-      gitWebhookDelivery: { create: jest.fn(), update: jest.fn() },
-      project: { findFirst: jest.fn().mockResolvedValue(null) },
-      environment: { findFirst: jest.fn() },
+      gitWebhookDelivery: { create: vi.fn(), update: vi.fn() },
+      project: { findFirst: vi.fn().mockResolvedValue(null) },
+      environment: { findFirst: vi.fn() },
     };
-    deployments = { createAutomated: jest.fn() };
-    githubApp = { isConfigured: jest.fn().mockReturnValue(false), commitChecksPassed: jest.fn() };
+    deployments = { createAutomated: vi.fn() };
+    githubApp = { isConfigured: vi.fn().mockReturnValue(false), commitChecksPassed: vi.fn() };
     service = new WebhookService(prisma, deployments, githubApp);
   });
 

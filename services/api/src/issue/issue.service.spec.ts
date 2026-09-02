@@ -18,15 +18,15 @@ describe('IssueService', () => {
     service = module.get<IssueService>(IssueService);
   });
 
-  afterEach(() => jest.resetAllMocks());
+  afterEach(() => vi.resetAllMocks());
 
   describe('VALID_TRANSITIONS', () => {
-    it('should define all expected transitions', () => {
+    it('should define all expected transitions', async () => {
       // Access the module-level constant via the service's transition behavior
       // OPEN -> ASSIGNED
       prisma.issue.findUnique.mockResolvedValue({ id: 'i1', status: 'OPEN' });
       prisma.issue.update.mockResolvedValue({ id: 'i1', status: 'ASSIGNED' });
-      expect(service.transition('i1', { toStatus: 'ASSIGNED' }, 'u1')).resolves.toBeDefined();
+      await expect(service.transition('i1', { toStatus: 'ASSIGNED' }, 'u1')).resolves.toBeDefined();
     });
   });
 

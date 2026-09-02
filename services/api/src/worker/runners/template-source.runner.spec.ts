@@ -1,32 +1,25 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import * as fs from 'fs';
 import { TemplateSourceRunner } from './template-source.runner';
 import { RunnerContext } from './runner.factory';
 
 // ─── fs mock (per-method, default safe values; test installs stricter impls) ─
 
-jest.mock('fs', () => {
-  const real = jest.requireActual('fs');
-  const safe = () => jest.fn();
+vi.mock('fs', async () => {
+  const real = await vi.importActual<typeof import('fs')>('fs');
+  const safe = () => vi.fn();
   const overrides: any = {
     rmSync: safe(),
     mkdirSync: safe(),
     writeFileSync: safe(),
   };
-  (real as any).__launchlyFsOverrides = overrides;
-  return new Proxy(real, {
-    get(target, prop) {
-      if (prop in overrides) return overrides[prop as string];
-      return (target as any)[prop];
-    },
-  });
+  return { ...real, ...overrides, __launchlyFsOverrides: overrides };
 });
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const fs = require('fs');
 const fsMock = (fs as any).__launchlyFsOverrides as {
-  rmSync: jest.Mock;
-  mkdirSync: jest.Mock;
-  writeFileSync: jest.Mock;
+  rmSync: vi.Mock;
+  mkdirSync: vi.Mock;
+  writeFileSync: vi.Mock;
 };
 
 const unexpectedSync =
@@ -53,7 +46,7 @@ function makeContext(over: Partial<RunnerContext> = {}): RunnerContext {
     taskType: 'TEMPLATE_SOURCE',
     refId: 'deploy-1',
     payload: { templateId: 'static-blog' },
-    stageLogCallback: jest.fn(async () => undefined),
+    stageLogCallback: vi.fn(async () => undefined),
     ...over,
   };
 }
@@ -311,7 +304,7 @@ describe('TemplateSourceRunner.execute - stageLogCallback', () => {
       return undefined;
     });
     const ctx = makeContext({ payload: { templateId: 'static-blog' } });
-    (ctx.stageLogCallback as jest.Mock).mockImplementation(async () => {
+    (ctx.stageLogCallback as vi.Mock).mockImplementation(async () => {
       callOrder.push('cb');
     });
     await runner.execute(ctx);
@@ -387,7 +380,7 @@ describe('TemplateSourceRunner.execute - side-effect error propagation', () => {
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
     fsMock.writeFileSync.mockReturnValueOnce(undefined).mockReturnValueOnce(undefined);
     const ctx = makeContext({ payload: { templateId: 'static-blog' } });
-    (ctx.stageLogCallback as jest.Mock).mockRejectedValueOnce(new Error('callback rejected'));
+    (ctx.stageLogCallback as vi.Mock).mockRejectedValueOnce(new Error('callback rejected'));
     const result = await runner.execute(ctx);
     expect(result.success).toBe(false);
     expect(result.errorMessage).toBe('callback rejected');

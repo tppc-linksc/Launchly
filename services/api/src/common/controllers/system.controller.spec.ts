@@ -3,11 +3,11 @@ import { HealthController } from './system.controller';
 
 describe('HealthController worker readiness', () => {
   const prisma = {
-    workerHeartbeat: { findFirst: jest.fn() },
+    workerHeartbeat: { findFirst: vi.fn() },
   };
   const controller = new HealthController(prisma as any);
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   it('reports the most recent ready worker', async () => {
     const updatedAt = new Date();

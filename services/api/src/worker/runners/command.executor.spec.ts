@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { EventEmitter } from 'events';
+import * as cp from 'child_process';
 import { CommandExecutor } from './command.executor';
 
 // ─── child_process.spawn mock ──────────────────────────────────────────────
@@ -24,11 +25,11 @@ class MockProc extends EventEmitter {
   stderr = new EventEmitter();
 }
 
-jest.mock('child_process', () => {
-  const real = jest.requireActual('child_process');
+vi.mock('child_process', async () => {
+  const real = await vi.importActual<typeof import('child_process')>('child_process');
   return {
     ...real,
-    spawn: jest.fn((command: string, args: string[], options: any) => {
+    spawn: vi.fn((command: string, args: string[], options: any) => {
       if (allowedSpawnCalls <= 0) {
         throw new Error(`Unexpected unconfigured spawn call: ${command}`);
       }
@@ -41,9 +42,7 @@ jest.mock('child_process', () => {
   };
 });
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const cp = require('child_process');
-const spawnMock = cp.spawn as unknown as jest.Mock;
+const spawnMock = cp.spawn as unknown as vi.Mock;
 
 function makeExecutor() {
   allowedSpawnCalls++;

@@ -24,7 +24,7 @@ describe('worker-state-machine', () => {
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   // ============================================================
@@ -134,7 +134,7 @@ describe('worker-state-machine', () => {
       await rescheduleTimedOutTask(prisma as any, 't-1', 'timeout');
       const after = Date.now();
 
-      const args = (prisma.task.update as jest.Mock).mock.calls[0][0];
+      const args = (prisma.task.update as vi.Mock).mock.calls[0][0];
       expect(args.where).toEqual(expect.objectContaining({ id: 't-1', status: 'RUNNING', leaseOwner: null }));
       expect(args.where.leaseExpiresAt.lt).toBeInstanceOf(Date);
       expect(args.data.status).toBe('PENDING');
@@ -175,7 +175,7 @@ describe('worker-state-machine', () => {
       await finalizeTimedOutTask(prisma as any, 't-1', 'dead');
       const after = Date.now();
 
-      const args = (prisma.task.update as jest.Mock).mock.calls[0][0];
+      const args = (prisma.task.update as vi.Mock).mock.calls[0][0];
       expect(args.where).toEqual(expect.objectContaining({ id: 't-1', status: 'RUNNING', leaseOwner: null }));
       expect(args.where.leaseExpiresAt.lt).toBeInstanceOf(Date);
       expect(args.data.status).toBe('FAILED');

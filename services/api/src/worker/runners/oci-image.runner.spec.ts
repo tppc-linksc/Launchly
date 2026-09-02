@@ -9,11 +9,11 @@ const FIXED_DIGEST_C = 'c'.repeat(64);
 function makePrismaDouble() {
   const prisma: any = {
     deployment: {
-      findUnique: jest.fn(),
-      update: jest.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
     },
     artifact: {
-      upsert: jest.fn(),
+      upsert: vi.fn(),
     },
   };
   return prisma;

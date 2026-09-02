@@ -1,5 +1,5 @@
 import { BadRequestException, Controller, Get, Query, Res } from '@nestjs/common';
-import { Response } from 'express';
+import type { Response } from 'express';
 import { AUDIT_EXPORT_LIMIT, AuditService } from './audit.service';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
 import { Roles } from '../common/decorators/roles.decorator';

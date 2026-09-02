@@ -3,15 +3,15 @@ import { RemoteSshRunner } from './remote-ssh.runner';
 import { CommandExecutor } from './command.executor';
 import { RunnerContext } from './runner.factory';
 
-jest.mock('fs', () => ({
-  ...jest.requireActual('fs'),
-  mkdirSync: jest.fn(),
-  writeFileSync: jest.fn(),
-  unlinkSync: jest.fn(),
-  rmdirSync: jest.fn(),
+vi.mock('fs', async () => ({
+  ...(await vi.importActual<typeof import('fs')>('fs')),
+  mkdirSync: vi.fn(),
+  writeFileSync: vi.fn(),
+  unlinkSync: vi.fn(),
+  rmdirSync: vi.fn(),
 }));
 
-const fsMock = fs as jest.Mocked<typeof fs>;
+const fsMock = fs as vi.Mocked<typeof fs>;
 
 const HOST_KEY = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITESTKEYBASE64';
 const PRIVATE_KEY = 'PRIVATE_KEY_VALUE';
@@ -41,9 +41,9 @@ const ok = (stdout = '', stderr = '') => ({ stdout, stderr, exitCode: 0 });
 const failed = (exitCode = 1, stdout = '', stderr = 'failed') => ({ stdout, stderr, exitCode });
 
 describe('RemoteSshRunner', () => {
-  let execFile: jest.Mock;
+  let execFile: vi.Mock;
   let executor: CommandExecutor;
-  let secrets: { decrypt: jest.Mock };
+  let secrets: { decrypt: vi.Mock };
   let prisma: any;
   let runner: RemoteSshRunner;
 
@@ -86,15 +86,15 @@ describe('RemoteSshRunner', () => {
   }
 
   beforeEach(() => {
-    jest.clearAllMocks();
-    execFile = jest.fn().mockRejectedValue(new Error('unexpected execFile call'));
+    vi.clearAllMocks();
+    execFile = vi.fn().mockRejectedValue(new Error('unexpected execFile call'));
     executor = {
       execFile,
-      exec: jest.fn().mockRejectedValue(new Error('shell execution is forbidden')),
+      exec: vi.fn().mockRejectedValue(new Error('shell execution is forbidden')),
       sanitize: CommandExecutor.sanitize,
     } as unknown as CommandExecutor;
     secrets = {
-      decrypt: jest.fn((ciphertext: string) => {
+      decrypt: vi.fn((ciphertext: string) => {
         const values: Record<string, string> = {
           'enc-target-key': PRIVATE_KEY,
           'enc-admin-password': ADMIN_PASSWORD,
@@ -105,12 +105,12 @@ describe('RemoteSshRunner', () => {
       }),
     };
     prisma = {
-      deployTarget: { findUnique: jest.fn() },
-      deployment: { findUnique: jest.fn() },
-      artifact: { findUnique: jest.fn() },
-      environmentVariable: { findMany: jest.fn() },
-      projectBootstrapRun: { findUnique: jest.fn(), upsert: jest.fn().mockResolvedValue({}) },
-      projectBootstrapSecret: { findUnique: jest.fn() },
+      deployTarget: { findUnique: vi.fn() },
+      deployment: { findUnique: vi.fn() },
+      artifact: { findUnique: vi.fn() },
+      environmentVariable: { findMany: vi.fn() },
+      projectBootstrapRun: { findUnique: vi.fn(), upsert: vi.fn().mockResolvedValue({}) },
+      projectBootstrapSecret: { findUnique: vi.fn() },
     };
     runner = new RemoteSshRunner(executor, secrets as any, prisma);
   });
@@ -297,7 +297,7 @@ describe('RemoteSshRunner', () => {
     });
 
     it('keeps deployment successful but emits a warning if snapshot pruning fails', async () => {
-      const stageLog = jest.fn().mockResolvedValue(undefined);
+      const stageLog = vi.fn().mockResolvedValue(undefined);
       prepareMain();
       queueResults(ok(), ok(), ok(), ok('deployed'), failed(1));
 
@@ -308,7 +308,7 @@ describe('RemoteSshRunner', () => {
     });
 
     it('configures a domain route only after the immutable deployment succeeds', async () => {
-      const stageLog = jest.fn().mockResolvedValue(undefined);
+      const stageLog = vi.fn().mockResolvedValue(undefined);
       prepareMain();
       queueResults(
         ok(), // prepare
@@ -366,7 +366,7 @@ describe('RemoteSshRunner', () => {
     }
 
     it('restores compose.yml and app.env from the previous immutable snapshot without rebuilding', async () => {
-      const stageLog = jest.fn().mockResolvedValue(undefined);
+      const stageLog = vi.fn().mockResolvedValue(undefined);
       prisma.deployTarget.findUnique.mockResolvedValue(TARGET);
       prisma.deployment.findUnique.mockResolvedValue({ projectId: 'proj-1' });
       queueResults(ok('rolled-back'));
@@ -459,7 +459,7 @@ describe('RemoteSshRunner', () => {
     );
 
     it('runs the project-declared command once and records RUNNING then SUCCEEDED', async () => {
-      const stageLog = jest.fn().mockResolvedValue(undefined);
+      const stageLog = vi.fn().mockResolvedValue(undefined);
       prisma.projectBootstrapRun.findUnique.mockResolvedValue(null);
       prisma.deployTarget.findUnique.mockResolvedValue(TARGET);
       prisma.projectBootstrapSecret.findUnique.mockResolvedValue({ encryptedPassword: 'enc-admin-password' });

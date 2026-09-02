@@ -5,13 +5,13 @@ function buildFactory() {
   const unexpected = (name: string) => () => {
     throw new Error(`Unexpected runner call: ${name}`);
   };
-  const gitRunner = { execute: jest.fn(unexpected('git')) } as any;
-  const shellRunner = { execute: jest.fn(unexpected('shell')) } as any;
-  const dockerRunner = { execute: jest.fn(unexpected('docker')) } as any;
-  const remoteSshRunner = { execute: jest.fn(unexpected('remoteSsh')) } as any;
-  const buildkitRunner = { execute: jest.fn(unexpected('buildkit')) } as any;
-  const ociImageRunner = { execute: jest.fn(unexpected('ociImage')) } as any;
-  const templateSourceRunner = { execute: jest.fn(unexpected('templateSource')) } as any;
+  const gitRunner = { execute: vi.fn(unexpected('git')) } as any;
+  const shellRunner = { execute: vi.fn(unexpected('shell')) } as any;
+  const dockerRunner = { execute: vi.fn(unexpected('docker')) } as any;
+  const remoteSshRunner = { execute: vi.fn(unexpected('remoteSsh')) } as any;
+  const buildkitRunner = { execute: vi.fn(unexpected('buildkit')) } as any;
+  const ociImageRunner = { execute: vi.fn(unexpected('ociImage')) } as any;
+  const templateSourceRunner = { execute: vi.fn(unexpected('templateSource')) } as any;
   const factory = new RunnerFactory(
     gitRunner,
     shellRunner,
@@ -46,7 +46,7 @@ function makeContext(over: Partial<RunnerContext> = {}): RunnerContext {
     taskType: 'REPO_CLONE',
     refId: 'deploy-1',
     payload: { deployTargetId: 'target-1', note: 'unchanged' },
-    stageLogCallback: jest.fn(async () => undefined),
+    stageLogCallback: vi.fn(async () => undefined),
     ...over,
   };
 }

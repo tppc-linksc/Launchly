@@ -27,7 +27,7 @@
       </el-table-column>
       <el-table-column prop="deployMode" label="部署模式" width="120">
         <template #default="{ row }">
-          <el-tag :type="row.deployMode === 'remote' ? 'warning' : ''">{{
+          <el-tag :type="row.deployMode === 'remote' ? 'warning' : undefined">{{
             deployModeMap[row.deployMode] || row.deployMode
           }}</el-tag>
         </template>

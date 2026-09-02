@@ -5,7 +5,7 @@ import { Socket } from 'node:net';
 describe('AppModule production startup', () => {
   let app: INestApplication | undefined;
   let requestHandler: (req: IncomingMessage, res: ServerResponse) => void;
-  let prismaMock: { $queryRawUnsafe: jest.Mock };
+  let prismaMock: { $queryRawUnsafe: vi.Mock };
   let controllerNames: string[] = [];
 
   const originalEnv = {
@@ -29,7 +29,7 @@ describe('AppModule production startup', () => {
     ]);
 
     prismaMock = {
-      $queryRawUnsafe: jest.fn().mockResolvedValue([{ result: 1 }]),
+      $queryRawUnsafe: vi.fn().mockResolvedValue([{ result: 1 }]),
     };
 
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })

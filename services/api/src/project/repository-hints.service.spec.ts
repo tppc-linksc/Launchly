@@ -38,7 +38,7 @@ describe('RepositoryHintsService', () => {
   let service: RepositoryHintsService;
   // PrismaService is injected but not exercised by infer() / fillBlanksFromRepository().
   let prisma: MockPrismaService;
-  const fetchMock: jest.Mock = jest.fn();
+  const fetchMock: vi.Mock = vi.fn();
   let unexpectedFetches: string[];
 
   beforeEach(() => {
@@ -55,7 +55,7 @@ describe('RepositoryHintsService', () => {
 
   afterEach(() => {
     global.fetch = ORIGINAL_FETCH as typeof fetch;
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
     expect(unexpectedFetches).toEqual([]);
   });
 

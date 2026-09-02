@@ -2,15 +2,18 @@ import { NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { InvitationService } from './invitation.service';
 
-jest.mock('bcryptjs');
+vi.mock('bcryptjs', () => ({
+  compare: vi.fn(),
+  hash: vi.fn(),
+}));
 
 describe('InvitationService', () => {
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => vi.clearAllMocks());
 
   it('stores only a hash while returning the one-time raw invitation token', async () => {
     const prisma: any = {
       invitation: {
-        create: jest.fn(async ({ data }: any) => ({
+        create: vi.fn(async ({ data }: any) => ({
           id: 'invitation-1',
           ...data,
           usedCount: 0,
@@ -43,17 +46,17 @@ describe('InvitationService', () => {
       status: 'ACTIVE',
     };
     const tx: any = {
-      invitation: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn() },
-      user: { create: jest.fn().mockResolvedValue({ id: 'user-2', account: 'tester' }) },
-      workspaceMember: { create: jest.fn() },
-      auditLog: { create: jest.fn() },
+      invitation: { updateMany: vi.fn().mockResolvedValue({ count: 1 }), update: vi.fn() },
+      user: { create: vi.fn().mockResolvedValue({ id: 'user-2', account: 'tester' }) },
+      workspaceMember: { create: vi.fn() },
+      auditLog: { create: vi.fn() },
     };
     const prisma: any = {
-      invitation: { findUnique: jest.fn().mockResolvedValue(invitation) },
-      user: { findUnique: jest.fn().mockResolvedValue(null) },
-      $transaction: jest.fn((callback: any) => callback(tx)),
+      invitation: { findUnique: vi.fn().mockResolvedValue(invitation) },
+      user: { findUnique: vi.fn().mockResolvedValue(null) },
+      $transaction: vi.fn((callback: any) => callback(tx)),
     };
-    (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
+    (bcrypt.hash as vi.Mock).mockResolvedValue('hashed-password');
     const service = new InvitationService(prisma);
 
     await expect(service.accept('raw-token', { account: 'tester', password: 'password123' })).resolves.toEqual({
@@ -75,9 +78,9 @@ describe('InvitationService', () => {
   it('rejects expired invitations before hashing a password or starting a transaction', async () => {
     const prisma: any = {
       invitation: {
-        findUnique: jest.fn().mockResolvedValue({ status: 'ACTIVE', expiresAt: new Date(0), usedCount: 0, maxUses: 1 }),
+        findUnique: vi.fn().mockResolvedValue({ status: 'ACTIVE', expiresAt: new Date(0), usedCount: 0, maxUses: 1 }),
       },
-      $transaction: jest.fn(),
+      $transaction: vi.fn(),
     };
     const service = new InvitationService(prisma);
 

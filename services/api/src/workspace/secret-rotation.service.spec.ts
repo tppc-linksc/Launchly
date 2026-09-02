@@ -4,24 +4,24 @@ describe('SecretRotationService', () => {
   it('re-encrypts all workspace-owned secret stores in one transaction', async () => {
     const tx: any = {
       environmentVariable: {
-        findMany: jest.fn().mockResolvedValue([{ id: 'env-secret', encryptedValue: 'old-env' }]),
-        update: jest.fn(),
+        findMany: vi.fn().mockResolvedValue([{ id: 'env-secret', encryptedValue: 'old-env' }]),
+        update: vi.fn(),
       },
       repositoryCredential: {
-        findMany: jest.fn().mockResolvedValue([{ id: 'repo-secret', encryptedValue: 'old-repo' }]),
-        update: jest.fn(),
+        findMany: vi.fn().mockResolvedValue([{ id: 'repo-secret', encryptedValue: 'old-repo' }]),
+        update: vi.fn(),
       },
       deployTarget: {
-        findMany: jest.fn().mockResolvedValue([{ id: 'target-secret', encryptedCredential: 'old-target' }]),
-        update: jest.fn(),
+        findMany: vi.fn().mockResolvedValue([{ id: 'target-secret', encryptedCredential: 'old-target' }]),
+        update: vi.fn(),
       },
       projectBootstrapSecret: {
-        findMany: jest.fn().mockResolvedValue([{ projectId: 'bootstrap-project', encryptedPassword: 'old-bootstrap' }]),
-        update: jest.fn(),
+        findMany: vi.fn().mockResolvedValue([{ projectId: 'bootstrap-project', encryptedPassword: 'old-bootstrap' }]),
+        update: vi.fn(),
       },
     };
-    const prisma: any = { $transaction: jest.fn((callback: any) => callback(tx)) };
-    const secrets: any = { reencrypt: jest.fn((value: string) => `new(${value})`) };
+    const prisma: any = { $transaction: vi.fn((callback: any) => callback(tx)) };
+    const secrets: any = { reencrypt: vi.fn((value: string) => `new(${value})`) };
     const service = new SecretRotationService(prisma, secrets);
 
     await expect(service.rotate('workspace-a')).resolves.toEqual({ success: true, rotated: 4 });

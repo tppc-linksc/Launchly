@@ -34,7 +34,7 @@ jobs:
       - name: Formatting
         run: pnpm format:check
 
-      - name: API tests and coverage floor (Jest)
+      - name: API tests and coverage floor (Vitest)
         run: pnpm --dir services/api test:coverage
 
       - name: API startup smoke test

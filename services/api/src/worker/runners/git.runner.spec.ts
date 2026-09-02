@@ -9,9 +9,9 @@ import { RunnerContext } from './runner.factory';
 // Prisma's own module initialization can call fs.existsSync etc. without
 // throwing. Each test installs specific mock implementations as needed.
 
-jest.mock('fs', () => {
-  const real = jest.requireActual('fs');
-  const safe = () => jest.fn();
+vi.mock('fs', async () => {
+  const real = await vi.importActual<typeof import('fs')>('fs');
+  const safe = () => vi.fn();
   const overrides: any = {
     existsSync: safe(),
     rmSync: safe(),
@@ -19,21 +19,15 @@ jest.mock('fs', () => {
     writeFileSync: safe(),
     unlinkSync: safe(),
   };
-  (real as any).__launchlyFsOverrides = overrides;
-  return new Proxy(real, {
-    get(target, prop) {
-      if (prop in overrides) return overrides[prop as string];
-      return (target as any)[prop];
-    },
-  });
+  return { ...real, ...overrides, __launchlyFsOverrides: overrides };
 });
 
 const fsMock = (fs as any).__launchlyFsOverrides as {
-  existsSync: jest.Mock;
-  rmSync: jest.Mock;
-  mkdirSync: jest.Mock;
-  writeFileSync: jest.Mock;
-  unlinkSync: jest.Mock;
+  existsSync: vi.Mock;
+  rmSync: vi.Mock;
+  mkdirSync: vi.Mock;
+  writeFileSync: vi.Mock;
+  unlinkSync: vi.Mock;
 };
 
 const unexpectedSync =
@@ -42,7 +36,7 @@ const unexpectedSync =
     throw new Error(`Unexpected unconfigured fs.${name} call: ${JSON.stringify(args)}`);
   };
 
-let warnSpy: jest.SpyInstance;
+let warnSpy: vi.SpyInstance;
 const originalGithubBindings = process.env.LAUNCHLY_GITHUB_INSTALLATION_BINDINGS;
 
 beforeEach(() => {
@@ -55,7 +49,7 @@ beforeEach(() => {
   fsMock.mkdirSync.mockImplementation(unexpectedSync('mkdirSync'));
   fsMock.writeFileSync.mockImplementation(unexpectedSync('writeFileSync'));
   fsMock.unlinkSync.mockImplementation(unexpectedSync('unlinkSync'));
-  warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
 });
 
 afterEach(() => {
@@ -71,14 +65,14 @@ function makeContext(over: Partial<RunnerContext> = {}): RunnerContext {
     taskType: 'REPO_CLONE',
     refId: 'deploy-1',
     payload: { projectId: 'proj-1', repositoryUrl: 'https://github.com/acme/app.git', branch: 'main' },
-    stageLogCallback: jest.fn(async () => undefined),
+    stageLogCallback: vi.fn(async () => undefined),
     ...over,
   };
 }
 
 function makeDeps(over: any = {}) {
   const unexpectedAsync = (name: string) =>
-    jest.fn(async (...args: unknown[]) => {
+    vi.fn(async (...args: unknown[]) => {
       throw new Error(`Unexpected unconfigured ${name} call: ${JSON.stringify(args)}`);
     });
   const executor: any = { execFile: unexpectedAsync('executor.execFile') };
@@ -87,7 +81,7 @@ function makeDeps(over: any = {}) {
     repositoryCredential: { findUnique: unexpectedAsync('prisma.repositoryCredential.findUnique') },
   };
   const secrets: any = {
-    decrypt: jest.fn((...args: unknown[]) => {
+    decrypt: vi.fn((...args: unknown[]) => {
       throw new Error(`Unexpected unconfigured secrets.decrypt call: ${JSON.stringify(args)}`);
     }),
   };

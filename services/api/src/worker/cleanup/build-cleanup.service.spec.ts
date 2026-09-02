@@ -5,29 +5,23 @@ import { BuildCleanupService } from './build-cleanup.service';
 
 // ─── fs mock (per-method, default safe values; test installs stricter impls) ─
 
-jest.mock('fs', () => {
-  const real = jest.requireActual('fs');
-  const safe = () => jest.fn();
+vi.mock('fs', async () => {
+  const real = await vi.importActual<typeof import('fs')>('fs');
+  const safe = () => vi.fn();
   const overrides: any = {
     existsSync: safe(),
     readdirSync: safe(),
     statSync: safe(),
     rmSync: safe(),
   };
-  (real as any).__launchlyFsOverrides = overrides;
-  return new Proxy(real, {
-    get(target, prop) {
-      if (prop in overrides) return overrides[prop as string];
-      return (target as any)[prop];
-    },
-  });
+  return { ...real, ...overrides, __launchlyFsOverrides: overrides };
 });
 
 const fsMock = (fs as any).__launchlyFsOverrides as {
-  existsSync: jest.Mock;
-  readdirSync: jest.Mock;
-  statSync: jest.Mock;
-  rmSync: jest.Mock;
+  existsSync: vi.Mock;
+  readdirSync: vi.Mock;
+  statSync: vi.Mock;
+  rmSync: vi.Mock;
 };
 
 const ORIGINAL_ENV = { ...process.env };
@@ -59,7 +53,7 @@ afterEach(() => {
   } else {
     process.env.LAUNCHLY_CLEANUP_MAX_AGE_DAYS = ORIGINAL_ENV.LAUNCHLY_CLEANUP_MAX_AGE_DAYS;
   }
-  jest.restoreAllMocks();
+  vi.restoreAllMocks();
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -84,17 +78,17 @@ function makeService() {
 }
 
 function installLogger() {
-  const logSpy = jest.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
-  const warnSpy = jest.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+  const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+  const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
   return { logSpy, warnSpy };
 }
 
-function restoreLogger(spies: { logSpy: jest.SpyInstance; warnSpy: jest.SpyInstance }) {
+function restoreLogger(spies: { logSpy: vi.SpyInstance; warnSpy: vi.SpyInstance }) {
   spies.logSpy.mockRestore();
   spies.warnSpy.mockRestore();
 }
 
-function allOutput(spies: { logSpy: jest.SpyInstance; warnSpy: jest.SpyInstance }): string {
+function allOutput(spies: { logSpy: vi.SpyInstance; warnSpy: vi.SpyInstance }): string {
   return [...spies.logSpy.mock.calls, ...spies.warnSpy.mock.calls].map((c) => String(c[0])).join('');
 }
 
@@ -144,7 +138,7 @@ describe('BuildCleanupService.cleanupOldBuilds - directory filtering', () => {
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('a-file.txt', false), buildDirent('not-a-dir', false)] as any);
     svc.cleanupOldBuilds();
@@ -159,7 +153,7 @@ describe('BuildCleanupService.cleanupOldBuilds - directory filtering', () => {
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([
       buildDirent('regular.txt', false),
@@ -190,7 +184,7 @@ describe('BuildCleanupService.cleanupOldBuilds - cutoff boundary', () => {
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('old', true)] as any);
     fsMock.statSync.mockReturnValueOnce(statFor(now - 8 * DAY));
@@ -206,7 +200,7 @@ describe('BuildCleanupService.cleanupOldBuilds - cutoff boundary', () => {
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('exact', true)] as any);
     fsMock.statSync.mockReturnValueOnce(statFor(now - 7 * DAY));
@@ -221,7 +215,7 @@ describe('BuildCleanupService.cleanupOldBuilds - cutoff boundary', () => {
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('fresh', true)] as any);
     fsMock.statSync.mockReturnValueOnce(statFor(now - 1 * DAY));
@@ -239,7 +233,7 @@ describe('BuildCleanupService.cleanupOldBuilds - per-entry error isolation', () 
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('bad', true), buildDirent('good', true)] as any);
     fsMock.statSync.mockImplementation(((p: any) => {
@@ -261,7 +255,7 @@ describe('BuildCleanupService.cleanupOldBuilds - per-entry error isolation', () 
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('rmfail', true), buildDirent('good', true)] as any);
     fsMock.statSync.mockReturnValue(statFor(now - 8 * DAY));
@@ -280,7 +274,7 @@ describe('BuildCleanupService.cleanupOldBuilds - per-entry error isolation', () 
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([
       buildDirent('a', true),
@@ -308,7 +302,7 @@ describe('BuildCleanupService.cleanupOldBuilds - log gating', () => {
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([
       buildDirent('a', true),
@@ -328,7 +322,7 @@ describe('BuildCleanupService.cleanupOldBuilds - log gating', () => {
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('fresh1', true), buildDirent('fresh2', true)] as any);
     fsMock.statSync.mockReturnValue(statFor(now - 1 * DAY));
@@ -346,7 +340,7 @@ describe('BuildCleanupService - maxAgeDays env var read at construction', () => 
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('old', true)] as any);
     fsMock.statSync.mockReturnValueOnce(statFor(now - 7 * DAY));
@@ -361,7 +355,7 @@ describe('BuildCleanupService - maxAgeDays env var read at construction', () => 
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('8day', true), buildDirent('15day', true)] as any);
     fsMock.statSync.mockImplementation(((p: any) => {
@@ -383,7 +377,7 @@ describe('BuildCleanupService - maxAgeDays env var read at construction', () => 
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('fresh', true)] as any);
     // mtime = now (not less than cutoff = now - 0 = now) — kept
@@ -405,7 +399,7 @@ describe('BuildCleanupService - maxAgeDays env var read at construction', () => 
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('current', true)] as any);
     fsMock.statSync.mockReturnValueOnce(statFor(now));
@@ -422,7 +416,7 @@ describe('BuildCleanupService - maxAgeDays env var read at construction', () => 
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('ancient', true)] as any);
     fsMock.statSync.mockReturnValueOnce(statFor(now - 365 * DAY));
@@ -437,7 +431,7 @@ describe('BuildCleanupService - maxAgeDays env var read at construction', () => 
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('old', true)] as any);
     fsMock.statSync.mockReturnValueOnce(statFor(now - 8 * DAY));
@@ -452,7 +446,7 @@ describe('BuildCleanupService - maxAgeDays env var read at construction', () => 
     const svc = makeService();
     const spies = installLogger();
     const now = fixedNow();
-    const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
+    const nowSpy = vi.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readdirSync.mockReturnValueOnce([buildDirent('old', true)] as any);
     fsMock.statSync.mockReturnValueOnce(statFor(now - 8 * DAY));

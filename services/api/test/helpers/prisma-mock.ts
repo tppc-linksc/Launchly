@@ -1,13 +1,15 @@
+import { vi, type Mock } from 'vitest';
+
 export type MockPrismaService = {
   [K: string]: any;
-  $transaction: jest.Mock;
-  $queryRawUnsafe: jest.Mock;
+  $transaction: Mock;
+  $queryRawUnsafe: Mock;
 };
 
 export function createPrismaMock(): MockPrismaService {
   const mock: any = {
-    $transaction: jest.fn().mockImplementation(async (fn: any) => fn(mock)),
-    $queryRawUnsafe: jest.fn(),
+    $transaction: vi.fn().mockImplementation(async (fn: any) => fn(mock)),
+    $queryRawUnsafe: vi.fn(),
   };
 
   const models = [
@@ -38,17 +40,17 @@ export function createPrismaMock(): MockPrismaService {
 
   for (const model of models) {
     mock[model] = {
-      findUnique: jest.fn(),
-      findFirst: jest.fn(),
-      findMany: jest.fn(),
-      create: jest.fn(),
-      update: jest.fn(),
-      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-      delete: jest.fn(),
-      deleteMany: jest.fn(),
-      upsert: jest.fn(),
-      count: jest.fn(),
-      aggregate: jest.fn(),
+      findUnique: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+      delete: vi.fn(),
+      deleteMany: vi.fn(),
+      upsert: vi.fn(),
+      count: vi.fn(),
+      aggregate: vi.fn(),
     };
   }
 

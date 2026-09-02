@@ -10,7 +10,7 @@ function httpContext(request: any) {
 
 describe('AuditMutationInterceptor', () => {
   it('records the route template without leaking secret path parameters or bodies', async () => {
-    const auditLog = { create: jest.fn().mockResolvedValue({}) };
+    const auditLog = { create: vi.fn().mockResolvedValue({}) };
     const interceptor = new AuditMutationInterceptor({ auditLog } as any);
     const request = {
       method: 'POST',
@@ -70,7 +70,7 @@ describe('AuditMutationInterceptor', () => {
   });
 
   it('does not audit non-HTTP contexts or read requests', async () => {
-    const auditLog = { create: jest.fn() };
+    const auditLog = { create: vi.fn() };
     const interceptor = new AuditMutationInterceptor({ auditLog } as any);
     const next = { handle: () => of('ok') } as any;
     const rpc = { getType: () => 'rpc' } as any;
@@ -87,7 +87,7 @@ describe('AuditMutationInterceptor', () => {
     [{ method: 'POST', route: { path: '/jobs' }, params: {}, headers: {}, socket: {} }, '/jobs'],
     [{ method: 'POST', params: {}, headers: {}, socket: {} }, ''],
   ])('records the bounded path fallback without requiring Express URL fields', async (request, expectedPath) => {
-    const auditLog = { create: jest.fn().mockResolvedValue({}) };
+    const auditLog = { create: vi.fn().mockResolvedValue({}) };
     const interceptor = new AuditMutationInterceptor({ auditLog } as any);
 
     await lastValueFrom(interceptor.intercept(httpContext(request), { handle: () => of({}) } as any));
@@ -97,7 +97,7 @@ describe('AuditMutationInterceptor', () => {
   });
 
   it('records a successful mutation with semantic identity and bounded transport metadata', async () => {
-    const auditLog = { create: jest.fn().mockResolvedValue({}) };
+    const auditLog = { create: vi.fn().mockResolvedValue({}) };
     const interceptor = new AuditMutationInterceptor({ auditLog } as any);
     const request = {
       method: 'PUT',
@@ -127,7 +127,7 @@ describe('AuditMutationInterceptor', () => {
   });
 
   it('uses response identity for creates and does not fail the request when audit persistence fails', async () => {
-    const auditLog = { create: jest.fn().mockRejectedValue(new Error('audit unavailable')) };
+    const auditLog = { create: vi.fn().mockRejectedValue(new Error('audit unavailable')) };
     const interceptor = new AuditMutationInterceptor({ auditLog } as any);
     const request = {
       method: 'POST',
@@ -155,7 +155,7 @@ describe('AuditMutationInterceptor', () => {
   });
 
   it('prefers the created resource identity over its parent route parameter', async () => {
-    const auditLog = { create: jest.fn().mockResolvedValue({}) };
+    const auditLog = { create: vi.fn().mockResolvedValue({}) };
     const interceptor = new AuditMutationInterceptor({ auditLog } as any);
     const request = {
       method: 'POST',
@@ -177,7 +177,7 @@ describe('AuditMutationInterceptor', () => {
   });
 
   it('falls back to response user and workspace identity when authentication populated the response', async () => {
-    const auditLog = { create: jest.fn().mockResolvedValue({}) };
+    const auditLog = { create: vi.fn().mockResolvedValue({}) };
     const interceptor = new AuditMutationInterceptor({ auditLog } as any);
     const request = {
       method: 'POST',
@@ -204,7 +204,7 @@ describe('AuditMutationInterceptor', () => {
   });
 
   it('does not record a mutation whose handler fails', async () => {
-    const auditLog = { create: jest.fn() };
+    const auditLog = { create: vi.fn() };
     const interceptor = new AuditMutationInterceptor({ auditLog } as any);
     const request = { method: 'DELETE', originalUrl: '/api/deploy-targets/target-1', headers: {}, socket: {} };
 
@@ -226,7 +226,7 @@ describe('AuditMutationInterceptor', () => {
     ['projectId', 'project-1'],
     ['environmentId', 'environment-1'],
   ])('uses the %s route parameter as the audit target identity', async (parameter, value) => {
-    const auditLog = { create: jest.fn().mockResolvedValue({}) };
+    const auditLog = { create: vi.fn().mockResolvedValue({}) };
     const interceptor = new AuditMutationInterceptor({ auditLog } as any);
     const request = {
       method: 'PATCH',
@@ -246,7 +246,7 @@ describe('AuditMutationInterceptor', () => {
   });
 
   it('drops an oversized route identity instead of writing unbounded audit metadata', async () => {
-    const auditLog = { create: jest.fn().mockResolvedValue({}) };
+    const auditLog = { create: vi.fn().mockResolvedValue({}) };
     const interceptor = new AuditMutationInterceptor({ auditLog } as any);
     const request = {
       method: 'DELETE',

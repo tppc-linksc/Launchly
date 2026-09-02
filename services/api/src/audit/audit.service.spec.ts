@@ -12,7 +12,7 @@ describe('AuditService', () => {
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   // ============================================================
@@ -61,7 +61,7 @@ describe('AuditService', () => {
           targetId: 'tgt-1',
         }),
       });
-      const call = (prisma.auditLog.create as jest.Mock).mock.calls[0][0];
+      const call = (prisma.auditLog.create as vi.Mock).mock.calls[0][0];
       expect(call.data.detail).toBeNull();
     });
 
@@ -70,7 +70,7 @@ describe('AuditService', () => {
 
       await service.record('u1', 'ws-1', 'ACTION', 'Type', 'id', undefined);
 
-      const call = (prisma.auditLog.create as jest.Mock).mock.calls[0][0];
+      const call = (prisma.auditLog.create as vi.Mock).mock.calls[0][0];
       expect(call.data.detail).toBeNull();
     });
 
@@ -80,7 +80,7 @@ describe('AuditService', () => {
 
       await service.record('u1', 'ws-1', 'X', 'Type', 'id', detail);
 
-      const stored = (prisma.auditLog.create as jest.Mock).mock.calls[0][0].data.detail;
+      const stored = (prisma.auditLog.create as vi.Mock).mock.calls[0][0].data.detail;
       expect(stored).not.toBeNull();
       expect(JSON.parse(stored as string)).toEqual(detail);
     });
@@ -90,7 +90,7 @@ describe('AuditService', () => {
 
       await service.record('u1', 'ws-1', 'X', 'Type', 'id', {});
 
-      const stored = (prisma.auditLog.create as jest.Mock).mock.calls[0][0].data.detail;
+      const stored = (prisma.auditLog.create as vi.Mock).mock.calls[0][0].data.detail;
       // 非空对象走 JSON 分支：truthy 路径
       expect(stored).not.toBeNull();
       expect(JSON.parse(stored as string)).toEqual({});
@@ -158,7 +158,7 @@ describe('AuditService', () => {
 
       await service.list('ws-1', 0, 0);
 
-      const args = (prisma.auditLog.findMany as jest.Mock).mock.calls[0][0];
+      const args = (prisma.auditLog.findMany as vi.Mock).mock.calls[0][0];
       expect(args.take).toBe(0);
       expect(args.skip).toBe(0);
     });
@@ -190,7 +190,7 @@ describe('AuditService', () => {
         orderBy: { createdAt: 'desc' },
         take: 10001,
       });
-      const args = (prisma.auditLog.findMany as jest.Mock).mock.calls[0][0];
+      const args = (prisma.auditLog.findMany as vi.Mock).mock.calls[0][0];
       expect(args.take).toBe(10001);
       expect(args.skip).toBeUndefined();
       expect(result).toBe(rows);

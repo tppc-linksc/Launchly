@@ -17,12 +17,12 @@ import { ROLES_KEY } from '../common/decorators/roles.decorator';
  */
 describe('AuditLogController', () => {
   let controller: AuditLogController;
-  let auditService: { list: jest.Mock; listForExport: jest.Mock };
+  let auditService: { list: vi.Mock; listForExport: vi.Mock };
 
   beforeEach(async () => {
     auditService = {
-      list: jest.fn(),
-      listForExport: jest.fn(),
+      list: vi.fn(),
+      listForExport: vi.fn(),
     };
     // 即便 controller 实际只用到 service，这里也保留 prisma mock 以便将来扩展。
     const _prisma: MockPrismaService = createPrismaMock();
@@ -35,7 +35,7 @@ describe('AuditLogController', () => {
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   // ============================================================
@@ -101,8 +101,8 @@ describe('AuditLogController', () => {
       auditService.listForExport.mockResolvedValue([]);
 
       const res: any = {
-        setHeader: jest.fn(),
-        send: jest.fn(),
+        setHeader: vi.fn(),
+        send: vi.fn(),
       };
 
       await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
@@ -114,7 +114,7 @@ describe('AuditLogController', () => {
     it('调用 auditService.listForExport 并把 workspaceId 透传', async () => {
       auditService.listForExport.mockResolvedValue([]);
 
-      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      const res: any = { setHeader: vi.fn(), send: vi.fn() };
 
       await controller.export({ userId: 'u1', workspaceId: 'ws-export' }, res);
 
@@ -125,7 +125,7 @@ describe('AuditLogController', () => {
     it('在 CSV 头部写入 BOM（\\uFEFF）以兼容 Excel 中文环境', async () => {
       auditService.listForExport.mockResolvedValue([]);
 
-      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      const res: any = { setHeader: vi.fn(), send: vi.fn() };
 
       await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
 
@@ -156,7 +156,7 @@ describe('AuditLogController', () => {
         },
       ]);
 
-      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      const res: any = { setHeader: vi.fn(), send: vi.fn() };
 
       await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
 
@@ -180,7 +180,7 @@ describe('AuditLogController', () => {
         },
       ]);
 
-      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      const res: any = { setHeader: vi.fn(), send: vi.fn() };
 
       await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
 
@@ -199,7 +199,7 @@ describe('AuditLogController', () => {
           detail,
         },
       ]);
-      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      const res: any = { setHeader: vi.fn(), send: vi.fn() };
 
       await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
 
@@ -210,7 +210,7 @@ describe('AuditLogController', () => {
     it('无日志时只输出表头（不含数据行）', async () => {
       auditService.listForExport.mockResolvedValue([]);
 
-      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      const res: any = { setHeader: vi.fn(), send: vi.fn() };
 
       await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
 
@@ -229,7 +229,7 @@ describe('AuditLogController', () => {
         detail: null,
       };
       auditService.listForExport.mockResolvedValue(Array.from({ length: 10001 }, () => row));
-      const res: any = { setHeader: jest.fn(), send: jest.fn() };
+      const res: any = { setHeader: vi.fn(), send: vi.fn() };
 
       await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
 

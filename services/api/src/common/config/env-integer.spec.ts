@@ -13,7 +13,7 @@ import { resolveBoundedInt } from './env-integer';
  * 把无效输入落到合法值上时仍能跑通业务（label 参数仅用作日志前缀）。
  */
 describe('resolveBoundedInt', () => {
-  const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+  const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
   beforeEach(() => {
     warnSpy.mockClear();

@@ -26,14 +26,14 @@ beforeAll(() => {
 });
 
 // Fix wall-clock `new Date()` to FIXED_NOW so startedAt/finishedAt assertions are exact.
-// `jest.spyOn(Date, 'now')` only affects `Date.now()`, not `new Date()`.
+// `vi.spyOn(Date, 'now')` only affects `Date.now()`, not `new Date()`.
 // We must not fake setTimeout/setImmediate so async Prisma mocks still resolve.
 function pinClock() {
-  jest.useFakeTimers({ doNotFake: ['setImmediate', 'setTimeout', 'setInterval'] });
-  jest.setSystemTime(FIXED_NOW);
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(FIXED_NOW);
 }
 function unpinClock() {
-  jest.useRealTimers();
+  vi.useRealTimers();
 }
 
 afterAll(() => {
@@ -53,8 +53,8 @@ afterAll(() => {
 });
 
 function attachModelMissingFromHelper(prisma: MockPrismaService) {
-  (prisma as any).workerHeartbeat = { upsert: jest.fn().mockResolvedValue({}) };
-  (prisma as any).$queryRaw = jest.fn();
+  (prisma as any).workerHeartbeat = { upsert: vi.fn().mockResolvedValue({}) };
+  (prisma as any).$queryRaw = vi.fn();
   // A neutral non-terminal stage keeps unrelated success-path tests from
   // accidentally completing a deployment or throwing on an undefined mock.
   prisma.deploymentStageLog.findMany.mockResolvedValue([{ status: 'RUNNING' }] as any);
@@ -62,10 +62,10 @@ function attachModelMissingFromHelper(prisma: MockPrismaService) {
 
 function buildService(prisma: MockPrismaService) {
   const runnerFactory = {
-    execute: jest.fn(async () => {
+    execute: vi.fn(async () => {
       throw new Error('Unexpected unconfigured RunnerFactory.execute call');
     }),
-  } as unknown as jest.Mocked<RunnerFactory>;
+  } as unknown as vi.Mocked<RunnerFactory>;
   const service = new WorkerService(prisma as any, runnerFactory as any);
   return { service, runnerFactory };
 }
@@ -176,26 +176,26 @@ function makeStageLog(over: Partial<any> = {}) {
 
 describe('WorkerService lease renewal', () => {
   afterEach(() => {
-    jest.useRealTimers();
-    jest.restoreAllMocks();
+    vi.useRealTimers();
+    vi.restoreAllMocks();
   });
 
   it('extends only the RUNNING task still owned by this worker and stops cleanly', async () => {
-    jest.useFakeTimers();
-    jest.setSystemTime(FIXED_NOW);
+    vi.useFakeTimers();
+    vi.setSystemTime(FIXED_NOW);
     const prisma = createPrismaMock();
     attachModelMissingFromHelper(prisma);
     const { service } = buildService(prisma);
 
     const stop = (service as any).startLeaseRenewal('task-lease') as () => void;
-    await jest.advanceTimersByTimeAsync(60_000);
+    await vi.advanceTimersByTimeAsync(60_000);
 
     expect(prisma.task.updateMany).toHaveBeenCalledWith({
       where: { id: 'task-lease', status: 'RUNNING', leaseOwner: WORKER_ID },
       data: { leaseExpiresAt: new Date(FIXED_NOW_MS + TIMEOUT_MIN * 60 * 1000 + 60_000) },
     });
     stop();
-    expect(jest.getTimerCount()).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
 
@@ -208,13 +208,13 @@ function attachSimpleTx(
   } = {},
 ) {
   const tx: any = {
-    $queryRaw: jest.fn().mockResolvedValue(opts.rows ?? []),
+    $queryRaw: vi.fn().mockResolvedValue(opts.rows ?? []),
     task: {
-      update: jest.fn().mockResolvedValue(opts.updatedTask ?? null),
-      create: jest.fn().mockResolvedValue({ id: 'task-new' }),
+      update: vi.fn().mockResolvedValue(opts.updatedTask ?? null),
+      create: vi.fn().mockResolvedValue({ id: 'task-new' }),
     },
     deploymentStageLog: {
-      create: jest.fn().mockResolvedValue({ id: 'stage-rollback' }),
+      create: vi.fn().mockResolvedValue({ id: 'stage-rollback' }),
     },
   };
   if (opts.rollback) {
@@ -230,7 +230,7 @@ function attachSimpleTx(
 describe('WorkerService.init / heartbeat', () => {
   let service: WorkerService;
   let prisma: MockPrismaService;
-  let runnerFactory: jest.Mocked<RunnerFactory>;
+  let runnerFactory: vi.Mocked<RunnerFactory>;
 
   beforeEach(() => {
     prisma = createPrismaMock();
@@ -241,7 +241,7 @@ describe('WorkerService.init / heartbeat', () => {
 
   afterEach(() => {
     unpinClock();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('onModuleInit triggers a heartbeat upsert', async () => {
@@ -251,7 +251,7 @@ describe('WorkerService.init / heartbeat', () => {
 
   it('heartbeat writes READY with the configured workerId and current pid', async () => {
     await service.heartbeat();
-    const call = ((prisma as any).workerHeartbeat.upsert as jest.Mock).mock.calls[0][0];
+    const call = ((prisma as any).workerHeartbeat.upsert as vi.Mock).mock.calls[0][0];
     expect(call.where).toEqual({ workerId: WORKER_ID });
     expect(call.create.workerId).toBe(WORKER_ID);
     expect(call.create.status).toBe('READY');
@@ -263,7 +263,7 @@ describe('WorkerService.init / heartbeat', () => {
   });
 
   it('heartbeat propagates database errors', async () => {
-    ((prisma as any).workerHeartbeat.upsert as jest.Mock).mockRejectedValueOnce(new Error('db down'));
+    ((prisma as any).workerHeartbeat.upsert as vi.Mock).mockRejectedValueOnce(new Error('db down'));
     await expect(service.heartbeat()).rejects.toThrow('db down');
   });
 
@@ -276,7 +276,7 @@ describe('WorkerService.init / heartbeat', () => {
 
       await fallbackService.heartbeat();
 
-      const call = ((fallbackPrisma as any).workerHeartbeat.upsert as jest.Mock).mock.calls[0][0];
+      const call = ((fallbackPrisma as any).workerHeartbeat.upsert as vi.Mock).mock.calls[0][0];
       expect(call.where).toEqual({ workerId: `${hostname()}:${process.pid}` });
       expect(call.create.workerId).toBe(`${hostname()}:${process.pid}`);
     } finally {
@@ -290,7 +290,7 @@ describe('WorkerService.init / heartbeat', () => {
 describe('WorkerService.poll - claim transaction', () => {
   let service: WorkerService;
   let prisma: MockPrismaService;
-  let runnerFactory: jest.Mocked<RunnerFactory>;
+  let runnerFactory: vi.Mocked<RunnerFactory>;
 
   beforeEach(() => {
     prisma = createPrismaMock();
@@ -304,7 +304,7 @@ describe('WorkerService.poll - claim transaction', () => {
 
   afterEach(() => {
     unpinClock();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   function rawSqlText(call: any) {
@@ -418,7 +418,7 @@ describe('WorkerService.poll - claim transaction', () => {
 describe('WorkerService.poll - payload parsing', () => {
   let service: WorkerService;
   let prisma: MockPrismaService;
-  let runnerFactory: jest.Mocked<RunnerFactory>;
+  let runnerFactory: vi.Mocked<RunnerFactory>;
 
   beforeEach(() => {
     prisma = createPrismaMock();
@@ -431,7 +431,7 @@ describe('WorkerService.poll - payload parsing', () => {
 
   afterEach(() => {
     unpinClock();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('parses a valid JSON object payload', async () => {
@@ -507,7 +507,7 @@ describe('WorkerService.poll - payload parsing', () => {
 describe('WorkerService.poll - task type / stage mapping', () => {
   let service: WorkerService;
   let prisma: MockPrismaService;
-  let runnerFactory: jest.Mocked<RunnerFactory>;
+  let runnerFactory: vi.Mocked<RunnerFactory>;
 
   beforeEach(() => {
     prisma = createPrismaMock();
@@ -520,7 +520,7 @@ describe('WorkerService.poll - task type / stage mapping', () => {
 
   afterEach(() => {
     unpinClock();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   const mappings: Array<[string, string]> = [
@@ -600,7 +600,7 @@ describe('WorkerService.poll - task type / stage mapping', () => {
 describe('WorkerService.poll - stage log start', () => {
   let service: WorkerService;
   let prisma: MockPrismaService;
-  let runnerFactory: jest.Mocked<RunnerFactory>;
+  let runnerFactory: vi.Mocked<RunnerFactory>;
 
   beforeEach(() => {
     prisma = createPrismaMock();
@@ -611,7 +611,7 @@ describe('WorkerService.poll - stage log start', () => {
 
   afterEach(() => {
     unpinClock();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   function boot() {
@@ -753,7 +753,7 @@ describe('WorkerService.poll - stage log start', () => {
 describe('WorkerService.poll - runner success', () => {
   let service: WorkerService;
   let prisma: MockPrismaService;
-  let runnerFactory: jest.Mocked<RunnerFactory>;
+  let runnerFactory: vi.Mocked<RunnerFactory>;
 
   beforeEach(() => {
     prisma = createPrismaMock();
@@ -764,7 +764,7 @@ describe('WorkerService.poll - runner success', () => {
 
   afterEach(() => {
     unpinClock();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('redacts sensitive stdout before persisting the final stage log', async () => {
@@ -883,7 +883,7 @@ describe('WorkerService.poll - runner success', () => {
 describe('WorkerService.poll - next stage queue matrix', () => {
   let service: WorkerService;
   let prisma: MockPrismaService;
-  let runnerFactory: jest.Mocked<RunnerFactory>;
+  let runnerFactory: vi.Mocked<RunnerFactory>;
 
   beforeEach(() => {
     prisma = createPrismaMock();
@@ -894,7 +894,7 @@ describe('WorkerService.poll - next stage queue matrix', () => {
 
   afterEach(() => {
     unpinClock();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   async function runSuccess(taskType: string, payload: any, refId = 'deploy-1') {
@@ -982,7 +982,7 @@ describe('WorkerService.poll - next stage queue matrix', () => {
 describe('WorkerService.poll - deployment completion', () => {
   let service: WorkerService;
   let prisma: MockPrismaService;
-  let runnerFactory: jest.Mocked<RunnerFactory>;
+  let runnerFactory: vi.Mocked<RunnerFactory>;
 
   beforeEach(() => {
     prisma = createPrismaMock();
@@ -993,7 +993,7 @@ describe('WorkerService.poll - deployment completion', () => {
 
   afterEach(() => {
     unpinClock();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   function bootSuccess(taskType = 'REPO_CLONE') {
@@ -1128,7 +1128,7 @@ describe('WorkerService.poll - deployment completion', () => {
 describe('WorkerService.poll - runner failure', () => {
   let service: WorkerService;
   let prisma: MockPrismaService;
-  let runnerFactory: jest.Mocked<RunnerFactory>;
+  let runnerFactory: vi.Mocked<RunnerFactory>;
 
   beforeEach(() => {
     prisma = createPrismaMock();
@@ -1139,7 +1139,7 @@ describe('WorkerService.poll - runner failure', () => {
 
   afterEach(() => {
     unpinClock();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('retries the task and re-queues PENDING when under maxAttempts; deployment stays alive', async () => {
@@ -1324,7 +1324,7 @@ describe('WorkerService.poll - runner failure', () => {
 describe('WorkerService.timeoutStuckTasks', () => {
   let service: WorkerService;
   let prisma: MockPrismaService;
-  let runnerFactory: jest.Mocked<RunnerFactory>;
+  let runnerFactory: vi.Mocked<RunnerFactory>;
 
   beforeEach(() => {
     prisma = createPrismaMock();
@@ -1335,7 +1335,7 @@ describe('WorkerService.timeoutStuckTasks', () => {
 
   afterEach(() => {
     unpinClock();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('queries by status=RUNNING and startedAt < (now - 30 min)', async () => {
@@ -1518,7 +1518,7 @@ describe('WorkerService.timeoutStuckTasks', () => {
 describe('WorkerService - automatic rollback', () => {
   let service: WorkerService;
   let prisma: MockPrismaService;
-  let runnerFactory: jest.Mocked<RunnerFactory>;
+  let runnerFactory: vi.Mocked<RunnerFactory>;
 
   function standardFailedDeploymentFixture() {
     return makePENDINGDeployment({
@@ -1538,7 +1538,7 @@ describe('WorkerService - automatic rollback', () => {
 
   afterEach(() => {
     unpinClock();
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   it('skips rollback when the failed deployment can no longer be found', async () => {

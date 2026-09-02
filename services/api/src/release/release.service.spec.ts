@@ -8,7 +8,7 @@ const FIXED_PUBLISH_TIME = new Date('2026-08-13T06:00:00.000Z');
 describe('ReleaseService', () => {
   let service: ReleaseService;
   let prisma: MockPrismaService;
-  let gateCheck: { checkGates: jest.Mock };
+  let gateCheck: { checkGates: vi.Mock };
 
   const projectId = 'proj-1';
   const userId = 'user-1';
@@ -30,7 +30,7 @@ describe('ReleaseService', () => {
 
   beforeEach(() => {
     prisma = createPrismaMock();
-    gateCheck = { checkGates: jest.fn() };
+    gateCheck = { checkGates: vi.fn() };
     service = new ReleaseService(prisma as any, gateCheck as unknown as GateCheckService);
   });
 
@@ -168,12 +168,12 @@ describe('ReleaseService', () => {
 
   describe('publish', () => {
     beforeEach(() => {
-      jest.useFakeTimers().setSystemTime(FIXED_PUBLISH_TIME);
+      vi.useFakeTimers().setSystemTime(FIXED_PUBLISH_TIME);
       prisma.release.findUnique.mockResolvedValue(baseRelease);
     });
 
     afterEach(() => {
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('throws NotFoundException without consulting GateCheckService or exemptions or update', async () => {
@@ -368,7 +368,7 @@ describe('ReleaseService', () => {
     });
 
     it('records the reason and ticket in the workspace audit log', async () => {
-      const audit = { record: jest.fn().mockResolvedValue({ id: 'audit-1' }) };
+      const audit = { record: vi.fn().mockResolvedValue({ id: 'audit-1' }) };
       const auditedService = new ReleaseService(prisma as any, gateCheck as unknown as GateCheckService, audit as any);
       prisma.gateExemption.create.mockResolvedValue({ id: 'ex-1' });
       prisma.release.findUnique.mockResolvedValue({ project: { workspaceId: 'ws-1' } } as any);

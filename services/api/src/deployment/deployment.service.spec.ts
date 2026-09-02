@@ -56,7 +56,7 @@ describe('DeploymentService.create', () => {
     prisma.$transaction.mockImplementation(async (fn: any) => {
       const tx = {
         deployment: {
-          create: jest.fn().mockResolvedValue({
+          create: vi.fn().mockResolvedValue({
             id: 'deploy-1',
             ...baseDto,
             status: 'PENDING',
@@ -64,8 +64,8 @@ describe('DeploymentService.create', () => {
             createdAt: new Date(),
           }),
         },
-        deploymentStageLog: { createMany: jest.fn().mockResolvedValue({ count: 4 }) },
-        task: { create: jest.fn().mockResolvedValue({ id: 'task-1' }) },
+        deploymentStageLog: { createMany: vi.fn().mockResolvedValue({ count: 4 }) },
+        task: { create: vi.fn().mockResolvedValue({ id: 'task-1' }) },
       };
       return fn(tx);
     });
@@ -110,10 +110,10 @@ describe('DeploymentService.create', () => {
   it('should create deployment with complete worker payload', async () => {
     await service.create(baseDto, userId, workspaceId);
 
-    const tx = (prisma.$transaction as jest.Mock).mock.calls[0][0];
+    const tx = (prisma.$transaction as vi.Mock).mock.calls[0][0];
     const mockTx = {
       deployment: {
-        create: jest.fn().mockResolvedValue({
+        create: vi.fn().mockResolvedValue({
           id: 'deploy-1',
           ...baseDto,
           status: 'PENDING',
@@ -121,12 +121,12 @@ describe('DeploymentService.create', () => {
           createdAt: new Date(),
         }),
       },
-      deploymentStageLog: { createMany: jest.fn() },
-      task: { create: jest.fn() },
+      deploymentStageLog: { createMany: vi.fn() },
+      task: { create: vi.fn() },
     };
     await tx(mockTx);
 
-    const taskCreate = mockTx.task.create as jest.Mock;
+    const taskCreate = mockTx.task.create as vi.Mock;
     const payload = JSON.parse(taskCreate.mock.calls[0][0].data.payload);
 
     expect(payload.repositoryUrl).toBe('https://github.com/acme/app.git');
@@ -251,7 +251,7 @@ describe('DeploymentService.createAutomated idempotency', () => {
     prisma.deployment.findFirst.mockResolvedValue(null);
     prisma.project.findUnique.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
     prisma.deployTarget.findFirst.mockResolvedValue({ id: 'target-1' });
-    const create = jest.spyOn(service, 'create').mockResolvedValue({ id: 'deploy-1' } as any);
+    const create = vi.spyOn(service, 'create').mockResolvedValue({ id: 'deploy-1' } as any);
 
     const result = await service.createAutomated(input);
 
@@ -290,7 +290,7 @@ describe('DeploymentService.createAutomated idempotency', () => {
     prisma.deployment.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(winner as any);
     prisma.project.findUnique.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
     prisma.deployTarget.findFirst.mockResolvedValue({ id: 'target-1' });
-    jest.spyOn(service, 'create').mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }));
+    vi.spyOn(service, 'create').mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }));
 
     const result = await service.createAutomated(input);
 

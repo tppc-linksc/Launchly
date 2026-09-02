@@ -1,15 +1,14 @@
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import * as ssh2 from 'ssh2';
 import { DeployTargetService } from './deploy-target.service';
 import { SecretValueService } from '../environment/secret-value.service';
 import { createPrismaMock, MockPrismaService } from '../../test/helpers/prisma-mock';
 
-jest.mock('ssh2', () => ({
-  Client: jest.fn(),
+vi.mock('ssh2', () => ({
+  Client: vi.fn(),
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const ssh2 = require('ssh2');
-const ClientMock = ssh2.Client as unknown as jest.Mock;
+const ClientMock = ssh2.Client as unknown as vi.Mock;
 
 const PRIVATE_KEY_PLAINTEXT = 'PRIVATE_KEY_PLAINTEXT_DO_NOT_LEAK';
 const ENCRYPTED_PRIVATE_KEY = 'v2:encrypted-private-key-do-not-leak';
@@ -31,9 +30,9 @@ interface SshMockState {
 }
 
 function makeSshMockState(): SshMockState {
-  const handlers: any = { stderr: { on: jest.fn(), handlers: {} } };
+  const handlers: any = { stderr: { on: vi.fn(), handlers: {} } };
   const stream: any = {
-    on: jest.fn((event: string, cb: any) => {
+    on: vi.fn((event: string, cb: any) => {
       handlers[event] = cb;
       return stream;
     }),
@@ -52,49 +51,49 @@ function makeSshMockState(): SshMockState {
 
 function makeSshClient(state: SshMockState): any {
   const client = {
-    on: jest.fn((event: string, cb: any) => {
+    on: vi.fn((event: string, cb: any) => {
       state.handlers[event] = cb;
       return client;
     }),
-    connect: jest.fn((cfg: any) => {
+    connect: vi.fn((cfg: any) => {
       state.lastConnectConfig = cfg;
       return client;
     }),
-    exec: jest.fn((cmd: string, cb: any) => {
+    exec: vi.fn((cmd: string, cb: any) => {
       state.lastExecCommand = cmd;
       state.execCallback = cb;
     }),
-    end: jest.fn(),
+    end: vi.fn(),
   };
   state.client = client;
   return client;
 }
 
-function makeSecrets(): jest.Mocked<SecretValueService> {
+function makeSecrets(): vi.Mocked<SecretValueService> {
   return {
-    encrypt: jest
+    encrypt: vi
       .fn()
       .mockImplementation((plain: string) =>
         plain === PRIVATE_KEY_PLAINTEXT ? ENCRYPTED_PRIVATE_KEY : 'v2:enc(' + plain + ')',
       ),
-    decrypt: jest.fn().mockImplementation((enc: string) => {
+    decrypt: vi.fn().mockImplementation((enc: string) => {
       if (enc === ENCRYPTED_PRIVATE_KEY) return PRIVATE_KEY_PLAINTEXT;
       throw new Error('unknown ciphertext');
     }),
-    reencrypt: jest.fn(),
-    mask: jest.fn(),
-  } as unknown as jest.Mocked<SecretValueService>;
+    reencrypt: vi.fn(),
+    mask: vi.fn(),
+  } as unknown as vi.Mocked<SecretValueService>;
 }
 
-function makeSecretsDecryptFail(): jest.Mocked<SecretValueService> {
+function makeSecretsDecryptFail(): vi.Mocked<SecretValueService> {
   return {
-    encrypt: jest.fn((plain: string) => 'v2:enc(' + plain + ')'),
-    decrypt: jest.fn(() => {
+    encrypt: vi.fn((plain: string) => 'v2:enc(' + plain + ')'),
+    decrypt: vi.fn(() => {
       throw new Error('decrypt-failure');
     }),
-    reencrypt: jest.fn(),
-    mask: jest.fn(),
-  } as unknown as jest.Mocked<SecretValueService>;
+    reencrypt: vi.fn(),
+    mask: vi.fn(),
+  } as unknown as vi.Mocked<SecretValueService>;
 }
 
 function triggerReady(state: SshMockState) {
@@ -157,7 +156,7 @@ function assertNoLeakage(serialised: string) {
 describe('DeployTargetService', () => {
   let service: DeployTargetService;
   let prisma: MockPrismaService;
-  let secrets: jest.Mocked<SecretValueService>;
+  let secrets: vi.Mocked<SecretValueService>;
   let ssh: SshMockState;
 
   beforeEach(() => {
@@ -170,7 +169,7 @@ describe('DeployTargetService', () => {
   });
 
   afterEach(() => {
-    jest.clearAllMocks();
+    vi.clearAllMocks();
   });
 
   // ============================================================
@@ -376,7 +375,7 @@ describe('DeployTargetService', () => {
       await service.create('proj-1', baseDto);
 
       expect(secrets.encrypt).toHaveBeenCalledWith(PRIVATE_KEY_PLAINTEXT);
-      const data = (prisma.deployTarget.create as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.deployTarget.create as vi.Mock).mock.calls[0][0].data;
       expect(data.encryptedCredential).toBe(ENCRYPTED_PRIVATE_KEY);
       expect(JSON.stringify(data)).not.toContain(PRIVATE_KEY_PLAINTEXT);
     });
@@ -394,7 +393,7 @@ describe('DeployTargetService', () => {
     it('honours custom type, port, and workRoot exactly as provided', async () => {
       await service.create('proj-1', { ...baseDto, type: 'OCI', port: 5022, workRoot: '/opt/launchly' });
 
-      const data = (prisma.deployTarget.create as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.deployTarget.create as vi.Mock).mock.calls[0][0].data;
       expect(data.type).toBe('OCI');
       expect(data.port).toBe(5022);
       expect(data.workRoot).toBe('/opt/launchly');
@@ -405,7 +404,7 @@ describe('DeployTargetService', () => {
       const dto: any = { ...rest, authMethod: 'KEY' };
       await service.create('proj-1', dto);
 
-      const data = (prisma.deployTarget.create as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.deployTarget.create as vi.Mock).mock.calls[0][0].data;
       expect(data.type).toBe('SSH');
       expect(data.port).toBe(22);
       expect(data.authMethod).toBe('KEY');
@@ -416,23 +415,23 @@ describe('DeployTargetService', () => {
 
       await service.create('proj-1', dto);
 
-      const data = (prisma.deployTarget.create as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.deployTarget.create as vi.Mock).mock.calls[0][0].data;
       expect(data.authMethod).toBe('KEY');
     });
 
     it('workRoot: leading/trailing whitespace and trailing slashes are normalized', async () => {
       await service.create('proj-1', { ...baseDto, workRoot: '  /srv/launchly///  ' });
 
-      const data = (prisma.deployTarget.create as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.deployTarget.create as vi.Mock).mock.calls[0][0].data;
       expect(data.workRoot).toBe('/srv/launchly');
     });
 
     it('workRoot: missing or empty/whitespace uses the default /var/lib/launchly', async () => {
       await service.create('proj-1', { ...baseDto, workRoot: undefined });
-      expect((prisma.deployTarget.create as jest.Mock).mock.calls[0][0].data.workRoot).toBe(DEFAULT_WORK_ROOT);
+      expect((prisma.deployTarget.create as vi.Mock).mock.calls[0][0].data.workRoot).toBe(DEFAULT_WORK_ROOT);
 
       await service.create('proj-1', { ...baseDto, workRoot: '   ' });
-      expect((prisma.deployTarget.create as jest.Mock).mock.calls[1][0].data.workRoot).toBe(DEFAULT_WORK_ROOT);
+      expect((prisma.deployTarget.create as vi.Mock).mock.calls[1][0].data.workRoot).toBe(DEFAULT_WORK_ROOT);
     });
 
     it.each([
@@ -594,7 +593,7 @@ describe('DeployTargetService', () => {
       // 这避免了"部分字段更新导致数据违反安全约束"的问题。
       await service.update('tgt-1', { name: 'just-name' });
 
-      const data = (prisma.deployTarget.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.deployTarget.update as vi.Mock).mock.calls[0][0].data;
       expect(data.name).toBe('just-name');
       // 未变更字段应被合并保留
       expect(data.host).toBe('10.0.0.1');
@@ -609,7 +608,7 @@ describe('DeployTargetService', () => {
       await service.update('tgt-1', { credential: PRIVATE_KEY_PLAINTEXT });
 
       expect(secrets.encrypt).toHaveBeenCalledWith(PRIVATE_KEY_PLAINTEXT);
-      const data = (prisma.deployTarget.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.deployTarget.update as vi.Mock).mock.calls[0][0].data;
       expect(data.encryptedCredential).toBe(ENCRYPTED_PRIVATE_KEY);
     });
 
@@ -617,14 +616,14 @@ describe('DeployTargetService', () => {
       await service.update('tgt-1', { name: 'x' });
 
       expect(secrets.encrypt).not.toHaveBeenCalled();
-      const data = (prisma.deployTarget.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.deployTarget.update as vi.Mock).mock.calls[0][0].data;
       expect('encryptedCredential' in data).toBe(false);
     });
 
     it('workRoot is normalized (trim + trailing slashes removed) on update', async () => {
       await service.update('tgt-1', { workRoot: '  /srv/data///  ' });
 
-      const data = (prisma.deployTarget.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.deployTarget.update as vi.Mock).mock.calls[0][0].data;
       expect(data.workRoot).toBe('/srv/data');
     });
 
@@ -863,7 +862,7 @@ describe('DeployTargetService', () => {
       const result = await promise;
       expect(result.success).toBe(false);
       expect(result.message).toContain('工作目录必须是安全的非根绝对路径');
-      const updateCalls = (prisma.deployTarget.update as jest.Mock).mock.calls;
+      const updateCalls = (prisma.deployTarget.update as vi.Mock).mock.calls;
       expect(updateCalls.some((c: any[]) => c[0].data.status === 'FAILED')).toBe(true);
       expect(updateCalls.every((c: any[]) => c[0].data.status !== 'VERIFIED')).toBe(true);
     });
@@ -1053,7 +1052,7 @@ describe('DeployTargetService', () => {
       const after = Date.now();
 
       expect(result.success).toBe(true);
-      const updateArgs = (prisma.deployTarget.update as jest.Mock).mock.calls[0][0];
+      const updateArgs = (prisma.deployTarget.update as vi.Mock).mock.calls[0][0];
       expect(updateArgs.where).toEqual({ id: 'tgt-1' });
       expect(updateArgs.data.status).toBe('VERIFIED');
       // lastVerifiedAt is a Date instance captured during verify execution
@@ -1062,7 +1061,7 @@ describe('DeployTargetService', () => {
       expect(t).toBeGreaterThanOrEqual(before);
       expect(t).toBeLessThanOrEqual(after);
       expect(ssh.client.end).toHaveBeenCalledTimes(1);
-      const allUpdateCalls = (prisma.deployTarget.update as jest.Mock).mock.calls;
+      const allUpdateCalls = (prisma.deployTarget.update as vi.Mock).mock.calls;
       expect(allUpdateCalls.every((c: any[]) => c[0].data.status !== 'FAILED')).toBe(true);
     });
   });
@@ -1185,7 +1184,7 @@ describe('DeployTargetService', () => {
       expect(ClientMock).toHaveBeenCalledTimes(1);
       expect(ssh.client.connect).not.toHaveBeenCalled();
       expect(ssh.client.end).toHaveBeenCalledTimes(1);
-      const updateCalls = (prisma.deployTarget.update as jest.Mock).mock.calls;
+      const updateCalls = (prisma.deployTarget.update as vi.Mock).mock.calls;
       expect(updateCalls.every((c: any[]) => c[0].data.status !== 'VERIFIED')).toBe(true);
     });
 
@@ -1210,7 +1209,7 @@ describe('DeployTargetService', () => {
       deliverExecResult(ssh, '', 'boom', 1);
       await promise;
 
-      const updateCalls = (prisma.deployTarget.update as jest.Mock).mock.calls;
+      const updateCalls = (prisma.deployTarget.update as vi.Mock).mock.calls;
       expect(updateCalls.every((c: any[]) => c[0].data.status !== 'VERIFIED')).toBe(true);
     });
   });

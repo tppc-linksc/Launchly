@@ -3,16 +3,16 @@ import { GlobalExceptionFilter } from './global-exception.filter';
 import { SecurityException } from '../errors/security.exception';
 
 interface MockResponse {
-  status: jest.Mock<MockResponse, [number]>;
-  json: jest.Mock<MockResponse, [unknown]>;
+  status: vi.Mock<MockResponse, [number]>;
+  json: vi.Mock<MockResponse, [unknown]>;
   statusCode?: number;
   body?: unknown;
 }
 
 function makeHost(): { host: ArgumentsHost; response: MockResponse } {
   const response: MockResponse = {
-    status: jest.fn(),
-    json: jest.fn(),
+    status: vi.fn(),
+    json: vi.fn(),
   };
   response.status.mockImplementation((code: number) => {
     response.statusCode = code;
@@ -35,10 +35,10 @@ function makeHost(): { host: ArgumentsHost; response: MockResponse } {
 
 describe('GlobalExceptionFilter', () => {
   let filter: GlobalExceptionFilter;
-  let loggerErrorSpy: jest.SpyInstance;
+  let loggerErrorSpy: vi.SpyInstance;
 
   beforeEach(() => {
-    loggerErrorSpy = jest.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    loggerErrorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
     filter = new GlobalExceptionFilter();
   });
 

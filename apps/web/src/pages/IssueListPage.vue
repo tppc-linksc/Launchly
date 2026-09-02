@@ -107,21 +107,21 @@ const filterStatus = ref('');
 const filterPriority = ref('');
 const form = ref({ title: '', description: '', priority: 'P2' });
 
-function priorityType(p: string): '' | 'success' | 'info' | 'warning' | 'danger' {
-  const map: Record<string, '' | 'success' | 'info' | 'warning' | 'danger'> = {
+function priorityType(p: string): 'success' | 'info' | 'warning' | 'danger' | 'primary' {
+  const map: Record<string, 'success' | 'info' | 'warning' | 'danger' | 'primary'> = {
     P0: 'danger',
     P1: 'warning',
-    P2: '',
+    P2: 'primary',
     P3: 'info',
   };
   return map[p] || 'info';
 }
 
-function statusType(s: string): '' | 'success' | 'info' | 'warning' | 'danger' {
-  const map: Record<string, '' | 'success' | 'info' | 'warning' | 'danger'> = {
+function statusType(s: string): 'success' | 'info' | 'warning' | 'danger' | 'primary' {
+  const map: Record<string, 'success' | 'info' | 'warning' | 'danger' | 'primary'> = {
     OPEN: 'info',
-    ASSIGNED: '',
-    FIXING: '',
+    ASSIGNED: 'primary',
+    FIXING: 'warning',
     FIXED: 'success',
     REOPENED: 'warning',
     CLOSED: 'info',

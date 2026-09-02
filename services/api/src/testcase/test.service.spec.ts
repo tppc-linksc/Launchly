@@ -49,23 +49,23 @@ describe('TestService', () => {
       prisma.testCase.create.mockResolvedValue({ id: testCaseId });
 
       await service.createTestCase(projectId, { title: 't', priority: 'P0' });
-      expect((prisma.testCase.create as jest.Mock).mock.calls[0][0].data.priority).toBe('P0');
+      expect((prisma.testCase.create as vi.Mock).mock.calls[0][0].data.priority).toBe('P0');
 
       await service.createTestCase(projectId, { title: 't', priority: 'P1' });
-      expect((prisma.testCase.create as jest.Mock).mock.calls[1][0].data.priority).toBe('P1');
+      expect((prisma.testCase.create as vi.Mock).mock.calls[1][0].data.priority).toBe('P1');
 
       await service.createTestCase(projectId, { title: 't', priority: 'P3' });
-      expect((prisma.testCase.create as jest.Mock).mock.calls[2][0].data.priority).toBe('P3');
+      expect((prisma.testCase.create as vi.Mock).mock.calls[2][0].data.priority).toBe('P3');
     });
 
     it('current behaviour: priority=null or priority="" both fall through to P2 via `|| "P2"`', async () => {
       prisma.testCase.create.mockResolvedValue({ id: testCaseId });
 
       await service.createTestCase(projectId, { title: 't1', priority: null as any });
-      expect((prisma.testCase.create as jest.Mock).mock.calls[0][0].data.priority).toBe('P2');
+      expect((prisma.testCase.create as vi.Mock).mock.calls[0][0].data.priority).toBe('P2');
 
       await service.createTestCase(projectId, { title: 't2', priority: '' });
-      expect((prisma.testCase.create as jest.Mock).mock.calls[1][0].data.priority).toBe('P2');
+      expect((prisma.testCase.create as vi.Mock).mock.calls[1][0].data.priority).toBe('P2');
     });
   });
 
@@ -131,7 +131,7 @@ describe('TestService', () => {
 
       await service.updateTestCase(testCaseId, { title: 'only' });
 
-      const data = (prisma.testCase.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.testCase.update as vi.Mock).mock.calls[0][0].data;
       expect(data).toEqual({ title: 'only' });
       expect('description' in data).toBe(false);
       expect('priority' in data).toBe(false);
@@ -149,7 +149,7 @@ describe('TestService', () => {
         priority: null as any,
       });
 
-      const data = (prisma.testCase.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.testCase.update as vi.Mock).mock.calls[0][0].data;
       expect(data.title).toBeNull();
       expect(data.description).toBe('');
       expect(data.priority).toBeNull();
@@ -171,7 +171,7 @@ describe('TestService', () => {
 
       await service.updateTestCase(testCaseId, { title: 't', projectId: 'INJECTED', id: 'INJECTED' } as any);
 
-      const data = (prisma.testCase.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.testCase.update as vi.Mock).mock.calls[0][0].data;
       expect('projectId' in data).toBe(false);
       expect('id' in data).toBe(false);
     });
@@ -197,8 +197,8 @@ describe('TestService', () => {
       const cases = [{ id: 'tc-a' }, { id: 'tc-b' }];
       const run = { id: testRunId, totalCases: 2 };
       const tx = {
-        testRun: { create: jest.fn().mockResolvedValue(run) },
-        testRunCase: { createMany: jest.fn().mockResolvedValue({ count: 2 }) },
+        testRun: { create: vi.fn().mockResolvedValue(run) },
+        testRunCase: { createMany: vi.fn().mockResolvedValue({ count: 2 }) },
       };
       prisma.deployment.findUnique.mockResolvedValue({
         id: deploymentId,
@@ -239,8 +239,8 @@ describe('TestService', () => {
     it('when zero ACTIVE cases: still creates the Run, totalCases=0, no createMany call', async () => {
       const run = { id: testRunId, totalCases: 0, status: 'PENDING', finishedAt: null };
       const tx = {
-        testRun: { create: jest.fn().mockResolvedValue(run) },
-        testRunCase: { createMany: jest.fn() },
+        testRun: { create: vi.fn().mockResolvedValue(run) },
+        testRunCase: { createMany: vi.fn() },
       };
       prisma.deployment.findUnique.mockResolvedValue({
         id: deploymentId,
@@ -345,11 +345,11 @@ describe('TestService', () => {
 
   describe('updateTestRunCase identity check', () => {
     beforeEach(() => {
-      jest.useFakeTimers().setSystemTime(FIXED_TIME);
+      vi.useFakeTimers().setSystemTime(FIXED_TIME);
     });
 
     afterEach(() => {
-      jest.useRealTimers();
+      vi.useRealTimers();
     });
 
     it('findFirst uses both caseId and testRunId', async () => {
@@ -411,7 +411,7 @@ describe('TestService', () => {
     let capturedRunUpdate: any;
 
     beforeEach(() => {
-      jest.useFakeTimers().setSystemTime(FIXED_TIME);
+      vi.useFakeTimers().setSystemTime(FIXED_TIME);
       // Default: the case is found and updated successfully
       prisma.testRunCase.findFirst.mockResolvedValue({ id: runCaseId, testRunId });
       prisma.testRunCase.update.mockResolvedValue({ id: runCaseId });
@@ -430,7 +430,7 @@ describe('TestService', () => {
           }),
         );
       } finally {
-        jest.useRealTimers();
+        vi.useRealTimers();
         capturedRunUpdate = undefined;
       }
     });

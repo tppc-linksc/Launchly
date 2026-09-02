@@ -1,12 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import * as fs from 'fs';
 import { BuildkitRunner } from './buildkit.runner';
 import { RunnerContext } from './runner.factory';
 
 // ─── fs mock (per-method, default safe values; test installs stricter impls) ─
 
-jest.mock('fs', () => {
-  const real = jest.requireActual('fs');
-  const safe = () => jest.fn();
+vi.mock('fs', async () => {
+  const real = await vi.importActual<typeof import('fs')>('fs');
+  const safe = () => vi.fn();
   const overrides: any = {
     existsSync: safe(),
     writeFileSync: safe(),
@@ -14,23 +15,15 @@ jest.mock('fs', () => {
     rmSync: safe(),
     mkdirSync: safe(),
   };
-  (real as any).__launchlyFsOverrides = overrides;
-  return new Proxy(real, {
-    get(target, prop) {
-      if (prop in overrides) return overrides[prop as string];
-      return (target as any)[prop];
-    },
-  });
+  return { ...real, ...overrides, __launchlyFsOverrides: overrides };
 });
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const fs = require('fs');
 const fsMock = (fs as any).__launchlyFsOverrides as {
-  existsSync: jest.Mock;
-  writeFileSync: jest.Mock;
-  readFileSync: jest.Mock;
-  rmSync: jest.Mock;
-  mkdirSync: jest.Mock;
+  existsSync: vi.Mock;
+  writeFileSync: vi.Mock;
+  readFileSync: vi.Mock;
+  rmSync: vi.Mock;
+  mkdirSync: vi.Mock;
 };
 
 const ORIGINAL_REGISTRY = process.env.LAUNCHLY_DEFAULT_REGISTRY_REPOSITORY;
@@ -75,14 +68,14 @@ function makeContext(over: Partial<RunnerContext> = {}): RunnerContext {
     taskType: 'PROJECT_BUILD',
     refId: 'deploy-1',
     payload: { containerPort: 3000 },
-    stageLogCallback: jest.fn(async () => undefined),
+    stageLogCallback: vi.fn(async () => undefined),
     ...over,
   };
 }
 
 function makePrismaDouble() {
   const unexpectedAsync = (name: string) =>
-    jest.fn(async (...args: unknown[]) => {
+    vi.fn(async (...args: unknown[]) => {
       throw new Error(`Unexpected unconfigured ${name} call: ${JSON.stringify(args)}`);
     });
   const prisma: any = {
@@ -95,9 +88,9 @@ function makePrismaDouble() {
   return prisma;
 }
 
-function makeExecutor(): { execFile: jest.Mock } {
+function makeExecutor(): { execFile: vi.Mock } {
   return {
-    execFile: jest.fn(async (...args: unknown[]): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
+    execFile: vi.fn(async (...args: unknown[]): Promise<{ stdout: string; stderr: string; exitCode: number }> => {
       throw new Error(`Unexpected unconfigured executor.execFile call: ${JSON.stringify(args)}`);
     }),
   };
@@ -134,7 +127,7 @@ describe('BuildkitRunner.execute - pre-validation', () => {
 
   it('propagates deployment.findUnique errors (current behavior: no try/catch around findUnique)', async () => {
     const prisma = makePrismaDouble();
-    (prisma.deployment.findUnique as jest.Mock).mockImplementationOnce(() => Promise.reject(new Error('db down')));
+    (prisma.deployment.findUnique as vi.Mock).mockImplementationOnce(() => Promise.reject(new Error('db down')));
     const executor = makeExecutor();
     const runner = makeRunner(prisma, executor);
     await expect(runner.execute(makeContext())).rejects.toThrow('db down');
@@ -629,12 +622,12 @@ describe('BuildkitRunner.execute - buildctl call, callback, metadata', () => {
     const runner = makeRunner(prisma, executor);
     const ctx = makeContext();
     const order: string[] = [];
-    (ctx.stageLogCallback as jest.Mock).mockImplementation(async () => {
+    (ctx.stageLogCallback as vi.Mock).mockImplementation(async () => {
       order.push('cb');
     });
     // Replace setupFullSuccess's mockResolvedValueOnce with a single mockImplementation so the impl is unambiguous.
-    (executor.execFile as jest.Mock).mockReset();
-    (executor.execFile as jest.Mock).mockImplementationOnce(async () => {
+    (executor.execFile as vi.Mock).mockReset();
+    (executor.execFile as vi.Mock).mockImplementationOnce(async () => {
       order.push('execFile');
       return { stdout: '', stderr: '', exitCode: 0 };
     });
@@ -655,7 +648,7 @@ describe('BuildkitRunner.execute - buildctl call, callback, metadata', () => {
     fsMock.existsSync.mockReturnValueOnce(true).mockReturnValueOnce(true).mockReturnValueOnce(true);
     const executor = makeExecutor();
     const ctx = makeContext();
-    (ctx.stageLogCallback as jest.Mock).mockRejectedValueOnce(new Error('stage log unavailable'));
+    (ctx.stageLogCallback as vi.Mock).mockRejectedValueOnce(new Error('stage log unavailable'));
     const runner = makeRunner(prisma, executor);
 
     await expect(runner.execute(ctx)).rejects.toThrow('stage log unavailable');
@@ -725,7 +718,7 @@ describe('BuildkitRunner.execute - buildctl call, callback, metadata', () => {
     });
     fsMock.existsSync.mockReturnValue(true);
     const executor = makeExecutor();
-    (executor.execFile as jest.Mock).mockImplementationOnce(() => Promise.reject(new Error('spawn ENOENT buildctl')));
+    (executor.execFile as vi.Mock).mockImplementationOnce(() => Promise.reject(new Error('spawn ENOENT buildctl')));
     const runner = makeRunner(prisma, executor);
     await expect(runner.execute(makeContext())).rejects.toThrow('spawn ENOENT buildctl');
     expect(prisma.artifact.upsert).not.toHaveBeenCalled();
@@ -914,11 +907,11 @@ describe('BuildkitRunner.execute - data writes', () => {
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValueOnce(metadataJson(`sha256:${FIXED_DIGEST}`));
     executor.execFile.mockResolvedValueOnce({ stdout: 'build-stdout', stderr: 'build-stderr', exitCode: 0 });
-    (prisma.artifact.upsert as jest.Mock).mockImplementation(async () => {
+    (prisma.artifact.upsert as vi.Mock).mockImplementation(async () => {
       order.push('upsert');
       return { id: 'a' };
     });
-    (prisma.deployment.update as jest.Mock).mockImplementation(async () => {
+    (prisma.deployment.update as vi.Mock).mockImplementation(async () => {
       order.push('update');
       return { id: 'd' };
     });
@@ -940,7 +933,7 @@ describe('BuildkitRunner.execute - data writes', () => {
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValueOnce(metadataJson(`sha256:${FIXED_DIGEST}`));
     executor.execFile.mockResolvedValueOnce({ stdout: 'build-stdout', stderr: 'build-stderr', exitCode: 0 });
-    (prisma.artifact.upsert as jest.Mock).mockImplementationOnce(() => Promise.reject(new Error('unique violation')));
+    (prisma.artifact.upsert as vi.Mock).mockImplementationOnce(() => Promise.reject(new Error('unique violation')));
     const runner = makeRunner(prisma, executor);
     await expect(runner.execute(makeContext())).rejects.toThrow('unique violation');
     expect(prisma.deployment.update).not.toHaveBeenCalled();
@@ -960,7 +953,7 @@ describe('BuildkitRunner.execute - data writes', () => {
     fsMock.readFileSync.mockReturnValueOnce(metadataJson(`sha256:${FIXED_DIGEST}`));
     executor.execFile.mockResolvedValueOnce({ stdout: 'build-stdout', stderr: 'build-stderr', exitCode: 0 });
     prisma.artifact.upsert.mockResolvedValueOnce({ id: 'a' });
-    (prisma.deployment.update as jest.Mock).mockImplementationOnce(() =>
+    (prisma.deployment.update as vi.Mock).mockImplementationOnce(() =>
       Promise.reject(new Error('deployment row locked')),
     );
     const runner = makeRunner(prisma, executor);

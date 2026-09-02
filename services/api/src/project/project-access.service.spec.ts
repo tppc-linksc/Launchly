@@ -16,7 +16,7 @@ describe('ProjectAccessService.require', () => {
     prisma = createPrismaMock();
     // The shared prisma-mock factory does not register projectMember; attach the
     // surface used by ProjectAccessService manually so each test gets fresh fns.
-    (prisma as any).projectMember = { findFirst: jest.fn() };
+    (prisma as any).projectMember = { findFirst: vi.fn() };
     service = new ProjectAccessService(prisma as any);
   });
 

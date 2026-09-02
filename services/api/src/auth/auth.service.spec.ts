@@ -6,18 +6,21 @@ import { UnauthorizedException, BadRequestException, HttpException } from '@nest
 import * as bcrypt from 'bcryptjs';
 import { createPrismaMock, MockPrismaService } from '../../test/helpers/prisma-mock';
 
-jest.mock('bcryptjs');
+vi.mock('bcryptjs', () => ({
+  compare: vi.fn(),
+  hash: vi.fn(),
+}));
 
 describe('AuthService', () => {
   let service: AuthService;
   let prisma: MockPrismaService;
-  let jwtService: jest.Mocked<JwtService>;
+  let jwtService: vi.Mocked<JwtService>;
 
   beforeEach(async () => {
     prisma = createPrismaMock();
     jwtService = {
-      sign: jest.fn().mockReturnValue('mock-token'),
-      verify: jest.fn(),
+      sign: vi.fn().mockReturnValue('mock-token'),
+      verify: vi.fn(),
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -31,7 +34,7 @@ describe('AuthService', () => {
     service = module.get<AuthService>(AuthService);
   });
 
-  afterEach(() => jest.resetAllMocks());
+  afterEach(() => vi.resetAllMocks());
 
   describe('login', () => {
     it('should return tokens and user info on valid credentials', async () => {
@@ -39,7 +42,7 @@ describe('AuthService', () => {
       const member = { workspaceId: 'w1', role: 'OWNER', workspace: { name: 'My Workspace' } };
 
       prisma.user.findUnique.mockResolvedValue(user);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (bcrypt.compare as vi.Mock).mockResolvedValue(true);
       prisma.workspaceMember.findFirst.mockResolvedValue(member);
       jwtService.sign.mockReturnValue('mock-token');
 
@@ -84,7 +87,7 @@ describe('AuthService', () => {
     it('should throw UnauthorizedException when password is wrong', async () => {
       const user = { id: 'u1', account: 'admin', passwordHash: 'hashed' };
       prisma.user.findUnique.mockResolvedValue(user);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
+      (bcrypt.compare as vi.Mock).mockResolvedValue(false);
 
       await expect(service.login('admin', 'wrong')).rejects.toThrow(UnauthorizedException);
     });
@@ -92,7 +95,7 @@ describe('AuthService', () => {
     it('should handle user with no workspace membership', async () => {
       const user = { id: 'u1', account: 'admin', displayName: 'Admin', passwordHash: 'hashed' };
       prisma.user.findUnique.mockResolvedValue(user);
-      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
+      (bcrypt.compare as vi.Mock).mockResolvedValue(true);
       prisma.workspaceMember.findFirst.mockResolvedValue(null);
 
       const result = await service.login('admin', 'password');
@@ -185,15 +188,15 @@ describe('AuthService', () => {
 
   describe('createOwner', () => {
     it('should create user, workspace, and member in a transaction', async () => {
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
+      (bcrypt.hash as vi.Mock).mockResolvedValue('hashed-pw');
 
       const txMock = {
         user: {
-          count: jest.fn().mockResolvedValue(0),
-          create: jest.fn().mockResolvedValue({ id: 'u1', account: 'admin', displayName: 'Admin' }),
+          count: vi.fn().mockResolvedValue(0),
+          create: vi.fn().mockResolvedValue({ id: 'u1', account: 'admin', displayName: 'Admin' }),
         },
-        workspace: { create: jest.fn().mockResolvedValue({ id: 'w1', name: 'Org' }) },
-        workspaceMember: { create: jest.fn().mockResolvedValue({}) },
+        workspace: { create: vi.fn().mockResolvedValue({ id: 'w1', name: 'Org' }) },
+        workspaceMember: { create: vi.fn().mockResolvedValue({}) },
       };
       prisma.$transaction.mockImplementation(async (fn: any) => fn(txMock));
 
@@ -210,24 +213,22 @@ describe('AuthService', () => {
     });
 
     it('should throw BadRequestException when users already exist', async () => {
-      prisma.$transaction.mockImplementation(async (fn: any) =>
-        fn({ user: { count: jest.fn().mockResolvedValue(1) } }),
-      );
+      prisma.$transaction.mockImplementation(async (fn: any) => fn({ user: { count: vi.fn().mockResolvedValue(1) } }));
 
       await expect(service.createOwner('admin', 'pass', 'Admin', 'Org')).rejects.toThrow(BadRequestException);
       expect(prisma.$transaction).toHaveBeenCalled();
     });
 
     it('should use account as displayName when displayName is null', async () => {
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
+      (bcrypt.hash as vi.Mock).mockResolvedValue('hashed-pw');
 
       const txMock = {
         user: {
-          count: jest.fn().mockResolvedValue(0),
-          create: jest.fn().mockResolvedValue({ id: 'u1', account: 'admin', displayName: 'admin' }),
+          count: vi.fn().mockResolvedValue(0),
+          create: vi.fn().mockResolvedValue({ id: 'u1', account: 'admin', displayName: 'admin' }),
         },
-        workspace: { create: jest.fn().mockResolvedValue({ id: 'w1', name: 'Org' }) },
-        workspaceMember: { create: jest.fn().mockResolvedValue({}) },
+        workspace: { create: vi.fn().mockResolvedValue({ id: 'w1', name: 'Org' }) },
+        workspaceMember: { create: vi.fn().mockResolvedValue({}) },
       };
       prisma.$transaction.mockImplementation(async (fn: any) => fn(txMock));
 
@@ -239,7 +240,7 @@ describe('AuthService', () => {
     });
 
     it.each(['P2002', 'P2034'])('maps concurrent initialization error %s to BadRequest', async (code) => {
-      (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
+      (bcrypt.hash as vi.Mock).mockResolvedValue('hashed-pw');
       prisma.$transaction.mockRejectedValue(Object.assign(new Error('transaction conflict'), { code }));
 
       await expect(service.createOwner('admin', 'pass', 'Admin', 'Org')).rejects.toThrow(BadRequestException);

@@ -9,15 +9,15 @@ function makeContext(overrides: Partial<RunnerContext> = {}): RunnerContext {
     taskType: 'HEALTH_CHECK',
     refId: 'deploy-1',
     payload: { host: 'localhost', healthPort: 3000, healthCheckPath: '/health' },
-    stageLogCallback: jest.fn(async () => undefined),
+    stageLogCallback: vi.fn(async () => undefined),
     ...overrides,
   };
 }
 
 function makeExecutor() {
   return {
-    exec: jest.fn<Promise<ExecResult>, any[]>(),
-    execFile: jest.fn<Promise<ExecResult>, any[]>(),
+    exec: vi.fn<(...args: any[]) => Promise<ExecResult>>(),
+    execFile: vi.fn<(...args: any[]) => Promise<ExecResult>>(),
   };
 }
 
@@ -82,8 +82,8 @@ describe('ShellRunner build compatibility path', () => {
 
 describe('ShellRunner health checks', () => {
   afterEach(() => {
-    jest.restoreAllMocks();
-    jest.useRealTimers();
+    vi.restoreAllMocks();
+    vi.useRealTimers();
   });
 
   it.each(['200', '204'])('accepts an exact successful HTTP status %s', async (status) => {
@@ -111,13 +111,13 @@ describe('ShellRunner health checks', () => {
   it.each(['301', '399', '200abc', '', 'abc'])(
     'rejects non-2xx or malformed status %j after exactly ten attempts and nine waits',
     async (status) => {
-      jest.useFakeTimers();
-      const timeoutSpy = jest.spyOn(global, 'setTimeout');
+      vi.useFakeTimers();
+      const timeoutSpy = vi.spyOn(global, 'setTimeout');
       const executor = makeExecutor();
       executor.execFile.mockResolvedValue({ stdout: status, stderr: '', exitCode: 0 });
 
       const pending = makeRunner(executor).execute(makeContext());
-      await jest.runAllTimersAsync();
+      await vi.runAllTimersAsync();
       const result = await pending;
 
       expect(executor.execFile).toHaveBeenCalledTimes(10);
@@ -128,12 +128,12 @@ describe('ShellRunner health checks', () => {
   );
 
   it('requires curl exitCode 0 even when stdout is 200', async () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     const executor = makeExecutor();
     executor.execFile.mockResolvedValue({ stdout: '200', stderr: 'connection reset', exitCode: 22 });
 
     const pending = makeRunner(executor).execute(makeContext());
-    await jest.runAllTimersAsync();
+    await vi.runAllTimersAsync();
     const result = await pending;
 
     expect(result.success).toBe(false);
@@ -141,7 +141,7 @@ describe('ShellRunner health checks', () => {
   });
 
   it('continues after transient executor errors and succeeds on a later attempt', async () => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     const executor = makeExecutor();
     executor.execFile
       .mockRejectedValueOnce(new Error('network down'))
@@ -149,7 +149,7 @@ describe('ShellRunner health checks', () => {
       .mockResolvedValueOnce({ stdout: '200', stderr: '', exitCode: 0 });
 
     const pending = makeRunner(executor).execute(makeContext());
-    await jest.runAllTimersAsync();
+    await vi.runAllTimersAsync();
     const result = await pending;
 
     expect(executor.execFile).toHaveBeenCalledTimes(3);

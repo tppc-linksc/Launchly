@@ -13,7 +13,7 @@ describe('NotificationService', () => {
     prisma = createPrismaMock();
     // The shared prisma-mock factory does not register updateMany; attach it
     // manually so markAllRead can be exercised.
-    (prisma.notification as any).updateMany = jest.fn();
+    (prisma.notification as any).updateMany = vi.fn();
     service = new NotificationService(prisma as any);
   });
 
@@ -37,7 +37,7 @@ describe('NotificationService', () => {
       await service.list(userId);
       await service.list(otherUserId);
 
-      const calls = (prisma.notification.findMany as jest.Mock).mock.calls;
+      const calls = (prisma.notification.findMany as vi.Mock).mock.calls;
       expect(calls[0][0]).toEqual({ where: { userId }, orderBy: { createdAt: 'desc' } });
       expect(calls[1][0]).toEqual({ where: { userId: otherUserId }, orderBy: { createdAt: 'desc' } });
     });
@@ -62,7 +62,7 @@ describe('NotificationService', () => {
       await service.markAllRead(userId);
       await service.markAllRead(otherUserId);
 
-      const calls = (prisma.notification.updateMany as jest.Mock).mock.calls;
+      const calls = (prisma.notification.updateMany as vi.Mock).mock.calls;
       expect(calls[0][0]).toEqual({ where: { userId, read: false }, data: { read: true } });
       expect(calls[1][0]).toEqual({ where: { userId: otherUserId, read: false }, data: { read: true } });
     });

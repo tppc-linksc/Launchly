@@ -96,7 +96,7 @@ describe('EnvironmentService', () => {
     it('uses where = { id: current environmentId } and writes only the single allowed field', async () => {
       await service.update(envId, { name: 'new-name' }, workspaceId);
 
-      const call = (prisma.environment.update as jest.Mock).mock.calls[0][0];
+      const call = (prisma.environment.update as vi.Mock).mock.calls[0][0];
       expect(call.where).toEqual({ id: envId });
       expect(call.data).toEqual({ name: 'new-name' });
     });
@@ -121,7 +121,7 @@ describe('EnvironmentService', () => {
 
       await service.update(envId, dto, workspaceId);
 
-      const call = (prisma.environment.update as jest.Mock).mock.calls[0][0];
+      const call = (prisma.environment.update as vi.Mock).mock.calls[0][0];
       expect(call.where).toEqual({ id: envId });
       expect(call.data).toEqual(dto);
     });
@@ -137,7 +137,7 @@ describe('EnvironmentService', () => {
 
       await service.update(envId, dto as any, workspaceId);
 
-      const data = (prisma.environment.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.environment.update as vi.Mock).mock.calls[0][0].data;
       expect(data.name).toBe('keep');
       expect(data.deployDir).toBe('');
       expect('url' in data).toBe(false);
@@ -150,7 +150,7 @@ describe('EnvironmentService', () => {
 
       await service.update(envId, dto, workspaceId);
 
-      const data = (prisma.environment.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.environment.update as vi.Mock).mock.calls[0][0].data;
       expect('status' in data).toBe(false);
       expect('projectId' in data).toBe(false);
     });
@@ -168,7 +168,7 @@ describe('EnvironmentService', () => {
     it('normalises a valid domain to lowercased + trimmed and writes it', async () => {
       await service.update(envId, { domain: '  App.Example.COM  ' }, workspaceId);
 
-      const data = (prisma.environment.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.environment.update as vi.Mock).mock.calls[0][0].data;
       expect(data.domain).toBe('app.example.com');
       expect(prisma.environment.findFirst).toHaveBeenCalledWith({
         where: { id: { not: envId }, domain: 'app.example.com', project: { workspaceId } },
@@ -179,7 +179,7 @@ describe('EnvironmentService', () => {
     it('writes the normalised null when domain is an empty string (and skips conflict query)', async () => {
       await service.update(envId, { domain: '' }, workspaceId);
 
-      const data = (prisma.environment.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.environment.update as vi.Mock).mock.calls[0][0].data;
       expect(data.domain).toBeNull();
       expect(prisma.environment.findFirst).not.toHaveBeenCalled();
     });
@@ -187,7 +187,7 @@ describe('EnvironmentService', () => {
     it('writes null and skips conflict query when domain is all whitespace', async () => {
       await service.update(envId, { domain: '     ' }, workspaceId);
 
-      const data = (prisma.environment.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.environment.update as vi.Mock).mock.calls[0][0].data;
       expect(data.domain).toBeNull();
       expect(prisma.environment.findFirst).not.toHaveBeenCalled();
     });
@@ -231,14 +231,14 @@ describe('EnvironmentService', () => {
     it('writes externalPort=0 (the guard is != null, so 0 is treated as present)', async () => {
       await service.update(envId, { externalPort: 0 }, workspaceId);
 
-      const data = (prisma.environment.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.environment.update as vi.Mock).mock.calls[0][0].data;
       expect(data.externalPort).toBe(0);
     });
 
     it('writes enabled=false / autoDeploy=false / requireCi=false explicitly', async () => {
       await service.update(envId, { enabled: false, autoDeploy: false, requireCi: false }, workspaceId);
 
-      const data = (prisma.environment.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.environment.update as vi.Mock).mock.calls[0][0].data;
       expect(data.enabled).toBe(false);
       expect(data.autoDeploy).toBe(false);
       expect(data.requireCi).toBe(false);
@@ -247,28 +247,28 @@ describe('EnvironmentService', () => {
     it('writes deployTargetId for a non-empty value', async () => {
       await service.update(envId, { deployTargetId: 'target-1' }, workspaceId);
 
-      const data = (prisma.environment.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.environment.update as vi.Mock).mock.calls[0][0].data;
       expect(data.deployTargetId).toBe('target-1');
     });
 
     it('normalizes deployTargetId="" to null to detach the target', async () => {
       await service.update(envId, { deployTargetId: '' }, workspaceId);
 
-      const data = (prisma.environment.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.environment.update as vi.Mock).mock.calls[0][0].data;
       expect(data.deployTargetId).toBeNull();
     });
 
     it('skips deployTargetId when it is null (per the != null guard)', async () => {
       await service.update(envId, { deployTargetId: null as any }, workspaceId);
 
-      const data = (prisma.environment.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.environment.update as vi.Mock).mock.calls[0][0].data;
       expect('deployTargetId' in data).toBe(false);
     });
 
     it('skips deployTargetId when it is undefined', async () => {
       await service.update(envId, { deployTargetId: undefined as any }, workspaceId);
 
-      const data = (prisma.environment.update as jest.Mock).mock.calls[0][0].data;
+      const data = (prisma.environment.update as vi.Mock).mock.calls[0][0].data;
       expect('deployTargetId' in data).toBe(false);
     });
   });

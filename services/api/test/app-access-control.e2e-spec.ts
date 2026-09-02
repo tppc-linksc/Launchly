@@ -10,7 +10,7 @@
 //    真实 projectId 不一致必须拒绝 (KI-004 / KI-005)
 //
 // 约束:
-//  - 不修改生产代码 / 不修改 prisma-mock.ts / 不修改 jest config / 不修改 package.json
+//  - 不修改生产代码 / 不修改 prisma-mock.ts / 不修改测试配置 / 不修改 package.json
 //  - 真实 jwt (common.module 默认 secret) 签发 token,避免绕过 JwtAuthGuard
 //  - PrismaService 整体 useValue 替换;SecretValue / Audit / GateCheck / ssh2.Client 全部 mock
 //  - 每个测试用唯一 jwt jti + 唯一 prisma stub,绝不依赖执行顺序
@@ -23,6 +23,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ModulesContainer } from '@nestjs/core';
 import { IncomingMessage, ServerResponse } from 'node:http';
 import { Socket } from 'node:net';
+import * as ssh2 from 'ssh2';
 import { createPrismaMock, MockPrismaService } from './helpers/prisma-mock';
 import { AppModule } from '../src/app.module';
 import { PrismaService } from '../src/common/prisma/prisma.service';
@@ -32,13 +33,11 @@ import { GateCheckService } from '../src/release/gate-check.service';
 import { GlobalExceptionFilter } from '../src/common/filters/global-exception.filter';
 
 // ssh2.Client 必须在模块加载前 mock,否则 DeployTargetService.verify 会发出真实连接
-jest.mock('ssh2', () => ({
-  Client: jest.fn(),
+vi.mock('ssh2', () => ({
+  Client: vi.fn(),
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const ssh2 = require('ssh2');
-const SshClientMock = ssh2.Client as unknown as jest.Mock;
+const SshClientMock = ssh2.Client as unknown as vi.Mock;
 
 const HOST_KEY_FIXTURE = 'ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAITESTKEY trusted-nas';
 
@@ -84,29 +83,29 @@ function makeTokenMap(jwt: JwtService) {
   };
 }
 
-function makeSecretsStub(): jest.Mocked<SecretValueService> {
+function makeSecretsStub(): vi.Mocked<SecretValueService> {
   return {
-    encrypt: jest.fn().mockImplementation((plain: string) => `v2:stub:${Buffer.from(plain).toString('base64')}`),
-    decrypt: jest.fn().mockImplementation((enc: string) => {
+    encrypt: vi.fn().mockImplementation((plain: string) => `v2:stub:${Buffer.from(plain).toString('base64')}`),
+    decrypt: vi.fn().mockImplementation((enc: string) => {
       if (enc.startsWith('v2:stub:')) return Buffer.from(enc.slice(7), 'base64').toString('utf8');
       throw new Error('unknown ciphertext');
     }),
-    reencrypt: jest.fn(),
-    mask: jest.fn().mockImplementation((plain: string) => '****'),
-  } as unknown as jest.Mocked<SecretValueService>;
+    reencrypt: vi.fn(),
+    mask: vi.fn().mockImplementation((plain: string) => '****'),
+  } as unknown as vi.Mocked<SecretValueService>;
 }
 
-function makeAuditStub(): jest.Mocked<AuditService> {
+function makeAuditStub(): vi.Mocked<AuditService> {
   return {
-    record: jest.fn().mockResolvedValue(undefined),
-    list: jest.fn().mockResolvedValue([]),
-    listForExport: jest.fn().mockResolvedValue([]),
-  } as unknown as jest.Mocked<AuditService>;
+    record: vi.fn().mockResolvedValue(undefined),
+    list: vi.fn().mockResolvedValue([]),
+    listForExport: vi.fn().mockResolvedValue([]),
+  } as unknown as vi.Mocked<AuditService>;
 }
 
-function makeGateStub(): jest.Mocked<GateCheckService> {
+function makeGateStub(): vi.Mocked<GateCheckService> {
   return {
-    checkGates: jest.fn().mockResolvedValue({
+    checkGates: vi.fn().mockResolvedValue({
       gates: [
         { name: 'staging-deploy', passed: true, message: 'staging deploy passed' },
         { name: 'health-check', passed: true, message: 'health ok' },
@@ -115,15 +114,15 @@ function makeGateStub(): jest.Mocked<GateCheckService> {
       ],
       allPassed: true,
     }),
-  } as unknown as jest.Mocked<GateCheckService>;
+  } as unknown as vi.Mocked<GateCheckService>;
 }
 
 function makeSshOkStub() {
   return {
-    on: jest.fn(),
-    connect: jest.fn(),
-    exec: jest.fn(),
-    end: jest.fn(),
+    on: vi.fn(),
+    connect: vi.fn(),
+    exec: vi.fn(),
+    end: vi.fn(),
   };
 }
 
@@ -265,7 +264,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
         'aggregate',
       ]) {
         const original = prisma[m][op].getMockImplementation();
-        (prisma[m][op] as jest.Mock).mockImplementation((args: unknown) => {
+        (prisma[m][op] as vi.Mock).mockImplementation((args: unknown) => {
           if (original) {
             return (original as Function).call(prisma[m][op], args);
           }
@@ -319,7 +318,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       'count',
       'aggregate',
     ];
-    (prisma as any).projectMember = Object.fromEntries(allOps.map((op) => [op, jest.fn()]));
+    (prisma as any).projectMember = Object.fromEntries(allOps.map((op) => [op, vi.fn()]));
     for (const m of [
       'user',
       'workspace',
@@ -345,7 +344,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       'auditLog',
     ]) {
       for (const op of allOps) {
-        if (!(prisma as any)[m][op]) (prisma as any)[m][op] = jest.fn();
+        if (!(prisma as any)[m][op]) (prisma as any)[m][op] = vi.fn();
       }
     }
     const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
@@ -798,7 +797,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
       expect(messages.some((m: string) => m.includes('privilege'))).toBe(true);
       // The undeclared field must not reach the persistence layer.
-      expect((prisma.environmentVariable.create as jest.Mock).mock.calls.length).toBe(0);
+      expect((prisma.environmentVariable.create as vi.Mock).mock.calls.length).toBe(0);
     });
 
     it('POST variable 400 for empty body (DTO @IsNotEmpty)', async () => {
@@ -1008,7 +1007,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
       expect(messages.some((m: string) => m.includes('backdoor'))).toBe(true);
       // The undeclared field must not reach the persistence layer.
-      expect((prisma.deployment.create as jest.Mock).mock.calls.length).toBe(0);
+      expect((prisma.deployment.create as vi.Mock).mock.calls.length).toBe(0);
     });
 
     it('POST /deployments 400 for empty body (DTO @IsNotEmpty on projectId/environmentId)', async () => {
@@ -1217,7 +1216,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expect(res.status).toBe(201);
       // enrichDeployment does not surface rollbackFromDeploymentId, so we
       // only assert that the rollback created a deployment linked to DEPLOYMENT_A
-      const callArgs = (prisma.deployment.create as jest.Mock).mock.calls[0]?.[0];
+      const callArgs = (prisma.deployment.create as vi.Mock).mock.calls[0]?.[0];
       expect(callArgs?.data?.rollbackFromDeploymentId).toBe(DEPLOYMENT_A);
       expect(res.body).toMatchObject({ status: 'PENDING' });
     });
@@ -1304,7 +1303,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expectBadRequest(res);
       const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
       expect(messages.some((m: string) => m.includes('项目'))).toBe(true);
-      expect((prisma.release.create as jest.Mock).mock.calls.length).toBe(0);
+      expect((prisma.release.create as vi.Mock).mock.calls.length).toBe(0);
     });
 
     it('POST /projects/A/releases 400 for deploymentId belonging to PROJECT_X — KI-004 fixed', async () => {
@@ -1426,7 +1425,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expectBadRequest(res);
       const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
       expect(messages.some((m: string) => m.includes('项目'))).toBe(true);
-      expect((prisma.issue.create as jest.Mock).mock.calls.length).toBe(0);
+      expect((prisma.issue.create as vi.Mock).mock.calls.length).toBe(0);
     });
 
     it('POST /projects/A/issues 400 for missing required `title` (DTO @IsNotEmpty)', async () => {
@@ -1875,7 +1874,7 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
       expect(messages.some((m: string) => m.includes('projectId'))).toBe(true);
       // The undeclared `projectId` must not reach the persistence layer.
-      expect((prisma.testCase.create as jest.Mock).mock.calls.length).toBe(0);
+      expect((prisma.testCase.create as vi.Mock).mock.calls.length).toBe(0);
     });
 
     it('POST /projects/A/test-cases 400 for undeclared field `leak` — KI-005 fixed', async () => {

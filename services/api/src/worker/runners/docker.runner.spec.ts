@@ -7,7 +7,7 @@ function makeContext(over: Partial<RunnerContext> = {}): RunnerContext {
     taskType: 'DOCKER_BUILD',
     refId: 'deploy-1',
     payload: { image: 'nginx:1.25', workRoot: '/var/lib/launchly' },
-    stageLogCallback: jest.fn(async () => undefined),
+    stageLogCallback: vi.fn(async () => undefined),
     ...over,
   };
 }
@@ -64,7 +64,7 @@ describe('DockerRunner.execute - deliberate disabled result for every context', 
 
   it('does not call the stageLogCallback (no side effect on the worker pipeline)', async () => {
     const runner = new DockerRunner();
-    const callback = jest.fn(async () => undefined);
+    const callback = vi.fn(async () => undefined);
     const ctx = makeContext({ stageLogCallback: callback });
     await runner.execute(ctx);
     expect(callback).not.toHaveBeenCalled();

@@ -6,7 +6,7 @@ import { createPrismaMock, MockPrismaService } from '../../test/helpers/prisma-m
 describe('EnvironmentVariableService', () => {
   let service: EnvironmentVariableService;
   let prisma: MockPrismaService;
-  let secrets: { encrypt: jest.Mock; mask: jest.Mock };
+  let secrets: { encrypt: vi.Mock; mask: vi.Mock };
 
   const workspaceId = 'ws-1';
   const otherWorkspaceId = 'ws-OTHER';
@@ -28,8 +28,8 @@ describe('EnvironmentVariableService', () => {
     // (a) the original plaintext is never returned in the redacted object and
     // (b) encrypt/mask are both called with the original value.
     secrets = {
-      encrypt: jest.fn((plain: string) => `v2:enc(${plain})`),
-      mask: jest.fn(() => 'MASKED-REDACTED-OUTPUT'),
+      encrypt: vi.fn((plain: string) => `v2:enc(${plain})`),
+      mask: vi.fn(() => 'MASKED-REDACTED-OUTPUT'),
     };
     service = new EnvironmentVariableService(prisma as any, secrets as unknown as SecretValueService);
   });
@@ -213,7 +213,7 @@ describe('EnvironmentVariableService', () => {
 
         const result = await service.create(envId, input, userId, workspaceId);
         const v = result as Record<string, unknown>;
-        const persisted = (prisma.environmentVariable.create as jest.Mock).mock.calls[0][0].data;
+        const persisted = (prisma.environmentVariable.create as vi.Mock).mock.calls[0][0].data;
 
         // Protect both sides of the contract: the persisted value and the redacted response.
         expect(persisted.sensitive).toBe(expectedSensitive);
@@ -251,7 +251,7 @@ describe('EnvironmentVariableService', () => {
 
       const result = await service.create(envId, payload, userId, workspaceId);
       const v = result as Record<string, unknown>;
-      const persisted = (prisma.environmentVariable.create as jest.Mock).mock.calls[0][0].data;
+      const persisted = (prisma.environmentVariable.create as vi.Mock).mock.calls[0][0].data;
 
       // Protect both sides of the contract: the persisted input and database response.
       expect(persisted.description).toBe(input);

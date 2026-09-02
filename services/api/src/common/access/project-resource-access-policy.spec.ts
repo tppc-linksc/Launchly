@@ -24,12 +24,12 @@ describe('ProjectResourceAccessPolicy', () => {
   beforeEach(() => {
     prisma = createPrismaMock();
     // prisma-mock factory 没有注册 projectMember；按需补充。
-    (prisma as any).projectMember = { findFirst: jest.fn() };
+    (prisma as any).projectMember = { findFirst: vi.fn() };
     policy = new ProjectResourceAccessPolicy(prisma as any);
   });
 
   afterEach(() => {
-    jest.resetAllMocks();
+    vi.resetAllMocks();
   });
 
   // ============================================================
@@ -251,7 +251,7 @@ describe('ProjectResourceAccessPolicy', () => {
     ['requireDeployment', 'deployment', '部署不存在', 'dep-1'],
   ] as const)('%s', (methodName, model, notFoundMessage, resourceId) => {
     it('资源不存在 → NotFoundException 带中文消息', async () => {
-      ((prisma as any)[model].findUnique as jest.Mock).mockResolvedValue(null);
+      ((prisma as any)[model].findUnique as vi.Mock).mockResolvedValue(null);
 
       const fn = (policy as any)[methodName].bind(policy);
       const rejection = fn(resourceId, userId, workspaceId);
@@ -260,7 +260,7 @@ describe('ProjectResourceAccessPolicy', () => {
     });
 
     it('存在 → 反查 projectId + 走 requireProject，最终返回项目行', async () => {
-      ((prisma as any)[model].findUnique as jest.Mock).mockResolvedValue({ projectId });
+      ((prisma as any)[model].findUnique as vi.Mock).mockResolvedValue({ projectId });
       prisma.project.findFirst.mockResolvedValue(baseProject);
       prisma.workspaceMember.findFirst.mockResolvedValue({ role: 'OWNER' });
 
@@ -268,14 +268,14 @@ describe('ProjectResourceAccessPolicy', () => {
       const result = await fn(resourceId, userId, workspaceId);
 
       expect(result).toBe(baseProject);
-      expect((prisma as any)[model].findUnique as jest.Mock).toHaveBeenCalledWith({
+      expect((prisma as any)[model].findUnique as vi.Mock).toHaveBeenCalledWith({
         where: { id: resourceId },
         select: { projectId: true },
       });
     });
 
     it('minimumRole 高于实际成员级别 → ForbiddenException "缺少项目级权限"', async () => {
-      ((prisma as any)[model].findUnique as jest.Mock).mockResolvedValue({ projectId });
+      ((prisma as any)[model].findUnique as vi.Mock).mockResolvedValue({ projectId });
       prisma.project.findFirst.mockResolvedValue(baseProject);
       prisma.workspaceMember.findFirst.mockResolvedValue({ role: 'MEMBER' });
       (prisma as any).projectMember.findFirst.mockResolvedValue({ role: 'VIEWER' });
