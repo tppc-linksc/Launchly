@@ -216,7 +216,9 @@ describe('OciImageRunner.execute - failure matrix (no upsert, no deployment upda
       id: 'deploy-1',
       projectId: 'proj-1',
       commitSha: 'abc123',
-      project: { imageReference: `registry.example.com/team/app:1.0.0@sha512:${FIXED_DIGEST}${FIXED_DIGEST.slice(0, 64)}` },
+      project: {
+        imageReference: `registry.example.com/team/app:1.0.0@sha512:${FIXED_DIGEST}${FIXED_DIGEST.slice(0, 64)}`,
+      },
     });
     const runner = new OciImageRunner(prisma);
 
@@ -380,8 +382,9 @@ describe('OciImageRunner.execute - error propagation', () => {
     await expect(runner.execute(makeContext())).rejects.toBe(err);
     expect(prisma.artifact.upsert).toHaveBeenCalledTimes(1);
     expect(prisma.deployment.update).toHaveBeenCalledTimes(1);
-    expect(prisma.artifact.upsert.mock.invocationCallOrder[0])
-      .toBeLessThan(prisma.deployment.update.mock.invocationCallOrder[0]);
+    expect(prisma.artifact.upsert.mock.invocationCallOrder[0]).toBeLessThan(
+      prisma.deployment.update.mock.invocationCallOrder[0],
+    );
   });
 
   it('propagates a deployment.findUnique error', async () => {

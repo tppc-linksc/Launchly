@@ -129,7 +129,13 @@ describe('AppModule production startup', () => {
         callback?: any,
       ) => {
         if (chunk !== undefined && chunk !== null) {
-          chunks.push(typeof chunk === 'string' ? Buffer.from(chunk, encoding) : Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          chunks.push(
+            typeof chunk === 'string'
+              ? Buffer.from(chunk, encoding)
+              : Buffer.isBuffer(chunk)
+                ? chunk
+                : Buffer.from(chunk),
+          );
         }
 
         const raw = Buffer.concat(chunks).toString('utf8');

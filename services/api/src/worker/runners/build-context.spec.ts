@@ -7,7 +7,7 @@ describe('buildContextDir', () => {
 
   it.each(['../escape', '/absolute', 'with space', 'bad\nline', ''])(
     'rejects unsafe refId %j before joining a filesystem path',
-    refId => {
+    (refId) => {
       expect(() => buildContextDir(refId)).toThrow(/refId/);
     },
   );

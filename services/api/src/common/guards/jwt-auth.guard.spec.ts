@@ -49,14 +49,22 @@ describe('JwtAuthGuard', () => {
 
   it('should throw UnauthorizedException if token is invalid or expired', async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false);
-    (jwtService.verify as jest.Mock).mockImplementation(() => { throw new Error('expired'); });
+    (jwtService.verify as jest.Mock).mockImplementation(() => {
+      throw new Error('expired');
+    });
     const { ctx } = mockContext({ authorization: 'Bearer bad-token' });
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);
   });
 
   it('should set request.user after confirming the workspace membership still exists', async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false);
-    (jwtService.verify as jest.Mock).mockReturnValue({ uid: 'u1', wid: 'w1', role: 'ADMIN', typ: 'access', aud: 'launchly:api' });
+    (jwtService.verify as jest.Mock).mockReturnValue({
+      uid: 'u1',
+      wid: 'w1',
+      role: 'ADMIN',
+      typ: 'access',
+      aud: 'launchly:api',
+    });
     prisma.workspaceMember.findFirst.mockResolvedValue({ role: 'VIEWER' });
     const { ctx, request } = mockContext({ authorization: 'Bearer good-token' });
     await expect(guard.canActivate(ctx)).resolves.toBe(true);
@@ -66,7 +74,12 @@ describe('JwtAuthGuard', () => {
 
   it('rejects a validly signed refresh-token payload on protected routes', async () => {
     (reflector.getAllAndOverride as jest.Mock).mockReturnValue(false);
-    (jwtService.verify as jest.Mock).mockReturnValue({ uid: 'u1', jti: 'refresh-1', typ: 'refresh', aud: 'launchly:refresh' });
+    (jwtService.verify as jest.Mock).mockReturnValue({
+      uid: 'u1',
+      jti: 'refresh-1',
+      typ: 'refresh',
+      aud: 'launchly:refresh',
+    });
     const { ctx } = mockContext({ authorization: 'Bearer refresh-token' });
 
     await expect(guard.canActivate(ctx)).rejects.toBeInstanceOf(UnauthorizedException);

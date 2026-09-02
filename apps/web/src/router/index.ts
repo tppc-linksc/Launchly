@@ -1,8 +1,8 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
+import { createRouter, createWebHashHistory } from 'vue-router';
+import { useAuthStore } from '../stores/auth';
 
 // Routes that do not require an authenticated session.
-const PUBLIC_PATHS = new Set<string>(['/login', '/init', '/invite'])
+const PUBLIC_PATHS = new Set<string>(['/login', '/init', '/invite']);
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -14,23 +14,51 @@ const router = createRouter({
       children: [
         { path: '', name: 'dashboard', component: () => import('../pages/DashboardPage.vue') },
         { path: 'projects', name: 'projects', component: () => import('../pages/ProjectListPage.vue') },
-        { path: 'resources/new', name: 'resource-catalog', component: () => import('../pages/ResourceCatalogPage.vue') },
+        {
+          path: 'resources/new',
+          name: 'resource-catalog',
+          component: () => import('../pages/ResourceCatalogPage.vue'),
+        },
         { path: 'projects/create', name: 'project-create', component: () => import('../pages/ProjectCreatePage.vue') },
         { path: 'projects/:id', name: 'project-detail', component: () => import('../pages/ProjectDetailPage.vue') },
-        { path: 'projects/:id/deploy-targets', name: 'deploy-targets', component: () => import('../pages/DeployTargetListPage.vue') },
-        { path: 'deploy-targets', name: 'deploy-targets-all', component: () => import('../pages/DeployTargetsPage.vue') },
+        {
+          path: 'projects/:id/deploy-targets',
+          name: 'deploy-targets',
+          component: () => import('../pages/DeployTargetListPage.vue'),
+        },
+        {
+          path: 'deploy-targets',
+          name: 'deploy-targets-all',
+          component: () => import('../pages/DeployTargetsPage.vue'),
+        },
         { path: 'deployments', name: 'deployments', component: () => import('../pages/DeploymentListPage.vue') },
-        { path: 'deployments/:id', name: 'deployment-detail', component: () => import('../pages/DeploymentDetailPage.vue') },
+        {
+          path: 'deployments/:id',
+          name: 'deployment-detail',
+          component: () => import('../pages/DeploymentDetailPage.vue'),
+        },
         { path: 'environments', name: 'environments', component: () => import('../pages/EnvironmentListPage.vue') },
         { path: 'tests', name: 'tests', component: () => import('../pages/TestCaseListPage.vue') },
         { path: 'tests/runs', name: 'test-runs', component: () => import('../pages/TestRunListPage.vue') },
         { path: 'tests/runs/:id', name: 'test-run-detail', component: () => import('../pages/TestRunDetailPage.vue') },
         { path: 'issues', name: 'issues', component: () => import('../pages/IssueListPage.vue') },
-        { path: 'issues/:projectId/:id', name: 'issue-detail', component: () => import('../pages/IssueDetailPage.vue') },
+        {
+          path: 'issues/:projectId/:id',
+          name: 'issue-detail',
+          component: () => import('../pages/IssueDetailPage.vue'),
+        },
         { path: 'releases', name: 'releases', component: () => import('../pages/ReleaseListPage.vue') },
-        { path: 'releases/:projectId/:id', name: 'release-detail', component: () => import('../pages/ReleaseDetailPage.vue') },
+        {
+          path: 'releases/:projectId/:id',
+          name: 'release-detail',
+          component: () => import('../pages/ReleaseDetailPage.vue'),
+        },
         { path: 'audit-logs', name: 'audit-logs', component: () => import('../pages/AuditLogPage.vue') },
-        { path: 'notifications', name: 'notifications', component: () => import('../pages/NotificationCenterPage.vue') },
+        {
+          path: 'notifications',
+          name: 'notifications',
+          component: () => import('../pages/NotificationCenterPage.vue'),
+        },
         { path: 'members', name: 'members', component: () => import('../pages/MemberListPage.vue') },
         { path: 'settings', name: 'settings', component: () => import('../pages/SettingsPage.vue') },
       ],
@@ -51,7 +79,7 @@ const router = createRouter({
       component: () => import('../pages/LoginPage.vue'),
     },
   ],
-})
+});
 
 /**
  * KI-009: global route guard. Without this, an unauthenticated user could
@@ -66,14 +94,14 @@ const router = createRouter({
  *      bootstrap and sign-in flows remain reachable.
  */
 export function runAuthGuard(to: { path: string }): true | { path: string } {
-  const auth = useAuthStore()
-  auth.restoreSession()
+  const auth = useAuthStore();
+  auth.restoreSession();
 
-  if (PUBLIC_PATHS.has(to.path) || to.path.startsWith('/invite/')) return true
-  if (auth.user?.id) return true
-  return { path: '/login' }
+  if (PUBLIC_PATHS.has(to.path) || to.path.startsWith('/invite/')) return true;
+  if (auth.user?.id) return true;
+  return { path: '/login' };
 }
 
-router.beforeEach((to) => runAuthGuard(to))
+router.beforeEach((to) => runAuthGuard(to));
 
-export default router
+export default router;

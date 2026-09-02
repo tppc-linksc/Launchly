@@ -35,7 +35,10 @@ export function resolveCorsConfig(raw: string | undefined): CorsConfig {
   if (value === '*') {
     return { origin: true, credentials: false };
   }
-  const list = value.split(',').map(entry => entry.trim()).filter(Boolean);
+  const list = value
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter(Boolean);
   return { origin: list, credentials: list.length > 0 };
 }
 
@@ -49,11 +52,13 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, { rawBody: true });
 
   app.setGlobalPrefix('api');
-  app.useGlobalPipes(new ValidationPipe({
-    whitelist: true,
-    forbidNonWhitelisted: true,
-    transform: true,
-  }));
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
+  );
 
   // KI-011: 用解析函数保证 CORS 配置合法。
   const cors = resolveCorsConfig(process.env.LAUNCHLY_CORS_ORIGIN);

@@ -14,17 +14,29 @@
  */
 
 const SENSITIVE_KEYS = [
-  'password', 'passwd', 'token', 'access_token', 'refresh_token',
-  'secret', 'api_key', 'apikey', 'api-key', 'private_key', 'privatekey', 'private-key',
-  'credential', 'credentials', 'auth', 'authorization',
+  'password',
+  'passwd',
+  'token',
+  'access_token',
+  'refresh_token',
+  'secret',
+  'api_key',
+  'apikey',
+  'api-key',
+  'private_key',
+  'privatekey',
+  'private-key',
+  'credential',
+  'credentials',
+  'auth',
+  'authorization',
 ];
 
 const REDACTED = '[REDACTED]';
 
-const KEY_PATTERN_SOURCE = SENSITIVE_KEYS
-  .slice()
+const KEY_PATTERN_SOURCE = SENSITIVE_KEYS.slice()
   .sort((a, b) => b.length - a.length)
-  .map(k => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+  .map((k) => k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
   .join('|');
 
 interface KeyMatch {
@@ -44,7 +56,22 @@ function findKeys(text: string): KeyMatch[] {
   // 模式 2：\bkey\b 形式（shell 风格）
   const DQ = String.fromCharCode(34);
   const SQ = String.fromCharCode(39);
-  const pattern = '(?:' + DQ + '(' + KEY_PATTERN_SOURCE + ')' + DQ + '|' + SQ + '(' + KEY_PATTERN_SOURCE + ')' + SQ + '|\\b(' + KEY_PATTERN_SOURCE + ')\\b)';
+  const pattern =
+    '(?:' +
+    DQ +
+    '(' +
+    KEY_PATTERN_SOURCE +
+    ')' +
+    DQ +
+    '|' +
+    SQ +
+    '(' +
+    KEY_PATTERN_SOURCE +
+    ')' +
+    SQ +
+    '|\\b(' +
+    KEY_PATTERN_SOURCE +
+    ')\\b)';
   const re = new RegExp(pattern, 'gi');
   const out: KeyMatch[] = [];
   let m: RegExpExecArray | null;
@@ -76,7 +103,10 @@ function parseValueAfter(text: string, fromPos: number): ValueSpan | null {
 function parseQuoted(text: string, start: number, quote: string): ValueSpan | null {
   let i = start + 1;
   while (i < text.length) {
-    if (text[i] === '\\' && i + 1 < text.length) { i += 2; continue; }
+    if (text[i] === '\\' && i + 1 < text.length) {
+      i += 2;
+      continue;
+    }
     if (text[i] === quote) return { start, end: i + 1 };
     i += 1;
   }
@@ -95,7 +125,15 @@ function maskKeyValues(text: string): string {
     // 判断：value 起始是 [REDACTED 但长度小于等于 11 字符（不包含 ]）。
     if (originalValue === '[REDACTED' || originalValue === '"[REDACTED"' || originalValue === "'[REDACTED]'") {
       let nextPos = v.end;
-      if (text.length > nextPos && (text[nextPos] === ']' || text[nextPos] === '"' || text[nextPos] === "'" || text[nextPos] === ' ' || text[nextPos] === ',' || text[nextPos] === ';')) {
+      if (
+        text.length > nextPos &&
+        (text[nextPos] === ']' ||
+          text[nextPos] === '"' ||
+          text[nextPos] === "'" ||
+          text[nextPos] === ' ' ||
+          text[nextPos] === ',' ||
+          text[nextPos] === ';')
+      ) {
         nextPos += 1;
       }
       replacements.push({ start: k.start, end: nextPos, text: text.slice(k.start, v.start) + REDACTED });
@@ -134,7 +172,23 @@ function redactDSNs(text: string): string {
   const SQ = String.fromCharCode(39);
   const LT = String.fromCharCode(60);
   const GT = String.fromCharCode(62);
-  const pattern = '\\b(?:postgres(?:ql)?|mysql|amqp(?:s)?|mongodb(?:\\+srv)?|redis(?:s)?):\\/\\/[^\\s' + DQ + SQ + LT + GT + ']*?:[^\\s' + DQ + SQ + LT + GT + ']*?@[^\\s' + DQ + SQ + LT + GT + ']+';
+  const pattern =
+    '\\b(?:postgres(?:ql)?|mysql|amqp(?:s)?|mongodb(?:\\+srv)?|redis(?:s)?):\\/\\/[^\\s' +
+    DQ +
+    SQ +
+    LT +
+    GT +
+    ']*?:[^\\s' +
+    DQ +
+    SQ +
+    LT +
+    GT +
+    ']*?@[^\\s' +
+    DQ +
+    SQ +
+    LT +
+    GT +
+    ']+';
   return text.replace(new RegExp(pattern, 'gi'), REDACTED);
 }
 
@@ -163,18 +217,22 @@ export function redact(input: unknown, registeredValues: readonly string[] = [])
 
 function redactRegisteredValues(text: string, values: readonly string[]): string {
   const uniqueValues = [...new Set(values)]
-    .filter(value => typeof value === 'string' && value.length > 0 && value !== REDACTED)
+    .filter((value) => typeof value === 'string' && value.length > 0 && value !== REDACTED)
     .sort((a, b) => b.length - a.length);
   for (const value of uniqueValues) text = text.split(value).join(REDACTED);
   return text;
 }
 
 function safeStringify(value: unknown): string {
-  try { return JSON.stringify(value); } catch { return String(value); }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 /** 检测是否包含敏感字段名（用于输入校验和告警）。 */
 export function containsSensitiveKey(text: string): boolean {
   const lower = text.toLowerCase();
-  return SENSITIVE_KEYS.some(k => lower.includes(k.toLowerCase()));
+  return SENSITIVE_KEYS.some((k) => lower.includes(k.toLowerCase()));
 }

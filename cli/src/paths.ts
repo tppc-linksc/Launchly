@@ -1,4 +1,4 @@
-import * as path from 'path'
+import * as path from 'path';
 
 // ── 路径安全解析（KI-041） ────────────────────────────────────────────────
 // 任何来自环境变量、命令行参数或用户输入的路径都必须解析为绝对路径，
@@ -10,9 +10,9 @@ import * as path from 'path'
  */
 export function toAbsolutePath(value: string): string {
   if (typeof value !== 'string' || value.length === 0) {
-    throw new Error('路径必须是非空字符串')
+    throw new Error('路径必须是非空字符串');
   }
-  return path.resolve(value)
+  return path.resolve(value);
 }
 
 /**
@@ -20,5 +20,5 @@ export function toAbsolutePath(value: string): string {
  * 校验以防御 LAUNCHLY_DATA_DIR 被注入为相对值或含换行的场景。
  */
 export function absoluteDataDir(dataDir: string): string {
-  return toAbsolutePath(dataDir)
+  return toAbsolutePath(dataDir);
 }

@@ -33,8 +33,14 @@ describe('InvitationService', () => {
 
   it('atomically claims an invitation, creates the member, and records an audit event', async () => {
     const invitation = {
-      id: 'invitation-1', workspaceId: 'workspace-a', role: 'TESTER', token: 'hash',
-      expiresAt: new Date(Date.now() + 60_000), maxUses: 1, usedCount: 0, status: 'ACTIVE',
+      id: 'invitation-1',
+      workspaceId: 'workspace-a',
+      role: 'TESTER',
+      token: 'hash',
+      expiresAt: new Date(Date.now() + 60_000),
+      maxUses: 1,
+      usedCount: 0,
+      status: 'ACTIVE',
     };
     const tx: any = {
       invitation: { updateMany: jest.fn().mockResolvedValue({ count: 1 }), update: jest.fn() },
@@ -50,8 +56,10 @@ describe('InvitationService', () => {
     (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-password');
     const service = new InvitationService(prisma);
 
-    await expect(service.accept('raw-token', { account: 'tester', password: 'password123' }))
-      .resolves.toEqual({ success: true, account: 'tester' });
+    await expect(service.accept('raw-token', { account: 'tester', password: 'password123' })).resolves.toEqual({
+      success: true,
+      account: 'tester',
+    });
     expect(tx.workspaceMember.create).toHaveBeenCalledWith({
       data: { workspaceId: 'workspace-a', userId: 'user-2', role: 'TESTER' },
     });
@@ -59,19 +67,23 @@ describe('InvitationService', () => {
       data: expect.objectContaining({ userId: 'user-2', workspaceId: 'workspace-a', action: 'INVITATION_ACCEPTED' }),
     });
     expect(tx.invitation.update).toHaveBeenCalledWith({
-      where: { id: 'invitation-1' }, data: { status: 'CONSUMED' },
+      where: { id: 'invitation-1' },
+      data: { status: 'CONSUMED' },
     });
   });
 
   it('rejects expired invitations before hashing a password or starting a transaction', async () => {
     const prisma: any = {
-      invitation: { findUnique: jest.fn().mockResolvedValue({ status: 'ACTIVE', expiresAt: new Date(0), usedCount: 0, maxUses: 1 }) },
+      invitation: {
+        findUnique: jest.fn().mockResolvedValue({ status: 'ACTIVE', expiresAt: new Date(0), usedCount: 0, maxUses: 1 }),
+      },
       $transaction: jest.fn(),
     };
     const service = new InvitationService(prisma);
 
-    await expect(service.accept('raw-token', { account: 'tester', password: 'password123' }))
-      .rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.accept('raw-token', { account: 'tester', password: 'password123' })).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(bcrypt.hash).not.toHaveBeenCalled();
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });

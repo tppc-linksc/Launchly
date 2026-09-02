@@ -7,7 +7,14 @@ export const AUDIT_EXPORT_LIMIT = 10_000;
 export class AuditService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async record(userId: string | null, workspaceId: string | null, action: string, targetType: string, targetId: string, detail?: any) {
+  async record(
+    userId: string | null,
+    workspaceId: string | null,
+    action: string,
+    targetType: string,
+    targetId: string,
+    detail?: any,
+  ) {
     return this.prisma.auditLog.create({
       data: {
         userId,

@@ -5,44 +5,52 @@
  * the project cards, empty state, error toast, and role-based button
  * visibility (canWrite for "新建资源", canDeploy for per-card "部署").
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
-import { createPinia, setActivePinia } from 'pinia'
-import { createMemoryHistory, createRouter } from 'vue-router'
-import { nextTick } from 'vue'
-import ElementPlus from 'element-plus'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { mount, flushPromises } from '@vue/test-utils';
+import { createPinia, setActivePinia } from 'pinia';
+import { createMemoryHistory, createRouter } from 'vue-router';
+import { nextTick } from 'vue';
+import ElementPlus from 'element-plus';
 
-const store: Record<string, string> = {}
+const store: Record<string, string> = {};
 Object.defineProperty(globalThis, 'localStorage', {
   value: {
     getItem: (k: string) => store[k] ?? null,
-    setItem: (k: string, v: string) => { store[k] = v },
-    removeItem: (k: string) => { delete store[k] },
-    clear: () => { for (const k in store) delete store[k] },
-    get length() { return Object.keys(store).length },
+    setItem: (k: string, v: string) => {
+      store[k] = v;
+    },
+    removeItem: (k: string) => {
+      delete store[k];
+    },
+    clear: () => {
+      for (const k in store) delete store[k];
+    },
+    get length() {
+      return Object.keys(store).length;
+    },
     key: (i: number) => Object.keys(store)[i] ?? null,
   },
   writable: true,
   configurable: true,
-})
+});
 
 // Stub ElMessage so the failure-path toast is observable. The factory
 // is hoisted above all imports, so we use `vi.hoisted` to share the
 // reference between the factory and the test body.
-const { elMessageError } = vi.hoisted(() => ({ elMessageError: vi.fn() }))
+const { elMessageError } = vi.hoisted(() => ({ elMessageError: vi.fn() }));
 vi.mock('element-plus', async (orig) => {
-  const actual = await (orig() as any)
-  return { ...actual, ElMessage: { ...actual.ElMessage, error: elMessageError } }
-})
+  const actual = await (orig() as any);
+  return { ...actual, ElMessage: { ...actual.ElMessage, error: elMessageError } };
+});
 
 vi.mock('../api/client', () => ({
   fetchProjects: vi.fn(),
   fetchDeployments: vi.fn(),
-}))
+}));
 
-import { fetchProjects, fetchDeployments } from '../api/client'
-import { useAuthStore } from '../stores/auth'
-import ProjectListPage from './ProjectListPage.vue'
+import { fetchProjects, fetchDeployments } from '../api/client';
+import { useAuthStore } from '../stores/auth';
+import ProjectListPage from './ProjectListPage.vue';
 
 function makeRouter() {
   return createRouter({
@@ -53,35 +61,35 @@ function makeRouter() {
       { path: '/resources/new', name: 'resource-catalog', component: { template: '<div/>' } },
       { path: '/projects/:id', name: 'project-detail', component: { template: '<div/>' } },
     ],
-  })
+  });
 }
 
 function setRole(role: string | null) {
-  const auth = useAuthStore()
-  auth.user = role ? { id: 'u-test', role } : null
+  const auth = useAuthStore();
+  auth.user = role ? { id: 'u-test', role } : null;
 }
 
 describe('ProjectListPage', () => {
   beforeEach(() => {
-    setActivePinia(createPinia())
-    vi.mocked(fetchProjects).mockReset()
-    vi.mocked(fetchDeployments).mockReset()
-    elMessageError.mockReset()
-    for (const k of Object.keys(store)) delete store[k]
-  })
+    setActivePinia(createPinia());
+    vi.mocked(fetchProjects).mockReset();
+    vi.mocked(fetchDeployments).mockReset();
+    elMessageError.mockReset();
+    for (const k of Object.keys(store)) delete store[k];
+  });
 
   it('P.1.1 fetches projects and deployments in parallel on mount', async () => {
-    vi.mocked(fetchProjects).mockResolvedValue({ data: [] } as any)
-    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any)
+    vi.mocked(fetchProjects).mockResolvedValue({ data: [] } as any);
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any);
 
     mount(ProjectListPage, {
       global: { plugins: [makeRouter(), ElementPlus] },
-    })
-    await flushPromises()
+    });
+    await flushPromises();
 
-    expect(fetchProjects).toHaveBeenCalledTimes(1)
-    expect(fetchDeployments).toHaveBeenCalledTimes(1)
-  })
+    expect(fetchProjects).toHaveBeenCalledTimes(1);
+    expect(fetchDeployments).toHaveBeenCalledTimes(1);
+  });
 
   it('P.1.2 renders project cards when the list is non-empty', async () => {
     vi.mocked(fetchProjects).mockResolvedValue({
@@ -89,103 +97,103 @@ describe('ProjectListPage', () => {
         { id: 'p1', name: 'App One', projectType: 'APP', repositoryUrl: 'https://x', createdAt: '2026-01-01' },
         { id: 'p2', name: 'Site Two', projectType: 'STATIC_SITE', repositoryUrl: null, createdAt: '2026-01-02' },
       ],
-    } as any)
-    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any)
-    setRole('OWNER')
+    } as any);
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any);
+    setRole('OWNER');
 
     const wrapper = mount(ProjectListPage, {
       global: { plugins: [makeRouter(), ElementPlus] },
-    })
-    await flushPromises()
+    });
+    await flushPromises();
 
-    expect(wrapper.text()).toContain('App One')
-    expect(wrapper.text()).toContain('Site Two')
+    expect(wrapper.text()).toContain('App One');
+    expect(wrapper.text()).toContain('Site Two');
     // The card with no repositoryUrl shows the fallback "未配置仓库".
-    expect(wrapper.text()).toContain('未配置仓库')
-  })
+    expect(wrapper.text()).toContain('未配置仓库');
+  });
 
   it('P.1.3 empty list renders the el-empty placeholder "暂无资源"', async () => {
-    vi.mocked(fetchProjects).mockResolvedValue({ data: [] } as any)
-    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any)
-    setRole('OWNER')
+    vi.mocked(fetchProjects).mockResolvedValue({ data: [] } as any);
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any);
+    setRole('OWNER');
 
     const wrapper = mount(ProjectListPage, {
       global: { plugins: [makeRouter(), ElementPlus] },
-    })
-    await flushPromises()
+    });
+    await flushPromises();
 
-    expect(wrapper.text()).toContain('暂无资源')
+    expect(wrapper.text()).toContain('暂无资源');
     // canWrite=true → empty state shows the "创建第一个资源" CTA.
-    expect(wrapper.text()).toContain('创建第一个资源')
-  })
+    expect(wrapper.text()).toContain('创建第一个资源');
+  });
 
   it('P.1.4 failure of fetchProjects (after the catch chain) surfaces a Chinese error toast', async () => {
     // The page wraps each fetch in `.catch(() => ({ data: [] }))` so a
     // single rejected call should NOT pop a toast — verify that.
-    vi.mocked(fetchProjects).mockRejectedValue(new Error('boom'))
-    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any)
+    vi.mocked(fetchProjects).mockRejectedValue(new Error('boom'));
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any);
 
     const wrapper = mount(ProjectListPage, {
       global: { plugins: [makeRouter(), ElementPlus] },
-    })
-    await flushPromises()
-    await nextTick()
+    });
+    await flushPromises();
+    await nextTick();
 
     // No toast was raised; the list is simply empty.
-    expect(elMessageError).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('暂无资源')
-  })
+    expect(elMessageError).not.toHaveBeenCalled();
+    expect(wrapper.text()).toContain('暂无资源');
+  });
 
   it('P.1.5 the "新建资源" header button is shown for canWrite roles and hidden for VIEWER', async () => {
-    vi.mocked(fetchProjects).mockResolvedValue({ data: [] } as any)
-    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any)
+    vi.mocked(fetchProjects).mockResolvedValue({ data: [] } as any);
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any);
 
     for (const role of ['OWNER', 'ADMIN', 'DEVELOPER', 'TESTER']) {
-      setRole(role)
+      setRole(role);
       const w = mount(ProjectListPage, {
         global: { plugins: [makeRouter(), ElementPlus] },
-      })
-      await flushPromises()
-      const cta = w.findAll('button').find(b => b.text().trim() === '新建资源')
-      expect(cta, `header "新建资源" must be visible for role ${role}`).toBeDefined()
+      });
+      await flushPromises();
+      const cta = w.findAll('button').find((b) => b.text().trim() === '新建资源');
+      expect(cta, `header "新建资源" must be visible for role ${role}`).toBeDefined();
     }
 
-    setRole('VIEWER')
+    setRole('VIEWER');
     const w = mount(ProjectListPage, {
       global: { plugins: [makeRouter(), ElementPlus] },
-    })
-    await flushPromises()
-    const cta = w.findAll('button').find(b => b.text().trim() === '新建资源')
-    expect(cta, 'header "新建资源" must be hidden for VIEWER').toBeUndefined()
-  })
+    });
+    await flushPromises();
+    const cta = w.findAll('button').find((b) => b.text().trim() === '新建资源');
+    expect(cta, 'header "新建资源" must be hidden for VIEWER').toBeUndefined();
+  });
 
   it('P.1.6 per-card "部署" button is shown for canDeploy roles and hidden otherwise', async () => {
     vi.mocked(fetchProjects).mockResolvedValue({
       data: [{ id: 'p1', name: 'App', projectType: 'APP', repositoryUrl: 'x', createdAt: '2026-01-01' }],
-    } as any)
-    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any)
+    } as any);
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any);
 
     for (const role of ['OWNER', 'ADMIN', 'DEVELOPER']) {
-      setRole(role)
+      setRole(role);
       const w = mount(ProjectListPage, {
         global: { plugins: [makeRouter(), ElementPlus] },
-      })
-      await flushPromises()
+      });
+      await flushPromises();
       // The card has a "部署" button AND a "详情" button.
-      const deployBtn = w.findAll('button').find(b => b.text().trim() === '部署')
-      expect(deployBtn, `per-card "部署" must be visible for role ${role}`).toBeDefined()
+      const deployBtn = w.findAll('button').find((b) => b.text().trim() === '部署');
+      expect(deployBtn, `per-card "部署" must be visible for role ${role}`).toBeDefined();
     }
 
     for (const role of ['TESTER', 'VIEWER']) {
-      setRole(role)
+      setRole(role);
       const w = mount(ProjectListPage, {
         global: { plugins: [makeRouter(), ElementPlus] },
-      })
-      await flushPromises()
-      const deployBtn = w.findAll('button').find(b => b.text().trim() === '部署')
-      expect(deployBtn, `per-card "部署" must be hidden for role ${role}`).toBeUndefined()
+      });
+      await flushPromises();
+      const deployBtn = w.findAll('button').find((b) => b.text().trim() === '部署');
+      expect(deployBtn, `per-card "部署" must be hidden for role ${role}`).toBeUndefined();
     }
-  })
+  });
 
   // Additional coverage:
   //   - lastDeployMap computed picks the first deployment per projectId
@@ -194,80 +202,80 @@ describe('ProjectListPage', () => {
   //   - the per-card '部署' navigates to /projects/:id (stop propagation)
 
   it('P.1.7 the per-card "部署" button (canDeploy) navigates to the project detail', async () => {
-    setRole('OWNER')
+    setRole('OWNER');
     vi.mocked(fetchProjects).mockResolvedValue({
       data: [{ id: 'p1', name: 'App', projectType: 'APP', repositoryUrl: 'x', createdAt: '2026-01-01' }],
-    } as any)
-    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any)
+    } as any);
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any);
 
-    const router = makeRouter()
-    await router.push('/projects')
-    await router.isReady()
-    const pushSpy = vi.spyOn(router, 'push')
-    const w = mount(ProjectListPage, { global: { plugins: [router, ElementPlus] } })
-    await flushPromises()
+    const router = makeRouter();
+    await router.push('/projects');
+    await router.isReady();
+    const pushSpy = vi.spyOn(router, 'push');
+    const w = mount(ProjectListPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
 
-    const deployBtn = w.findAll('button').find(b => b.text().trim() === '部署')!
-    await deployBtn.trigger('click')
-    await flushPromises()
-    expect(pushSpy).toHaveBeenCalledWith('/projects/p1')
-  })
+    const deployBtn = w.findAll('button').find((b) => b.text().trim() === '部署')!;
+    await deployBtn.trigger('click');
+    await flushPromises();
+    expect(pushSpy).toHaveBeenCalledWith('/projects/p1');
+  });
 
   it('P.1.8 the lastDeployMap picks the first deployment per projectId', async () => {
     vi.mocked(fetchProjects).mockResolvedValue({
       data: [{ id: 'p1', name: 'App', projectType: 'APP', repositoryUrl: 'x', createdAt: '2026-01-01' }],
-    } as any)
+    } as any);
     vi.mocked(fetchDeployments).mockResolvedValue({
       data: [
         { id: 'd1', projectId: 'p1', status: 'RUNNING', branch: 'main', createdAt: '2026-01-01' },
         { id: 'd2', projectId: 'p1', status: 'FAILED', branch: 'fix', createdAt: '2026-01-02' },
       ],
-    } as any)
-    setRole('OWNER')
+    } as any);
+    setRole('OWNER');
 
     const w = mount(ProjectListPage, {
       global: { plugins: [makeRouter(), ElementPlus] },
-    })
-    await flushPromises()
+    });
+    await flushPromises();
 
-    const tag = w.find('.card-deploy .el-tag')
-    expect(tag.exists()).toBe(true)
-    expect(tag.text()).toContain('运行中')
-    expect(w.text()).toContain('main')
-  })
+    const tag = w.find('.card-deploy .el-tag');
+    expect(tag.exists()).toBe(true);
+    expect(tag.text()).toContain('运行中');
+    expect(w.text()).toContain('main');
+  });
 
   it('P.1.9 a card with no deployments shows the "暂无部署" placeholder', async () => {
     vi.mocked(fetchProjects).mockResolvedValue({
       data: [{ id: 'p1', name: 'App', projectType: 'APP', repositoryUrl: 'x', createdAt: '2026-01-01' }],
-    } as any)
-    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any)
-    setRole('OWNER')
+    } as any);
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any);
+    setRole('OWNER');
 
     const w = mount(ProjectListPage, {
       global: { plugins: [makeRouter(), ElementPlus] },
-    })
-    await flushPromises()
+    });
+    await flushPromises();
 
-    expect(w.text()).toContain('暂无部署')
-  })
+    expect(w.text()).toContain('暂无部署');
+  });
 
   it('P.1.10 per-card "详情" button navigates to /projects/:id', async () => {
-    setRole('OWNER')
+    setRole('OWNER');
     vi.mocked(fetchProjects).mockResolvedValue({
       data: [{ id: 'p1', name: 'App', projectType: 'APP', repositoryUrl: 'x', createdAt: '2026-01-01' }],
-    } as any)
-    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any)
+    } as any);
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any);
 
-    const router = makeRouter()
-    await router.push('/projects')
-    await router.isReady()
-    const pushSpy = vi.spyOn(router, 'push')
-    const w = mount(ProjectListPage, { global: { plugins: [router, ElementPlus] } })
-    await flushPromises()
+    const router = makeRouter();
+    await router.push('/projects');
+    await router.isReady();
+    const pushSpy = vi.spyOn(router, 'push');
+    const w = mount(ProjectListPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
 
-    const detailBtn = w.findAll('button').find(b => b.text().trim() === '详情')!
-    await detailBtn.trigger('click')
-    await flushPromises()
-    expect(pushSpy).toHaveBeenCalledWith('/projects/p1')
-  })
-})
+    const detailBtn = w.findAll('button').find((b) => b.text().trim() === '详情')!;
+    await detailBtn.trigger('click');
+    await flushPromises();
+    expect(pushSpy).toHaveBeenCalledWith('/projects/p1');
+  });
+});

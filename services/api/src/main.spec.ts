@@ -55,11 +55,7 @@ describe('resolveCorsConfig (KI-011)', () => {
     it('多个 origin 逗号分隔 → 拆分、去空格、原序', () => {
       const cfg = resolveCorsConfig('https://a.example.com,https://b.example.com,https://c.example.com');
 
-      expect(cfg.origin).toEqual([
-        'https://a.example.com',
-        'https://b.example.com',
-        'https://c.example.com',
-      ]);
+      expect(cfg.origin).toEqual(['https://a.example.com', 'https://b.example.com', 'https://c.example.com']);
       expect(cfg.credentials).toBe(true);
     });
 

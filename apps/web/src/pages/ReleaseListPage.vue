@@ -1,19 +1,25 @@
 <template>
   <div>
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px">
       <div>
         <h2>发布管理</h2>
-        <p style="color: #8c8c8c;">查看发布历史、门禁状态和发布详情。</p>
+        <p style="color: #8c8c8c">查看发布历史、门禁状态和发布详情。</p>
       </div>
-      <div style="display: flex; gap: 12px;">
-        <el-select v-model="selectedProjectId" placeholder="选择项目" style="width: 200px;" @change="loadReleases">
+      <div style="display: flex; gap: 12px">
+        <el-select v-model="selectedProjectId" placeholder="选择项目" style="width: 200px" @change="loadReleases">
           <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
         </el-select>
         <el-button type="primary" @click="showCreate = true" :disabled="!selectedProjectId">新建 Release</el-button>
       </div>
     </div>
 
-    <el-table :data="releases" row-key="id" v-loading="loading" @row-click="(r: any) => $router.push(`/releases/${selectedProjectId}/${r.id}`)" style="cursor: pointer;">
+    <el-table
+      :data="releases"
+      row-key="id"
+      v-loading="loading"
+      @row-click="(r: any) => $router.push(`/releases/${selectedProjectId}/${r.id}`)"
+      style="cursor: pointer"
+    >
       <el-table-column prop="version" label="版本" />
       <el-table-column prop="environmentId" label="环境" show-overflow-tooltip />
       <el-table-column label="状态">
@@ -23,7 +29,9 @@
       </el-table-column>
       <el-table-column label="门禁">
         <template #default="{ row }">
-          <el-tag :type="row.gateStatus === 'PASSED' ? 'success' : 'danger'">{{ row.gateStatus === 'PASSED' ? '通过' : row.gateStatus === 'FAILED' ? '失败' : row.gateStatus || '-' }}</el-tag>
+          <el-tag :type="row.gateStatus === 'PASSED' ? 'success' : 'danger'">{{
+            row.gateStatus === 'PASSED' ? '通过' : row.gateStatus === 'FAILED' ? '失败' : row.gateStatus || '-'
+          }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="releasedBy" label="发布人" />
@@ -44,7 +52,12 @@
         </el-form-item>
         <el-form-item label="关联部署">
           <el-select v-model="form.deploymentId" placeholder="选择部署" clearable>
-            <el-option v-for="d in deployments" :key="d.id" :label="`${d.branch} (${d.createdAt?.slice(0, 10)})`" :value="d.id" />
+            <el-option
+              v-for="d in deployments"
+              :key="d.id"
+              :label="`${d.branch} (${d.createdAt?.slice(0, 10)})`"
+              :value="d.id"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="发布说明">
@@ -60,59 +73,71 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { fetchProjects, fetchReleases, fetchDeployments, createRelease } from '../api/client'
-import { releaseStatusMap } from '../utils/display'
+import { ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
+import { ElMessage } from 'element-plus';
+import { fetchProjects, fetchReleases, fetchDeployments, createRelease } from '../api/client';
+import { releaseStatusMap } from '../utils/display';
 
-const route = useRoute()
+const route = useRoute();
 
-const projects = ref<any[]>([])
-const selectedProjectId = ref('')
-const releases = ref<any[]>([])
-const deployments = ref<any[]>([])
-const loading = ref(false)
-const showCreate = ref(false)
-const form = ref({ version: '', deploymentId: '', notes: '' })
+const projects = ref<any[]>([]);
+const selectedProjectId = ref('');
+const releases = ref<any[]>([]);
+const deployments = ref<any[]>([]);
+const loading = ref(false);
+const showCreate = ref(false);
+const form = ref({ version: '', deploymentId: '', notes: '' });
 
 function statusType(s: string) {
-  const map: Record<string, string> = { DRAFT: 'info', PENDING_GATES: 'warning', READY: 'success', PUBLISHED: 'primary', FAILED: 'danger' }
-  return map[s] || 'info'
+  const map: Record<string, string> = {
+    DRAFT: 'info',
+    PENDING_GATES: 'warning',
+    READY: 'success',
+    PUBLISHED: 'primary',
+    FAILED: 'danger',
+  };
+  return map[s] || 'info';
 }
 
 async function loadReleases() {
-  if (!selectedProjectId.value) return
-  loading.value = true
+  if (!selectedProjectId.value) return;
+  loading.value = true;
   try {
     const [relRes, depRes] = await Promise.all([
       fetchReleases(selectedProjectId.value),
       fetchDeployments({ projectId: selectedProjectId.value }),
-    ])
-    releases.value = relRes.data
-    deployments.value = (depRes.data || []).filter((d: any) => d.status === 'SUCCEEDED')
-  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
-  loading.value = false
+    ]);
+    releases.value = relRes.data;
+    deployments.value = (depRes.data || []).filter((d: any) => d.status === 'SUCCEEDED');
+  } catch (e) {
+    ElMessage.error('操作失败，请稍后重试');
+  }
+  loading.value = false;
 }
 
 async function handleCreate() {
   try {
-    await createRelease(selectedProjectId.value, form.value)
-    showCreate.value = false
-    form.value = { version: '', deploymentId: '', notes: '' }
-    loadReleases()
-  } catch (e: any) { console.error(e) }
+    await createRelease(selectedProjectId.value, form.value);
+    showCreate.value = false;
+    form.value = { version: '', deploymentId: '', notes: '' };
+    loadReleases();
+  } catch (e: any) {
+    console.error(e);
+  }
 }
 
 onMounted(async () => {
   try {
-    const res = await fetchProjects()
-    projects.value = res.data
-  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
-  const qp = route.query.projectId as string
-  if (qp) {
-    selectedProjectId.value = qp
-    loadReleases()
+    const res = await fetchProjects();
+    projects.value = res.data;
+  } catch (e) {
+    ElMessage.error('操作失败，请稍后重试');
   }
-})
+  const qp = route.query.projectId as string;
+  if (qp) {
+    selectedProjectId.value = qp;
+    loadReleases();
+  }
+});
 </script>

@@ -98,9 +98,9 @@ describe('EnvironmentVariableService', () => {
     it('throws ForbiddenException when the environment does not exist (no encrypt/mask/create)', async () => {
       prisma.environment.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.create(envId, { key: 'A', value: 'v' }, userId, workspaceId),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.create(envId, { key: 'A', value: 'v' }, userId, workspaceId)).rejects.toThrow(
+        ForbiddenException,
+      );
 
       expect(secrets.encrypt).not.toHaveBeenCalled();
       expect(secrets.mask).not.toHaveBeenCalled();
@@ -111,9 +111,9 @@ describe('EnvironmentVariableService', () => {
       prisma.environment.findUnique.mockResolvedValue(envRecord);
       prisma.project.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.create(envId, { key: 'A', value: 'v' }, userId, workspaceId),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.create(envId, { key: 'A', value: 'v' }, userId, workspaceId)).rejects.toThrow(
+        ForbiddenException,
+      );
 
       expect(secrets.encrypt).not.toHaveBeenCalled();
       expect(secrets.mask).not.toHaveBeenCalled();
@@ -124,9 +124,9 @@ describe('EnvironmentVariableService', () => {
       prisma.environment.findUnique.mockResolvedValue({ id: envId, projectId: 'proj-OTHER' });
       prisma.project.findUnique.mockResolvedValue(otherProject);
 
-      await expect(
-        service.create(envId, { key: 'A', value: 'v' }, userId, workspaceId),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(service.create(envId, { key: 'A', value: 'v' }, userId, workspaceId)).rejects.toThrow(
+        ForbiddenException,
+      );
 
       expect(secrets.encrypt).not.toHaveBeenCalled();
       expect(secrets.mask).not.toHaveBeenCalled();
@@ -192,44 +192,47 @@ describe('EnvironmentVariableService', () => {
     });
 
     it.each([
-      { label: 'explicit true',  inputSensitive: true,      expectedSensitive: true  },
-      { label: 'explicit false', inputSensitive: false,     expectedSensitive: false },
-      { label: 'unspecified',    inputSensitive: undefined, expectedSensitive: false },
-    ])('sensitive=$label: returns the sensitive flag and never leaks encryptedValue', async ({ inputSensitive, expectedSensitive }) => {
-      prisma.environmentVariable.create.mockResolvedValue({
-        id: variableId,
-        environmentId: envId,
-        key: 'A',
-        encryptedValue: 'v2:enc(' + SECRET_PLAINTEXT + ')',
-        maskedValue: 'MASKED-REDACTED-OUTPUT',
-        sensitive: expectedSensitive,
-        description: null,
-      });
+      { label: 'explicit true', inputSensitive: true, expectedSensitive: true },
+      { label: 'explicit false', inputSensitive: false, expectedSensitive: false },
+      { label: 'unspecified', inputSensitive: undefined, expectedSensitive: false },
+    ])(
+      'sensitive=$label: returns the sensitive flag and never leaks encryptedValue',
+      async ({ inputSensitive, expectedSensitive }) => {
+        prisma.environmentVariable.create.mockResolvedValue({
+          id: variableId,
+          environmentId: envId,
+          key: 'A',
+          encryptedValue: 'v2:enc(' + SECRET_PLAINTEXT + ')',
+          maskedValue: 'MASKED-REDACTED-OUTPUT',
+          sensitive: expectedSensitive,
+          description: null,
+        });
 
-      const input: { key: string; value: string; sensitive?: boolean } = { key: 'A', value: SECRET_PLAINTEXT };
-      if (inputSensitive !== undefined) input.sensitive = inputSensitive;
+        const input: { key: string; value: string; sensitive?: boolean } = { key: 'A', value: SECRET_PLAINTEXT };
+        if (inputSensitive !== undefined) input.sensitive = inputSensitive;
 
-      const result = await service.create(envId, input, userId, workspaceId);
-      const v = result as Record<string, unknown>;
-      const persisted = (prisma.environmentVariable.create as jest.Mock).mock.calls[0][0].data;
+        const result = await service.create(envId, input, userId, workspaceId);
+        const v = result as Record<string, unknown>;
+        const persisted = (prisma.environmentVariable.create as jest.Mock).mock.calls[0][0].data;
 
-      // Protect both sides of the contract: the persisted value and the redacted response.
-      expect(persisted.sensitive).toBe(expectedSensitive);
-      expect(v.id).toBe(variableId);
-      expect(v.environmentId).toBe(envId);
-      expect(v.key).toBe('A');
-      expect(v.maskedValue).toBe(expectedSensitive ? '已设置' : 'MASKED-REDACTED-OUTPUT');
-      expect(v.sensitive).toBe(expectedSensitive);
-      expect('encryptedValue' in v).toBe(false);
-      const serialised = JSON.stringify(result);
-      expect(serialised).not.toContain(SECRET_PLAINTEXT);
-      expect(serialised).not.toContain('v2:enc(');
-    });
+        // Protect both sides of the contract: the persisted value and the redacted response.
+        expect(persisted.sensitive).toBe(expectedSensitive);
+        expect(v.id).toBe(variableId);
+        expect(v.environmentId).toBe(envId);
+        expect(v.key).toBe('A');
+        expect(v.maskedValue).toBe(expectedSensitive ? '已设置' : 'MASKED-REDACTED-OUTPUT');
+        expect(v.sensitive).toBe(expectedSensitive);
+        expect('encryptedValue' in v).toBe(false);
+        const serialised = JSON.stringify(result);
+        expect(serialised).not.toContain(SECRET_PLAINTEXT);
+        expect(serialised).not.toContain('v2:enc(');
+      },
+    );
 
     it.each([
       { label: 'plain string', input: 'a plain description', expected: 'a plain description' },
-      { label: 'empty string', input: '',                    expected: '' },
-      { label: 'unspecified',  input: undefined,             expected: null },
+      { label: 'empty string', input: '', expected: '' },
+      { label: 'unspecified', input: undefined, expected: null },
     ])('description=$label: returns the description and never leaks encryptedValue', async ({ input, expected }) => {
       // Prisma returns null when description is not supplied; the service returns
       // the database record while preserving undefined in the write request.
@@ -273,9 +276,7 @@ describe('EnvironmentVariableService', () => {
       const dbError = new Error('database write failed');
       prisma.environmentVariable.create.mockRejectedValue(dbError);
 
-      await expect(
-        service.create(envId, { key: 'A', value: 'v' }, userId, workspaceId),
-      ).rejects.toBe(dbError);
+      await expect(service.create(envId, { key: 'A', value: 'v' }, userId, workspaceId)).rejects.toBe(dbError);
     });
   });
 

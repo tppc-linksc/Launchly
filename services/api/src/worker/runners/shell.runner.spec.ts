@@ -30,13 +30,23 @@ describe('ShellRunner build compatibility path', () => {
     const executor = makeExecutor();
     const result = await makeRunner(executor).execute(makeContext({ taskType: 'REPO_CLONE', payload: {} }));
 
-    expect(result).toEqual({ success: true, stdout: '未配置构建命令，跳过', stderr: '', exitCode: 0, errorMessage: '' });
+    expect(result).toEqual({
+      success: true,
+      stdout: '未配置构建命令，跳过',
+      stderr: '',
+      exitCode: 0,
+      errorMessage: '',
+    });
     expect(executor.exec).not.toHaveBeenCalled();
   });
 
   it('runs the pipeline in the validated task directory without logging command contents', async () => {
     const executor = makeExecutor();
-    executor.exec.mockResolvedValue({ stdout: 'password=hunter2', stderr: 'token=ghp_abcdefghijklmnopqrstuvwxyz', exitCode: 1 });
+    executor.exec.mockResolvedValue({
+      stdout: 'password=hunter2',
+      stderr: 'token=ghp_abcdefghijklmnopqrstuvwxyz',
+      exitCode: 1,
+    });
     const ctx = makeContext({
       taskType: 'REPO_CLONE',
       payload: { installCommand: 'pnpm install', buildCommand: 'pnpm build' },
@@ -56,11 +66,13 @@ describe('ShellRunner build compatibility path', () => {
 
   it('rejects unsafe refId before invoking a command', async () => {
     const executor = makeExecutor();
-    const result = await makeRunner(executor).execute(makeContext({
-      taskType: 'REPO_CLONE',
-      refId: '../escape',
-      payload: { buildCommand: 'pnpm build' },
-    }));
+    const result = await makeRunner(executor).execute(
+      makeContext({
+        taskType: 'REPO_CLONE',
+        refId: '../escape',
+        payload: { buildCommand: 'pnpm build' },
+      }),
+    );
 
     expect(result.success).toBe(false);
     expect(result.errorMessage).toMatch(/refId/);
@@ -74,7 +86,7 @@ describe('ShellRunner health checks', () => {
     jest.useRealTimers();
   });
 
-  it.each(['200', '204'])('accepts an exact successful HTTP status %s', async status => {
+  it.each(['200', '204'])('accepts an exact successful HTTP status %s', async (status) => {
     const executor = makeExecutor();
     executor.execFile.mockResolvedValue({ stdout: status, stderr: '', exitCode: 0 });
     const ctx = makeContext();
@@ -87,12 +99,18 @@ describe('ShellRunner health checks', () => {
       { timeout: 30 },
     );
     expect(ctx.stageLogCallback).toHaveBeenCalledWith('RUNNING', '健康检查: http://localhost:3000/health');
-    expect(result).toEqual({ success: true, stdout: `健康检查通过 (${status})`, stderr: '', exitCode: 0, errorMessage: '' });
+    expect(result).toEqual({
+      success: true,
+      stdout: `健康检查通过 (${status})`,
+      stderr: '',
+      exitCode: 0,
+      errorMessage: '',
+    });
   });
 
   it.each(['301', '399', '200abc', '', 'abc'])(
     'rejects non-2xx or malformed status %j after exactly ten attempts and nine waits',
-    async status => {
+    async (status) => {
       jest.useFakeTimers();
       const timeoutSpy = jest.spyOn(global, 'setTimeout');
       const executor = makeExecutor();

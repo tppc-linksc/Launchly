@@ -6,7 +6,7 @@ export const deployStatusMap: Record<string, string> = {
   FAILED: '失败',
   CANCELED: '已取消',
   SKIPPED: '已跳过',
-}
+};
 
 // Issue 状态
 export const issueStatusMap: Record<string, string> = {
@@ -16,7 +16,7 @@ export const issueStatusMap: Record<string, string> = {
   FIXED: '待复测',
   REOPENED: '重新打开',
   CLOSED: '已关闭',
-}
+};
 
 // 测试结果
 export const testResultMap: Record<string, string> = {
@@ -24,21 +24,21 @@ export const testResultMap: Record<string, string> = {
   FAILED: '失败',
   BLOCKED: '阻塞',
   SKIPPED: '跳过',
-}
+};
 
 // 测试执行状态
 export const testRunStatusMap: Record<string, string> = {
   PENDING: '等待中',
   RUNNING: '运行中',
   COMPLETED: '已完成',
-}
+};
 
 // 环境类型
 export const envTypeMap: Record<string, string> = {
   TEST: '测试环境',
   STAGING: '预发环境',
   PRODUCTION: '生产环境',
-}
+};
 
 // 部署阶段
 export const deployStageMap: Record<string, string> = {
@@ -46,7 +46,7 @@ export const deployStageMap: Record<string, string> = {
   BUILD: '构建',
   DEPLOY: '部署',
   HEALTH_CHECK: '健康检查',
-}
+};
 
 // 优先级
 export const priorityMap: Record<string, string> = {
@@ -54,7 +54,7 @@ export const priorityMap: Record<string, string> = {
   P1: 'P1 高',
   P2: 'P2 中',
   P3: 'P3 低',
-}
+};
 
 // 发布状态
 export const releaseStatusMap: Record<string, string> = {
@@ -63,7 +63,7 @@ export const releaseStatusMap: Record<string, string> = {
   READY: '就绪',
   PUBLISHED: '已发布',
   FAILED: '失败',
-}
+};
 
 // 门禁项
 export const gateNameMap: Record<string, string> = {
@@ -72,20 +72,20 @@ export const gateNameMap: Record<string, string> = {
   p0_tests_passed: 'P0 测试通过',
   no_open_p0p1_issues: '无未关闭 P0/P1 Issue',
   auto_test_passed: '自动化测试通过',
-}
+};
 
 // 部署模式
 export const deployModeMap: Record<string, string> = {
   local: '本地部署',
   remote: '旧版 remote（勿用）',
-}
+};
 
 // 数据策略
 export const dataStrategyMap: Record<string, string> = {
   isolated: '隔离数据',
   sanitized: '脱敏数据',
   real: '真实数据',
-}
+};
 
 // 审计操作
 export const auditActionMap: Record<string, string> = {
@@ -98,18 +98,22 @@ export const auditActionMap: Record<string, string> = {
   PUBLISH_PRODUCTION: '生产发布',
   ROLLBACK: '回滚',
   CREATE_INVITATION: '创建邀请',
-}
+};
 
 // 格式化 ISO 时间为本地可读字符串
 export function formatTime(iso: string | null | undefined): string {
-  if (!iso) return '—'
+  if (!iso) return '—';
   try {
-    const d = new Date(iso)
+    const d = new Date(iso);
     return d.toLocaleString('zh-CN', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', second: '2-digit',
-    })
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+    });
   } catch {
-    return iso
+    return iso;
   }
 }

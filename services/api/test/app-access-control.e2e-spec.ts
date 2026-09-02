@@ -165,9 +165,19 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       const originalEnd = res.end.bind(res);
 
       res.on('error', reject);
-      (res.end as (chunk?: any, encoding?: any, callback?: any) => void) = (chunk: any, encoding?: any, callback?: any) => {
+      (res.end as (chunk?: any, encoding?: any, callback?: any) => void) = (
+        chunk: any,
+        encoding?: any,
+        callback?: any,
+      ) => {
         if (chunk !== undefined && chunk !== null) {
-          chunks.push(typeof chunk === 'string' ? Buffer.from(chunk, encoding) : Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+          chunks.push(
+            typeof chunk === 'string'
+              ? Buffer.from(chunk, encoding)
+              : Buffer.isBuffer(chunk)
+                ? chunk
+                : Buffer.from(chunk),
+          );
         }
 
         const raw = Buffer.concat(chunks).toString('utf8');
@@ -215,21 +225,44 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     // instead of silently returning undefined (which historically caused
     // bogus green tests in this project).
     const models = [
-      'user', 'workspace', 'workspaceMember', 'invitation',
-      'project', 'projectMember', 'component', 'repositoryCredential', 'artifact',
-      'environment', 'environmentVariable',
-      'deployment', 'deploymentStageLog',
-      'deployTarget', 'task',
-      'testCase', 'testRun', 'testRunCase',
-      'issue', 'release', 'gateExemption',
-      'notification', 'auditLog',
+      'user',
+      'workspace',
+      'workspaceMember',
+      'invitation',
+      'project',
+      'projectMember',
+      'component',
+      'repositoryCredential',
+      'artifact',
+      'environment',
+      'environmentVariable',
+      'deployment',
+      'deploymentStageLog',
+      'deployTarget',
+      'task',
+      'testCase',
+      'testRun',
+      'testRunCase',
+      'issue',
+      'release',
+      'gateExemption',
+      'notification',
+      'auditLog',
     ];
     for (const m of models) {
       for (const op of [
-        'findUnique', 'findFirst', 'findMany',
-        'create', 'createMany', 'update', 'updateMany',
-        'upsert', 'delete', 'deleteMany',
-        'count', 'aggregate',
+        'findUnique',
+        'findFirst',
+        'findMany',
+        'create',
+        'createMany',
+        'update',
+        'updateMany',
+        'upsert',
+        'delete',
+        'deleteMany',
+        'count',
+        'aggregate',
       ]) {
         const original = prisma[m][op].getMockImplementation();
         (prisma[m][op] as jest.Mock).mockImplementation((args: unknown) => {
@@ -273,21 +306,43 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     // operations locally so the access policy and services can resolve
     // project membership and run batch updates.
     const allOps = [
-      'findUnique', 'findFirst', 'findMany',
-      'create', 'createMany', 'update', 'updateMany',
-      'upsert', 'delete', 'deleteMany',
-      'count', 'aggregate',
+      'findUnique',
+      'findFirst',
+      'findMany',
+      'create',
+      'createMany',
+      'update',
+      'updateMany',
+      'upsert',
+      'delete',
+      'deleteMany',
+      'count',
+      'aggregate',
     ];
-    (prisma as any).projectMember = Object.fromEntries(allOps.map(op => [op, jest.fn()]));
+    (prisma as any).projectMember = Object.fromEntries(allOps.map((op) => [op, jest.fn()]));
     for (const m of [
-      'user', 'workspace', 'workspaceMember', 'invitation',
-      'project', 'component', 'repositoryCredential', 'artifact',
-      'environment', 'environmentVariable',
-      'deployment', 'deploymentStageLog',
-      'deployTarget', 'task',
-      'testCase', 'testRun', 'testRunCase',
-      'issue', 'release', 'gateExemption',
-      'notification', 'auditLog',
+      'user',
+      'workspace',
+      'workspaceMember',
+      'invitation',
+      'project',
+      'component',
+      'repositoryCredential',
+      'artifact',
+      'environment',
+      'environmentVariable',
+      'deployment',
+      'deploymentStageLog',
+      'deployTarget',
+      'task',
+      'testCase',
+      'testRun',
+      'testRunCase',
+      'issue',
+      'release',
+      'gateExemption',
+      'notification',
+      'auditLog',
     ]) {
       for (const op of allOps) {
         if (!(prisma as any)[m][op]) (prisma as any)[m][op] = jest.fn();
@@ -356,20 +411,43 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     // Reset call history but keep mock implementations; otherwise mock.calls[0]
     // would be the first call across the entire suite, not the current test.
     for (const m of [
-      'user', 'workspace', 'workspaceMember', 'invitation',
-      'project', 'projectMember', 'component', 'repositoryCredential', 'artifact',
-      'environment', 'environmentVariable',
-      'deployment', 'deploymentStageLog',
-      'deployTarget', 'task',
-      'testCase', 'testRun', 'testRunCase',
-      'issue', 'release', 'gateExemption',
-      'notification', 'auditLog',
+      'user',
+      'workspace',
+      'workspaceMember',
+      'invitation',
+      'project',
+      'projectMember',
+      'component',
+      'repositoryCredential',
+      'artifact',
+      'environment',
+      'environmentVariable',
+      'deployment',
+      'deploymentStageLog',
+      'deployTarget',
+      'task',
+      'testCase',
+      'testRun',
+      'testRunCase',
+      'issue',
+      'release',
+      'gateExemption',
+      'notification',
+      'auditLog',
     ]) {
       for (const op of [
-        'findUnique', 'findFirst', 'findMany',
-        'create', 'createMany', 'update', 'updateMany',
-        'upsert', 'delete', 'deleteMany',
-        'count', 'aggregate',
+        'findUnique',
+        'findFirst',
+        'findMany',
+        'create',
+        'createMany',
+        'update',
+        'updateMany',
+        'upsert',
+        'delete',
+        'deleteMany',
+        'count',
+        'aggregate',
       ]) {
         (prisma as any)[m][op]?.mockClear();
       }
@@ -402,14 +480,27 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     stub('environmentVariable.findFirst', null);
     stub('environmentVariable.findMany', []);
     stub('environmentVariable.create', (() => {
-      const v = { id: VARIABLE_A, environmentId: 'env', key: 'KEY', maskedValue: '****', sensitive: false, description: null };
+      const v = {
+        id: VARIABLE_A,
+        environmentId: 'env',
+        key: 'KEY',
+        maskedValue: '****',
+        sensitive: false,
+        description: null,
+      };
       return Promise.resolve(v);
     }) as any);
     stub('environmentVariable.delete', undefined);
     stub('deployment.findUnique', null);
     stub('deployment.findFirst', null);
     stub('deployment.findMany', []);
-    stub('deployment.create', (() => ({ id: DEPLOYMENT_A, projectId: PROJECT_A, environmentId: ENVIRONMENT_A, deployTargetId: DEPLOY_TARGET_A, status: 'PENDING' })) as any);
+    stub('deployment.create', (() => ({
+      id: DEPLOYMENT_A,
+      projectId: PROJECT_A,
+      environmentId: ENVIRONMENT_A,
+      deployTargetId: DEPLOY_TARGET_A,
+      status: 'PENDING',
+    })) as any);
     stub('deployment.update', (() => ({ id: DEPLOYMENT_A, status: 'PENDING' })) as any);
     stub('deployment.count', 0);
     stub('deploymentStageLog.createMany', undefined);
@@ -418,7 +509,21 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     stub('deployTarget.findUnique', null);
     stub('deployTarget.findFirst', null);
     stub('deployTarget.findMany', []);
-    stub('deployTarget.create', (() => ({ id: DEPLOY_TARGET_A, projectId: PROJECT_A, name: 't', type: 'SSH', host: 'h', port: 22, username: 'u', authMethod: 'KEY', workRoot: '/var/lib/launchly', status: 'PENDING', hostKey: HOST_KEY_FIXTURE, lastVerifiedAt: null, createdAt: new Date() })) as any);
+    stub('deployTarget.create', (() => ({
+      id: DEPLOY_TARGET_A,
+      projectId: PROJECT_A,
+      name: 't',
+      type: 'SSH',
+      host: 'h',
+      port: 22,
+      username: 'u',
+      authMethod: 'KEY',
+      workRoot: '/var/lib/launchly',
+      status: 'PENDING',
+      hostKey: HOST_KEY_FIXTURE,
+      lastVerifiedAt: null,
+      createdAt: new Date(),
+    })) as any);
     stub('deployTarget.update', (() => ({ id: DEPLOY_TARGET_A, projectId: PROJECT_A })) as any);
     stub('deployTarget.delete', undefined);
     stub('testCase.findUnique', null);
@@ -428,7 +533,14 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     stub('testCase.delete', undefined);
     stub('testRun.findUnique', null);
     stub('testRun.findMany', []);
-    stub('testRun.create', (() => ({ id: TEST_RUN_A, deploymentId: DEPLOYMENT_A, projectId: PROJECT_A, environmentId: ENVIRONMENT_A, totalCases: 0, triggeredBy: USER_A_DEVELOPER })) as any);
+    stub('testRun.create', (() => ({
+      id: TEST_RUN_A,
+      deploymentId: DEPLOYMENT_A,
+      projectId: PROJECT_A,
+      environmentId: ENVIRONMENT_A,
+      totalCases: 0,
+      triggeredBy: USER_A_DEVELOPER,
+    })) as any);
     stub('testRun.update', (() => ({ id: TEST_RUN_A })) as any);
     stub('testRunCase.findFirst', null);
     stub('testRunCase.findMany', []);
@@ -605,13 +717,27 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_VIEWER, role: 'VIEWER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_VIEWER, role: 'VIEWER' });
       stub('environmentVariable.findMany', [
-        { id: VARIABLE_A, environmentId: ENVIRONMENT_A, key: 'API_KEY', maskedValue: '已设置', sensitive: true, description: null },
+        {
+          id: VARIABLE_A,
+          environmentId: ENVIRONMENT_A,
+          key: 'API_KEY',
+          maskedValue: '已设置',
+          sensitive: true,
+          description: null,
+        },
       ]);
 
       const res = await request('GET', `/environments/${ENVIRONMENT_A}/variables`, { token: tokens.aViewer });
       expect(res.status).toBe(200);
       expect(res.body).toEqual([
-        { id: VARIABLE_A, environmentId: ENVIRONMENT_A, key: 'API_KEY', maskedValue: '已设置', sensitive: true, description: null },
+        {
+          id: VARIABLE_A,
+          environmentId: ENVIRONMENT_A,
+          key: 'API_KEY',
+          maskedValue: '已设置',
+          sensitive: true,
+          description: null,
+        },
       ]);
       // KI-004 reproduction: listByEnvironment does NOT take workspaceId parameter
       // so it would leak if env.projectId resolution is bypassed. Confirmed via
@@ -765,10 +891,20 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
   describe('DeploymentController', () => {
     it('POST /deployments 201 for DEVELOPER with body matching env.projectId', async () => {
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
-      stub('project.findUnique', { id: PROJECT_A, workspaceId: WORKSPACE_A, repositoryUrl: 'https://github.com/x/y.git' });
+      stub('project.findUnique', {
+        id: PROJECT_A,
+        workspaceId: WORKSPACE_A,
+        repositoryUrl: 'https://github.com/x/y.git',
+      });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_DEVELOPER, role: 'VIEWER' });
-      stub('environment.findUnique', { id: ENVIRONMENT_A, projectId: PROJECT_A, enabled: true, deployTargetId: DEPLOY_TARGET_A, externalPort: 3000 });
+      stub('environment.findUnique', {
+        id: ENVIRONMENT_A,
+        projectId: PROJECT_A,
+        enabled: true,
+        deployTargetId: DEPLOY_TARGET_A,
+        externalPort: 3000,
+      });
       stub('deployTarget.findUnique', { id: DEPLOY_TARGET_A, projectId: PROJECT_A });
       stub('deployment.findFirst', null); // idempotency check
       stub('deployment.create', (() => ({
@@ -807,7 +943,12 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_DEVELOPER, role: 'VIEWER' });
       // env belongs to a DIFFERENT project (X) but URL/body says project A
-      stub('environment.findUnique', { id: ENVIRONMENT_A, projectId: PROJECT_X, enabled: true, deployTargetId: DEPLOY_TARGET_X });
+      stub('environment.findUnique', {
+        id: ENVIRONMENT_A,
+        projectId: PROJECT_X,
+        enabled: true,
+        deployTargetId: DEPLOY_TARGET_X,
+      });
 
       const res = await request('POST', '/deployments', {
         token: tokens.aDeveloper,
@@ -827,13 +968,32 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
 
     it('POST /deployments 400 for extra (undeclared) body field — KI-005 fixed: forbidNonWhitelisted rejects `backdoor`', async () => {
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
-      stub('project.findUnique', { id: PROJECT_A, workspaceId: WORKSPACE_A, repositoryUrl: 'https://github.com/x/y.git' });
+      stub('project.findUnique', {
+        id: PROJECT_A,
+        workspaceId: WORKSPACE_A,
+        repositoryUrl: 'https://github.com/x/y.git',
+      });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_DEVELOPER, role: 'VIEWER' });
-      stub('environment.findUnique', { id: ENVIRONMENT_A, projectId: PROJECT_A, enabled: true, deployTargetId: DEPLOY_TARGET_A });
+      stub('environment.findUnique', {
+        id: ENVIRONMENT_A,
+        projectId: PROJECT_A,
+        enabled: true,
+        deployTargetId: DEPLOY_TARGET_A,
+      });
       stub('deployTarget.findUnique', { id: DEPLOY_TARGET_A, projectId: PROJECT_A });
       stub('deployment.findFirst', null);
-      stub('deployment.create', (() => ({ id: DEPLOYMENT_A, projectId: PROJECT_A, environmentId: ENVIRONMENT_A, deployTargetId: DEPLOY_TARGET_A, status: 'PENDING', branch: 'main', commitSha: 'abc', triggeredBy: USER_A_DEVELOPER, createdAt: new Date() })) as any);
+      stub('deployment.create', (() => ({
+        id: DEPLOYMENT_A,
+        projectId: PROJECT_A,
+        environmentId: ENVIRONMENT_A,
+        deployTargetId: DEPLOY_TARGET_A,
+        status: 'PENDING',
+        branch: 'main',
+        commitSha: 'abc',
+        triggeredBy: USER_A_DEVELOPER,
+        createdAt: new Date(),
+      })) as any);
       stub('deploymentStageLog.createMany', undefined);
       stub('task.create', (() => ({ id: TASK_A })) as any);
       stub('user.findUnique', null);
@@ -861,13 +1021,33 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
 
     it('POST /deployments 201 success path is not blocked by strict DTO', async () => {
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
-      stub('project.findUnique', { id: PROJECT_A, workspaceId: WORKSPACE_A, repositoryUrl: 'https://github.com/x/y.git' });
+      stub('project.findUnique', {
+        id: PROJECT_A,
+        workspaceId: WORKSPACE_A,
+        repositoryUrl: 'https://github.com/x/y.git',
+      });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_DEVELOPER, role: 'VIEWER' });
-      stub('environment.findUnique', { id: ENVIRONMENT_A, projectId: PROJECT_A, enabled: true, deployTargetId: DEPLOY_TARGET_A, externalPort: 3000 });
+      stub('environment.findUnique', {
+        id: ENVIRONMENT_A,
+        projectId: PROJECT_A,
+        enabled: true,
+        deployTargetId: DEPLOY_TARGET_A,
+        externalPort: 3000,
+      });
       stub('deployTarget.findUnique', { id: DEPLOY_TARGET_A, projectId: PROJECT_A });
       stub('deployment.findFirst', null);
-      stub('deployment.create', (() => ({ id: DEPLOYMENT_A, projectId: PROJECT_A, environmentId: ENVIRONMENT_A, deployTargetId: DEPLOY_TARGET_A, status: 'PENDING', branch: 'main', commitSha: 'sha1', triggeredBy: USER_A_DEVELOPER, createdAt: new Date() })) as any);
+      stub('deployment.create', (() => ({
+        id: DEPLOYMENT_A,
+        projectId: PROJECT_A,
+        environmentId: ENVIRONMENT_A,
+        deployTargetId: DEPLOY_TARGET_A,
+        status: 'PENDING',
+        branch: 'main',
+        commitSha: 'sha1',
+        triggeredBy: USER_A_DEVELOPER,
+        createdAt: new Date(),
+      })) as any);
       stub('deploymentStageLog.createMany', undefined);
       stub('task.create', (() => ({ id: TASK_A })) as any);
       stub('user.findUnique', null);
@@ -882,7 +1062,9 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     });
 
     it('POST /deployments 401 without token', async () => {
-      const res = await request('POST', '/deployments', { body: { projectId: PROJECT_A, environmentId: ENVIRONMENT_A } });
+      const res = await request('POST', '/deployments', {
+        body: { projectId: PROJECT_A, environmentId: ENVIRONMENT_A },
+      });
       expectUnauth(res);
     });
 
@@ -916,14 +1098,43 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     });
 
     it('GET /deployments/:id 200 (own deployment)', async () => {
-      stub('deployment.findUnique', { id: DEPLOYMENT_A, projectId: PROJECT_A, environmentId: ENVIRONMENT_A, deployTargetId: null, status: 'SUCCEEDED', branch: 'main', commitSha: 'a', triggeredBy: null, accessUrl: null, startedAt: null, finishedAt: null, errorMessage: null, createdAt: new Date() });
+      stub('deployment.findUnique', {
+        id: DEPLOYMENT_A,
+        projectId: PROJECT_A,
+        environmentId: ENVIRONMENT_A,
+        deployTargetId: null,
+        status: 'SUCCEEDED',
+        branch: 'main',
+        commitSha: 'a',
+        triggeredBy: null,
+        accessUrl: null,
+        startedAt: null,
+        finishedAt: null,
+        errorMessage: null,
+        createdAt: new Date(),
+      });
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_VIEWER, role: 'VIEWER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_VIEWER, role: 'VIEWER' });
       stub('user.findUnique', null);
       stub('environment.findUnique', { id: ENVIRONMENT_A, name: 'staging' });
       // Service uses deployment.findFirst for getById
-      stub('deployment.findFirst', { id: DEPLOYMENT_A, projectId: PROJECT_A, environmentId: ENVIRONMENT_A, deployTargetId: null, status: 'SUCCEEDED', branch: 'main', commitSha: 'a', triggeredBy: null, accessUrl: null, startedAt: null, finishedAt: null, errorMessage: null, createdAt: new Date(), deployTarget: null });
+      stub('deployment.findFirst', {
+        id: DEPLOYMENT_A,
+        projectId: PROJECT_A,
+        environmentId: ENVIRONMENT_A,
+        deployTargetId: null,
+        status: 'SUCCEEDED',
+        branch: 'main',
+        commitSha: 'a',
+        triggeredBy: null,
+        accessUrl: null,
+        startedAt: null,
+        finishedAt: null,
+        errorMessage: null,
+        createdAt: new Date(),
+        deployTarget: null,
+      });
 
       const res = await request('GET', '/deployments/' + DEPLOYMENT_A, { token: tokens.aViewer });
       expect(res.status).toBe(200);
@@ -971,12 +1182,32 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('deployment.findUnique', { projectId: PROJECT_A });
       stub('deployment.findFirst', fullDeployment);
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
-      stub('project.findUnique', { id: PROJECT_A, workspaceId: WORKSPACE_A, repositoryUrl: 'https://github.com/x/y.git' });
+      stub('project.findUnique', {
+        id: PROJECT_A,
+        workspaceId: WORKSPACE_A,
+        repositoryUrl: 'https://github.com/x/y.git',
+      });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_DEVELOPER, role: 'VIEWER' });
-      stub('environment.findUnique', { id: ENVIRONMENT_A, projectId: PROJECT_A, deployMode: 'local', deployDir: '/srv/x' });
+      stub('environment.findUnique', {
+        id: ENVIRONMENT_A,
+        projectId: PROJECT_A,
+        deployMode: 'local',
+        deployDir: '/srv/x',
+      });
       stub('deployTarget.findUnique', { id: DEPLOY_TARGET_A, projectId: PROJECT_A });
-      stub('deployment.create', (() => ({ id: 'rb-1', projectId: PROJECT_A, environmentId: ENVIRONMENT_A, status: 'PENDING', rollbackFromDeploymentId: DEPLOYMENT_A, branch: 'main', commitSha: 'abc', deployTargetId: null, triggeredBy: USER_A_DEVELOPER, createdAt: new Date() })) as any);
+      stub('deployment.create', (() => ({
+        id: 'rb-1',
+        projectId: PROJECT_A,
+        environmentId: ENVIRONMENT_A,
+        status: 'PENDING',
+        rollbackFromDeploymentId: DEPLOYMENT_A,
+        branch: 'main',
+        commitSha: 'abc',
+        deployTargetId: null,
+        triggeredBy: USER_A_DEVELOPER,
+        createdAt: new Date(),
+      })) as any);
       stub('deploymentStageLog.createMany', undefined);
       stub('task.create', (() => ({ id: 't-rb' })) as any);
       stub('auditLog.create', undefined);
@@ -992,7 +1223,16 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
     });
 
     it('POST /deployments/:id/rollback 400 when deployment has no commitSha', async () => {
-      const noSha = { id: DEPLOYMENT_A, projectId: PROJECT_A, environmentId: ENVIRONMENT_A, deployTargetId: null, branch: null, commitSha: null, rollbackFromDeploymentId: null, status: 'FAILED' };
+      const noSha = {
+        id: DEPLOYMENT_A,
+        projectId: PROJECT_A,
+        environmentId: ENVIRONMENT_A,
+        deployTargetId: null,
+        branch: null,
+        commitSha: null,
+        rollbackFromDeploymentId: null,
+        status: 'FAILED',
+      };
       stub('deployment.findUnique', { projectId: PROJECT_A });
       stub('deployment.findFirst', noSha);
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
@@ -1120,7 +1360,9 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_VIEWER, role: 'VIEWER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_VIEWER, role: 'VIEWER' });
 
-      const res = await request('GET', '/projects/' + PROJECT_A + '/releases/' + RELEASE_A + '/gates', { token: tokens.aViewer });
+      const res = await request('GET', '/projects/' + PROJECT_A + '/releases/' + RELEASE_A + '/gates', {
+        token: tokens.aViewer,
+      });
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({ allPassed: true });
     });
@@ -1134,7 +1376,9 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('gateExemption.findMany', []);
       stub('release.update', (() => ({ id: RELEASE_A, status: 'PUBLISHED', gateStatus: 'PASSED' })) as any);
 
-      const res = await request('PUT', '/projects/' + PROJECT_A + '/releases/' + RELEASE_A + '/publish', { token: tokens.aAdmin });
+      const res = await request('PUT', '/projects/' + PROJECT_A + '/releases/' + RELEASE_A + '/publish', {
+        token: tokens.aAdmin,
+      });
       expect(res.status).toBe(200);
       expect(res.body).toMatchObject({ status: 'PUBLISHED' });
     });
@@ -1145,7 +1389,9 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_DEVELOPER, role: 'DEVELOPER' });
       // RequireRelease with ADMIN → projectMember role DEVELOPER < 4 → 403
-      const res = await request('PUT', '/projects/' + PROJECT_A + '/releases/' + RELEASE_A + '/publish', { token: tokens.aDeveloper });
+      const res = await request('PUT', '/projects/' + PROJECT_A + '/releases/' + RELEASE_A + '/publish', {
+        token: tokens.aDeveloper,
+      });
       expectForbidden(res);
     });
   });
@@ -1484,7 +1730,20 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_VIEWER, role: 'VIEWER' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_VIEWER, role: 'VIEWER' });
-      stub('deployTarget.findUnique', { id: DEPLOY_TARGET_A, projectId: PROJECT_A, name: 't', type: 'SSH', host: 'h', port: 22, username: 'u', authMethod: 'KEY', workRoot: '/var/lib/launchly', status: 'PENDING', lastVerifiedAt: null, createdAt: new Date() });
+      stub('deployTarget.findUnique', {
+        id: DEPLOY_TARGET_A,
+        projectId: PROJECT_A,
+        name: 't',
+        type: 'SSH',
+        host: 'h',
+        port: 22,
+        username: 'u',
+        authMethod: 'KEY',
+        workRoot: '/var/lib/launchly',
+        status: 'PENDING',
+        lastVerifiedAt: null,
+        createdAt: new Date(),
+      });
 
       const res = await request('GET', '/deploy-targets/' + DEPLOY_TARGET_A, { token: tokens.aViewer });
       expect(res.status).toBe(200);
@@ -1503,7 +1762,20 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('project.findFirst', { id: PROJECT_A, workspaceId: WORKSPACE_A });
       stub('projectMember.findFirst', { projectId: PROJECT_A, userId: USER_A_ADMIN, role: 'ADMIN' });
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_ADMIN, role: 'ADMIN' });
-      stub('deployTarget.findUnique', { id: DEPLOY_TARGET_A, projectId: PROJECT_A, name: 't', type: 'SSH', host: 'h', port: 22, username: 'u', authMethod: 'KEY', workRoot: '/var/lib/launchly', status: 'PENDING', lastVerifiedAt: null, createdAt: new Date() });
+      stub('deployTarget.findUnique', {
+        id: DEPLOY_TARGET_A,
+        projectId: PROJECT_A,
+        name: 't',
+        type: 'SSH',
+        host: 'h',
+        port: 22,
+        username: 'u',
+        authMethod: 'KEY',
+        workRoot: '/var/lib/launchly',
+        status: 'PENDING',
+        lastVerifiedAt: null,
+        createdAt: new Date(),
+      });
       stub('deployment.count', 0);
       stub('deployTarget.delete', undefined);
 
@@ -1555,7 +1827,13 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
 
       const res = await request('POST', '/projects/' + PROJECT_A + '/test-cases', {
         token: tokens.aTester,
-        body: { title: 'login works', description: 'd', priority: 'P1', steps: '1. go\n2. click', expectedResult: 'logged in' },
+        body: {
+          title: 'login works',
+          description: 'd',
+          priority: 'P1',
+          steps: '1. go\n2. click',
+          expectedResult: 'logged in',
+        },
       });
       expect(res.status).toBe(201);
     });
@@ -1637,7 +1915,9 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_TESTER, role: 'VIEWER' });
       stub('testCase.delete', undefined);
 
-      const res = await request('DELETE', '/projects/' + PROJECT_A + '/test-cases/' + TEST_CASE_A, { token: tokens.aTester });
+      const res = await request('DELETE', '/projects/' + PROJECT_A + '/test-cases/' + TEST_CASE_A, {
+        token: tokens.aTester,
+      });
       expect(res.status).toBe(200);
       expect(res.body).toEqual({ success: true });
     });
@@ -1651,11 +1931,22 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('workspaceMember.findFirst', { workspaceId: WORKSPACE_A, userId: USER_A_TESTER, role: 'VIEWER' });
       stub('deployment.findUnique', { id: DEPLOYMENT_A, projectId: PROJECT_A, environmentId: ENVIRONMENT_A });
       stub('testCase.findMany', []);
-      stub('testRun.create', (() => ({ id: TEST_RUN_A, deploymentId: DEPLOYMENT_A, projectId: PROJECT_A, environmentId: ENVIRONMENT_A, totalCases: 0, triggeredBy: USER_A_TESTER })) as any);
+      stub('testRun.create', (() => ({
+        id: TEST_RUN_A,
+        deploymentId: DEPLOYMENT_A,
+        projectId: PROJECT_A,
+        environmentId: ENVIRONMENT_A,
+        totalCases: 0,
+        triggeredBy: USER_A_TESTER,
+      })) as any);
 
-      const res = await request('POST', `/deployments/${DEPLOYMENT_A}/test-runs?projectId=${PROJECT_A}&environmentId=${ENVIRONMENT_A}`, {
-        token: tokens.aTester,
-      });
+      const res = await request(
+        'POST',
+        `/deployments/${DEPLOYMENT_A}/test-runs?projectId=${PROJECT_A}&environmentId=${ENVIRONMENT_A}`,
+        {
+          token: tokens.aTester,
+        },
+      );
       expect(res.status).toBe(201);
       expect(res.body).toMatchObject({ deploymentId: DEPLOYMENT_A, projectId: PROJECT_A });
     });
@@ -1667,9 +1958,13 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       stub('deployment.findUnique', { id: DEPLOYMENT_X, projectId: PROJECT_X, environmentId: ENVIRONMENT_X });
       stub('testCase.findMany', []);
 
-      const res = await request('POST', `/deployments/${DEPLOYMENT_X}/test-runs?projectId=${PROJECT_A}&environmentId=`, {
-        token: tokens.aTester,
-      });
+      const res = await request(
+        'POST',
+        `/deployments/${DEPLOYMENT_X}/test-runs?projectId=${PROJECT_A}&environmentId=`,
+        {
+          token: tokens.aTester,
+        },
+      );
       expectBadRequest(res);
     });
 
@@ -1724,7 +2019,11 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       });
       expectBadRequest(res);
       const messages = Array.isArray(res.body?.message) ? res.body.message : [String(res.body?.message)];
-      expect(messages.some((m: string) => m.includes('PENDING') || m.includes('PASSED') || m.includes('FAILED') || m.includes('SKIPPED'))).toBe(true);
+      expect(
+        messages.some(
+          (m: string) => m.includes('PENDING') || m.includes('PASSED') || m.includes('FAILED') || m.includes('SKIPPED'),
+        ),
+      ).toBe(true);
     });
 
     it('PUT /test-runs/:id/cases/:caseId 400 for undeclared field — KI-005 fixed: forbidNonWhitelisted', async () => {

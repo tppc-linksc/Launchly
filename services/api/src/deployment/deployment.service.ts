@@ -5,7 +5,10 @@ import { AuditService } from '../audit/audit.service';
 
 @Injectable()
 export class DeploymentService {
-  constructor(private readonly prisma: PrismaService, @Optional() private readonly audit?: AuditService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    @Optional() private readonly audit?: AuditService,
+  ) {}
 
   async create(
     dto: CreateDeploymentDto,
@@ -50,7 +53,7 @@ export class DeploymentService {
 
       const stages = this.deploymentStages(project);
       await tx.deploymentStageLog.createMany({
-        data: stages.map(s => ({
+        data: stages.map((s) => ({
           deploymentId: d.id,
           stage: s.stage,
           stepOrder: s.stepOrder,
@@ -58,7 +61,13 @@ export class DeploymentService {
         })),
       });
 
-      const payload = this.buildWorkerPayload({ project, environment: effectiveEnvironment, target, branch: dto.branch, commitSha: dto.commitSha });
+      const payload = this.buildWorkerPayload({
+        project,
+        environment: effectiveEnvironment,
+        target,
+        branch: dto.branch,
+        commitSha: dto.commitSha,
+      });
       await tx.task.create({
         data: {
           taskType: this.initialTaskType(project),
@@ -72,7 +81,10 @@ export class DeploymentService {
     });
 
     await this.audit?.record(userId || null, project.workspaceId, 'DEPLOYMENT_QUEUED', 'DEPLOYMENT', deployment.id, {
-      projectId: project.id, environmentId: env.id, trigger: userId ? 'MANUAL' : 'AUTOMATED', commitSha: dto.commitSha || null,
+      projectId: project.id,
+      environmentId: env.id,
+      trigger: userId ? 'MANUAL' : 'AUTOMATED',
+      commitSha: dto.commitSha || null,
     });
     return this.enrichDeployment(deployment);
   }
@@ -93,20 +105,28 @@ export class DeploymentService {
 
     const project = await this.prisma.project.findUnique({ where: { id: input.projectId } });
     if (!project) throw new NotFoundException('项目不存在');
-    const target = await this.prisma.deployTarget.findFirst({ where: { projectId: input.projectId }, orderBy: { createdAt: 'asc' } });
+    const target = await this.prisma.deployTarget.findFirst({
+      where: { projectId: input.projectId },
+      orderBy: { createdAt: 'asc' },
+    });
     if (!target) throw new BadRequestException('自动部署需要已验证的部署目标');
     let deployment: any;
     try {
-      deployment = await this.create({
-        projectId: input.projectId,
-        environmentId: input.environmentId,
-        deployTargetId: target.id,
-        branch: input.branch,
-        commitSha: input.commitSha,
-      }, '', project.workspaceId, {
-        triggerSource: 'GITHUB_WEBHOOK',
-        idempotencyKey: input.idempotencyKey,
-      });
+      deployment = await this.create(
+        {
+          projectId: input.projectId,
+          environmentId: input.environmentId,
+          deployTargetId: target.id,
+          branch: input.branch,
+          commitSha: input.commitSha,
+        },
+        '',
+        project.workspaceId,
+        {
+          triggerSource: 'GITHUB_WEBHOOK',
+          idempotencyKey: input.idempotencyKey,
+        },
+      );
     } catch (error: any) {
       if (error?.code !== 'P2002') throw error;
       const winner = await this.prisma.deployment.findFirst({ where: { idempotencyKey: input.idempotencyKey } });
@@ -114,7 +134,9 @@ export class DeploymentService {
       return this.enrichDeployment(winner);
     }
     await this.audit?.record(null, project.workspaceId, 'DEPLOYMENT_WEBHOOK_QUEUED', 'DEPLOYMENT', deployment.id, {
-      projectId: project.id, environmentId: input.environmentId, commitSha: input.commitSha,
+      projectId: project.id,
+      environmentId: input.environmentId,
+      commitSha: input.commitSha,
     });
     return { ...deployment, triggerSource: 'GITHUB_WEBHOOK' };
   }
@@ -139,8 +161,7 @@ export class DeploymentService {
     if (!source.deployTargetId) throw new BadRequestException('回滚部署缺少部署目标');
     const target = await this.prisma.deployTarget.findUnique({ where: { id: source.deployTargetId } });
     if (!target || target.projectId !== source.projectId) throw new BadRequestException('回滚部署目标无效');
-    const artifact = source.artifact
-      ?? await this.prisma.artifact.findUnique({ where: { deploymentId: source.id } });
+    const artifact = source.artifact ?? (await this.prisma.artifact.findUnique({ where: { deploymentId: source.id } }));
     if (!artifact || artifact.projectId !== source.projectId) {
       throw new BadRequestException('回滚目标缺少已验证的不可变制品');
     }
@@ -188,7 +209,9 @@ export class DeploymentService {
       return d;
     });
 
-    await this.audit?.record(userId, project.workspaceId, 'DEPLOYMENT_ROLLBACK_REQUESTED', 'DEPLOYMENT', rollback.id, { rollbackFromDeploymentId: source.id });
+    await this.audit?.record(userId, project.workspaceId, 'DEPLOYMENT_ROLLBACK_REQUESTED', 'DEPLOYMENT', rollback.id, {
+      rollbackFromDeploymentId: source.id,
+    });
     return this.enrichDeployment(rollback);
   }
 
@@ -226,7 +249,7 @@ export class DeploymentService {
     });
     if (!d) throw new NotFoundException('Deployment not found');
 
-    let result: any = {
+    const result: any = {
       id: d.id,
       projectId: d.projectId,
       environmentId: d.environmentId,
@@ -341,14 +364,17 @@ export class DeploymentService {
   private async reserveExternalPort(environment: any, deployTargetId: string): Promise<number> {
     const desired = environment.externalPort || 3000;
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      const environments = await this.prisma.environment.findMany({
-        where: { deployTargetId },
-        select: { id: true, externalPort: true },
-      }) || [];
-      const used = new Set<number>(environments
-        .filter((candidate: any) => candidate.id !== environment.id)
-        .map((candidate: any) => candidate.externalPort)
-        .filter((port: unknown): port is number => Number.isInteger(port)));
+      const environments =
+        (await this.prisma.environment.findMany({
+          where: { deployTargetId },
+          select: { id: true, externalPort: true },
+        })) || [];
+      const used = new Set<number>(
+        environments
+          .filter((candidate: any) => candidate.id !== environment.id)
+          .map((candidate: any) => candidate.externalPort)
+          .filter((port: unknown): port is number => Number.isInteger(port)),
+      );
       let selected = desired;
       if (used.has(selected)) {
         selected = -1;
@@ -404,15 +430,23 @@ export class DeploymentService {
   }
 
   private async enrichDeployments(deployments: any[]) {
-    const userIds = [...new Set(deployments.map(d => d.triggeredBy).filter(Boolean))] as string[];
-    const environmentIds = [...new Set(deployments.map(d => d.environmentId).filter(Boolean))] as string[];
+    const userIds = [...new Set(deployments.map((d) => d.triggeredBy).filter(Boolean))] as string[];
+    const environmentIds = [...new Set(deployments.map((d) => d.environmentId).filter(Boolean))] as string[];
     const [users, environments] = await Promise.all([
-      userIds.length ? this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, displayName: true } }) : [],
-      environmentIds.length ? this.prisma.environment.findMany({ where: { id: { in: environmentIds } }, select: { id: true, name: true } }) : [],
+      userIds.length
+        ? this.prisma.user.findMany({ where: { id: { in: userIds } }, select: { id: true, displayName: true } })
+        : [],
+      environmentIds.length
+        ? this.prisma.environment.findMany({ where: { id: { in: environmentIds } }, select: { id: true, name: true } })
+        : [],
     ]);
-    const userNames = new Map<string, string | null>(users.map(user => [user.id, user.displayName] as [string, string | null]));
-    const environmentNames = new Map<string, string>(environments.map(environment => [environment.id, environment.name] as [string, string]));
-    return deployments.map(d => ({
+    const userNames = new Map<string, string | null>(
+      users.map((user) => [user.id, user.displayName] as [string, string | null]),
+    );
+    const environmentNames = new Map<string, string>(
+      environments.map((environment) => [environment.id, environment.name] as [string, string]),
+    );
+    return deployments.map((d) => ({
       id: d.id,
       projectId: d.projectId,
       environmentId: d.environmentId,
@@ -427,7 +461,9 @@ export class DeploymentService {
       errorMessage: d.errorMessage,
       createdAt: d.createdAt.toISOString(),
       ...(d.triggeredBy && userNames.has(d.triggeredBy) ? { triggeredByName: userNames.get(d.triggeredBy) } : {}),
-      ...(d.environmentId && environmentNames.has(d.environmentId) ? { environmentName: environmentNames.get(d.environmentId) } : {}),
+      ...(d.environmentId && environmentNames.has(d.environmentId)
+        ? { environmentName: environmentNames.get(d.environmentId) }
+        : {}),
     }));
   }
 

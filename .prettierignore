@@ -1,0 +1,10 @@
+**/node_modules/**
+**/dist/**
+**/coverage/**
+**/.git/**
+apps/web/src/api/generated.ts
+docs/**
+examples/**
+services/api/prisma/migrations/**
+**/*.md
+pnpm-lock.yaml

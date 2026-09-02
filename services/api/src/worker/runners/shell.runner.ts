@@ -52,7 +52,10 @@ export class ShellRunner {
 
     const fullCommand = commands.join(' && ');
     // KI-028: stageLog 记录命令摘要，不写完整 payload（避免 secret 泄露）。
-    await ctx.stageLogCallback?.('RUNNING', `Executing build pipeline (${commands.length} step${commands.length > 1 ? 's' : ''})`);
+    await ctx.stageLogCallback?.(
+      'RUNNING',
+      `Executing build pipeline (${commands.length} step${commands.length > 1 ? 's' : ''})`,
+    );
 
     const result = await this.executor.exec(fullCommand, { cwd: workDir, timeout: 1200 });
     return {
@@ -72,7 +75,10 @@ export class ShellRunner {
     if (!Number.isInteger(port) || port < 1 || port > 65535) {
       return this.failure(`Health check port 非法: ${port}`);
     }
-    const rawPath = typeof ctx.payload.healthCheckPath === 'string' && ctx.payload.healthCheckPath ? ctx.payload.healthCheckPath : '/';
+    const rawPath =
+      typeof ctx.payload.healthCheckPath === 'string' && ctx.payload.healthCheckPath
+        ? ctx.payload.healthCheckPath
+        : '/';
     if (!SAFE_HEALTH_PATH.test(rawPath)) {
       return this.failure(`Health check path 非法: ${rawPath}`);
     }
@@ -83,7 +89,9 @@ export class ShellRunner {
     let lastStatus = -1;
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
       try {
-        const result = await this.executor.execFile('curl', ['-sf', '-o', '/dev/null', '-w', '%{http_code}', url], { timeout: 30 });
+        const result = await this.executor.execFile('curl', ['-sf', '-o', '/dev/null', '-w', '%{http_code}', url], {
+          timeout: 30,
+        });
         // KI-039: 必须有完整三位数字状态码且 exitCode=0 才算成功。
         const statusText = result.stdout.trim();
         const statusCode = /^\d{3}$/.test(statusText) ? Number(statusText) : Number.NaN;
@@ -95,7 +103,7 @@ export class ShellRunner {
         // 单次失败继续重试
       }
       if (i < MAX_ATTEMPTS - 1) {
-        await new Promise(r => setTimeout(r, 5000));
+        await new Promise((r) => setTimeout(r, 5000));
       }
     }
 
@@ -109,6 +117,12 @@ export class ShellRunner {
   }
 
   private failure(message: string): RunnerResult {
-    return { success: false, stdout: '', stderr: CommandExecutor.sanitize(message), exitCode: -1, errorMessage: message };
+    return {
+      success: false,
+      stdout: '',
+      stderr: CommandExecutor.sanitize(message),
+      exitCode: -1,
+      errorMessage: message,
+    };
   }
 }

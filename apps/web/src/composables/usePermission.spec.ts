@@ -1,65 +1,65 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { setActivePinia, createPinia } from 'pinia'
-import { usePermission } from './usePermission'
-import { useAuthStore } from '../stores/auth'
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { setActivePinia, createPinia } from 'pinia';
+import { usePermission } from './usePermission';
+import { useAuthStore } from '../stores/auth';
 
 function setRole(role: string | null) {
-  const auth = useAuthStore()
-  auth.user = role ? { id: 'u-test', role } : null
+  const auth = useAuthStore();
+  auth.user = role ? { id: 'u-test', role } : null;
 }
 
 describe('usePermission', () => {
   beforeEach(() => {
-    setActivePinia(createPinia())
-  })
+    setActivePinia(createPinia());
+  });
 
   it('defaults to VIEWER when no user', () => {
-    const { role, isViewer } = usePermission()
-    expect(role.value).toBe('VIEWER')
-    expect(isViewer.value).toBe(true)
-  })
+    const { role, isViewer } = usePermission();
+    expect(role.value).toBe('VIEWER');
+    expect(isViewer.value).toBe(true);
+  });
 
   it('OWNER: all permissions except isViewer', () => {
-    setRole('OWNER')
-    const { isOwner, isAdmin, canWrite, canDeploy, isViewer } = usePermission()
-    expect(isOwner.value).toBe(true)
-    expect(isAdmin.value).toBe(true)
-    expect(canWrite.value).toBe(true)
-    expect(canDeploy.value).toBe(true)
-    expect(isViewer.value).toBe(false)
-  })
+    setRole('OWNER');
+    const { isOwner, isAdmin, canWrite, canDeploy, isViewer } = usePermission();
+    expect(isOwner.value).toBe(true);
+    expect(isAdmin.value).toBe(true);
+    expect(canWrite.value).toBe(true);
+    expect(canDeploy.value).toBe(true);
+    expect(isViewer.value).toBe(false);
+  });
 
   it('ADMIN: not owner, but admin/write/deploy', () => {
-    setRole('ADMIN')
-    const { isOwner, isAdmin, canWrite, canDeploy } = usePermission()
-    expect(isOwner.value).toBe(false)
-    expect(isAdmin.value).toBe(true)
-    expect(canWrite.value).toBe(true)
-    expect(canDeploy.value).toBe(true)
-  })
+    setRole('ADMIN');
+    const { isOwner, isAdmin, canWrite, canDeploy } = usePermission();
+    expect(isOwner.value).toBe(false);
+    expect(isAdmin.value).toBe(true);
+    expect(canWrite.value).toBe(true);
+    expect(canDeploy.value).toBe(true);
+  });
 
   it('DEVELOPER: can write and deploy, not admin', () => {
-    setRole('DEVELOPER')
-    const { isAdmin, canWrite, canDeploy } = usePermission()
-    expect(isAdmin.value).toBe(false)
-    expect(canWrite.value).toBe(true)
-    expect(canDeploy.value).toBe(true)
-  })
+    setRole('DEVELOPER');
+    const { isAdmin, canWrite, canDeploy } = usePermission();
+    expect(isAdmin.value).toBe(false);
+    expect(canWrite.value).toBe(true);
+    expect(canDeploy.value).toBe(true);
+  });
 
   it('TESTER: can write but not deploy', () => {
-    setRole('TESTER')
-    const { canWrite, canDeploy } = usePermission()
-    expect(canWrite.value).toBe(true)
-    expect(canDeploy.value).toBe(false)
-  })
+    setRole('TESTER');
+    const { canWrite, canDeploy } = usePermission();
+    expect(canWrite.value).toBe(true);
+    expect(canDeploy.value).toBe(false);
+  });
 
   it('VIEWER: no write, no deploy', () => {
-    setRole('VIEWER')
-    const { canWrite, canDeploy, isViewer } = usePermission()
-    expect(canWrite.value).toBe(false)
-    expect(canDeploy.value).toBe(false)
-    expect(isViewer.value).toBe(true)
-  })
+    setRole('VIEWER');
+    const { canWrite, canDeploy, isViewer } = usePermission();
+    expect(canWrite.value).toBe(false);
+    expect(canDeploy.value).toBe(false);
+    expect(isViewer.value).toBe(true);
+  });
 
   // Edge cases that previously caused silent privilege downgrades:
   // a user object without `role` or with an empty string used to keep
@@ -67,33 +67,33 @@ describe('usePermission', () => {
   // the fail-closed default.
   describe('workspace role mapping — edge cases', () => {
     it('user object present but role is undefined → falls back to VIEWER', () => {
-      const auth = useAuthStore()
-      auth.user = { id: 'u-1' } as any
-      const { role, isViewer, canWrite, canDeploy } = usePermission()
-      expect(role.value).toBe('VIEWER')
-      expect(isViewer.value).toBe(true)
-      expect(canWrite.value).toBe(false)
-      expect(canDeploy.value).toBe(false)
-    })
+      const auth = useAuthStore();
+      auth.user = { id: 'u-1' } as any;
+      const { role, isViewer, canWrite, canDeploy } = usePermission();
+      expect(role.value).toBe('VIEWER');
+      expect(isViewer.value).toBe(true);
+      expect(canWrite.value).toBe(false);
+      expect(canDeploy.value).toBe(false);
+    });
 
     it('user object present but role is empty string → falls back to VIEWER', () => {
-      const auth = useAuthStore()
-      auth.user = { id: 'u-1', role: '' } as any
-      const { role, isViewer } = usePermission()
-      expect(role.value).toBe('VIEWER')
-      expect(isViewer.value).toBe(true)
-    })
+      const auth = useAuthStore();
+      auth.user = { id: 'u-1', role: '' } as any;
+      const { role, isViewer } = usePermission();
+      expect(role.value).toBe('VIEWER');
+      expect(isViewer.value).toBe(true);
+    });
 
     it('user object present with an unknown role → all role-specific booleans are false (fail-closed)', () => {
-      const auth = useAuthStore()
-      auth.user = { id: 'u-1', role: 'GHOST' } as any
-      const { role, isOwner, isAdmin, canWrite, canDeploy, isViewer } = usePermission()
-      expect(role.value).toBe('GHOST')
-      expect(isOwner.value).toBe(false)
-      expect(isAdmin.value).toBe(false)
-      expect(canWrite.value).toBe(false)
-      expect(canDeploy.value).toBe(false)
-      expect(isViewer.value).toBe(false)
-    })
-  })
-})
+      const auth = useAuthStore();
+      auth.user = { id: 'u-1', role: 'GHOST' } as any;
+      const { role, isOwner, isAdmin, canWrite, canDeploy, isViewer } = usePermission();
+      expect(role.value).toBe('GHOST');
+      expect(isOwner.value).toBe(false);
+      expect(isAdmin.value).toBe(false);
+      expect(canWrite.value).toBe(false);
+      expect(canDeploy.value).toBe(false);
+      expect(isViewer.value).toBe(false);
+    });
+  });
+});

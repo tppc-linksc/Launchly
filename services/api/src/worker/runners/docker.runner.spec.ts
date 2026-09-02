@@ -76,5 +76,4 @@ describe('DockerRunner.execute - deliberate disabled result for every context', 
     expect(result.stderr).toMatch(/disabled/i);
     expect(result.errorMessage).toMatch(/control-plane isolation policy/i);
   });
-
 });

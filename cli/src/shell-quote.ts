@@ -11,12 +11,12 @@
  */
 export function shellQuote(value: string): string {
   if (typeof value !== 'string') {
-    throw new Error('shellQuote 仅接受字符串参数')
+    throw new Error('shellQuote 仅接受字符串参数');
   }
-  if (value.length === 0) return "''"
+  if (value.length === 0) return "''";
   // POSIX 单引号字符串内部不允许出现裸单引号；必须闭合、转义、再开启。
   // 形如：'foo'\''bar'
-  return "'" + value.replace(/'/g, "'\\\\''") + "'"
+  return "'" + value.replace(/'/g, "'\\\\''") + "'";
 }
 
 /**
@@ -25,5 +25,5 @@ export function shellQuote(value: string): string {
  * 用来给运维人员展示"实际会被解释成什么"，不会作为执行入口。
  */
 export function shellPreview(parts: string[]): string {
-  return parts.map(shellQuote).join(' ')
+  return parts.map(shellQuote).join(' ');
 }

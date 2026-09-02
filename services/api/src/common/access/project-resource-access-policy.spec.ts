@@ -1,12 +1,5 @@
-import {
-  ForbiddenException,
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
-import {
-  PROJECT_ROLES,
-  ProjectResourceAccessPolicy,
-} from './project-resource-access-policy';
+import { ForbiddenException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import { PROJECT_ROLES, ProjectResourceAccessPolicy } from './project-resource-access-policy';
 import { createPrismaMock, MockPrismaService } from '../../../test/helpers/prisma-mock';
 
 /**
@@ -56,9 +49,7 @@ describe('ProjectResourceAccessPolicy', () => {
     it('项目查询必须同时过滤 projectId 与 workspaceId', async () => {
       prisma.project.findFirst.mockResolvedValue(null);
 
-      await expect(
-        policy.requireProject(projectId, userId, workspaceId),
-      ).rejects.toThrow(NotFoundException);
+      await expect(policy.requireProject(projectId, userId, workspaceId)).rejects.toThrow(NotFoundException);
 
       expect(prisma.project.findFirst).toHaveBeenCalledWith({
         where: { id: projectId, workspaceId },
@@ -96,19 +87,19 @@ describe('ProjectResourceAccessPolicy', () => {
     });
 
     it.each([
-      ['VIEWER',    'VIEWER',    true],
-      ['VIEWER',    'TESTER',    true],
-      ['VIEWER',    'DEVELOPER', true],
-      ['VIEWER',    'ADMIN',     true],
-      ['VIEWER',    'OWNER',     true],
-      ['TESTER',    'VIEWER',    false],
-      ['TESTER',    'TESTER',    true],
-      ['DEVELOPER', 'TESTER',    false],
+      ['VIEWER', 'VIEWER', true],
+      ['VIEWER', 'TESTER', true],
+      ['VIEWER', 'DEVELOPER', true],
+      ['VIEWER', 'ADMIN', true],
+      ['VIEWER', 'OWNER', true],
+      ['TESTER', 'VIEWER', false],
+      ['TESTER', 'TESTER', true],
+      ['DEVELOPER', 'TESTER', false],
       ['DEVELOPER', 'DEVELOPER', true],
-      ['ADMIN',     'DEVELOPER', false],
-      ['ADMIN',     'OWNER',     true],
-      ['OWNER',     'ADMIN',     false],
-      ['OWNER',     'OWNER',     true],
+      ['ADMIN', 'DEVELOPER', false],
+      ['ADMIN', 'OWNER', true],
+      ['OWNER', 'ADMIN', false],
+      ['OWNER', 'OWNER', true],
     ])('minimumRole=%s 与 projectMember.role=%s → %s', async (minimumRole, memberRole, expectedPass) => {
       (prisma as any).projectMember.findFirst.mockResolvedValue({ role: memberRole });
 
@@ -132,9 +123,7 @@ describe('ProjectResourceAccessPolicy', () => {
     it('projectMember.role 不是字符串（如数字）→ 抛 500', async () => {
       (prisma as any).projectMember.findFirst.mockResolvedValue({ role: 5 });
 
-      await expect(
-        policy.requireProject(projectId, userId, workspaceId),
-      ).rejects.toThrow(InternalServerErrorException);
+      await expect(policy.requireProject(projectId, userId, workspaceId)).rejects.toThrow(InternalServerErrorException);
     });
 
     it('传入的 minimumRole 是未知值 → 抛 500，不进入 prisma 查询', async () => {
@@ -193,9 +182,7 @@ describe('ProjectResourceAccessPolicy', () => {
     it('变量存在但 environment 为 null → 同样 NotFoundException', async () => {
       prisma.environmentVariable.findUnique.mockResolvedValue({ environment: null });
 
-      await expect(
-        policy.requireEnvironmentVariable('var-1', userId, workspaceId),
-      ).rejects.toThrow(NotFoundException);
+      await expect(policy.requireEnvironmentVariable('var-1', userId, workspaceId)).rejects.toThrow(NotFoundException);
     });
 
     it('存在 → 反查所属 environment 的 projectId 并完成校验', async () => {
@@ -222,12 +209,8 @@ describe('ProjectResourceAccessPolicy', () => {
     it('目标不存在 → NotFoundException "部署目标不存在"', async () => {
       prisma.deployTarget.findUnique.mockResolvedValue(null);
 
-      await expect(
-        policy.requireDeployTarget('tgt-1', userId, workspaceId),
-      ).rejects.toThrow(NotFoundException);
-      await expect(
-        policy.requireDeployTarget('tgt-1', userId, workspaceId),
-      ).rejects.toThrow('部署目标不存在');
+      await expect(policy.requireDeployTarget('tgt-1', userId, workspaceId)).rejects.toThrow(NotFoundException);
+      await expect(policy.requireDeployTarget('tgt-1', userId, workspaceId)).rejects.toThrow('部署目标不存在');
     });
 
     it('存在 → 反查 projectId 并走校验', async () => {
@@ -250,9 +233,9 @@ describe('ProjectResourceAccessPolicy', () => {
       prisma.workspaceMember.findFirst.mockResolvedValue({ role: 'MEMBER' });
       (prisma as any).projectMember.findFirst.mockResolvedValue({ role: 'VIEWER' });
 
-      await expect(
-        policy.requireDeployTarget('tgt-1', userId, workspaceId, 'DEVELOPER'),
-      ).rejects.toThrow(ForbiddenException);
+      await expect(policy.requireDeployTarget('tgt-1', userId, workspaceId, 'DEVELOPER')).rejects.toThrow(
+        ForbiddenException,
+      );
     });
   });
 
@@ -261,11 +244,11 @@ describe('ProjectResourceAccessPolicy', () => {
   //    同样的反查 + 校验模式，统一做一遍确认。
   // ============================================================
   describe.each([
-    ['requireIssue',        'issue',       '问题不存在',       'issue-1'],
-    ['requireRelease',      'release',     '发布不存在',       'rel-1'],
-    ['requireTestCase',     'testCase',    '测试用例不存在',   'tc-1'],
-    ['requireTestRun',      'testRun',     '测试运行不存在',   'tr-1'],
-    ['requireDeployment',   'deployment',  '部署不存在',       'dep-1'],
+    ['requireIssue', 'issue', '问题不存在', 'issue-1'],
+    ['requireRelease', 'release', '发布不存在', 'rel-1'],
+    ['requireTestCase', 'testCase', '测试用例不存在', 'tc-1'],
+    ['requireTestRun', 'testRun', '测试运行不存在', 'tr-1'],
+    ['requireDeployment', 'deployment', '部署不存在', 'dep-1'],
   ] as const)('%s', (methodName, model, notFoundMessage, resourceId) => {
     it('资源不存在 → NotFoundException 带中文消息', async () => {
       ((prisma as any)[model].findUnique as jest.Mock).mockResolvedValue(null);
@@ -285,7 +268,7 @@ describe('ProjectResourceAccessPolicy', () => {
       const result = await fn(resourceId, userId, workspaceId);
 
       expect(result).toBe(baseProject);
-      expect(((prisma as any)[model].findUnique as jest.Mock)).toHaveBeenCalledWith({
+      expect((prisma as any)[model].findUnique as jest.Mock).toHaveBeenCalledWith({
         where: { id: resourceId },
         select: { projectId: true },
       });

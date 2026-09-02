@@ -39,7 +39,13 @@ function unpinClock() {
 afterAll(() => {
   for (const [key, original] of Object.entries(ORIGINAL_ENV)) {
     if (original === undefined) {
-      delete process.env[key === 'workerId' ? 'LAUNCHLY_WORKER_ID' : key === 'timeout' ? 'LAUNCHLY_WORKER_TIMEOUT_MINUTES' : 'LAUNCHLY_WORKER_POLL_INTERVAL_MS'];
+      delete process.env[
+        key === 'workerId'
+          ? 'LAUNCHLY_WORKER_ID'
+          : key === 'timeout'
+            ? 'LAUNCHLY_WORKER_TIMEOUT_MINUTES'
+            : 'LAUNCHLY_WORKER_POLL_INTERVAL_MS'
+      ];
     } else if (key === 'workerId') process.env.LAUNCHLY_WORKER_ID = original;
     else if (key === 'timeout') process.env.LAUNCHLY_WORKER_TIMEOUT_MINUTES = original;
     else process.env.LAUNCHLY_WORKER_POLL_INTERVAL_MS = original;
@@ -243,7 +249,7 @@ describe('WorkerService.init / heartbeat', () => {
     expect((prisma as any).workerHeartbeat.upsert).toHaveBeenCalledTimes(1);
   });
 
-  it.skip('heartbeat writes READY with the configured workerId and current pid', async () => {
+  it('heartbeat writes READY with the configured workerId and current pid', async () => {
     await service.heartbeat();
     const call = ((prisma as any).workerHeartbeat.upsert as jest.Mock).mock.calls[0][0];
     expect(call.where).toEqual({ workerId: WORKER_ID });
@@ -307,7 +313,7 @@ describe('WorkerService.poll - claim transaction', () => {
     return JSON.stringify(call);
   }
 
-  it.skip('returns early when $queryRaw yields no candidate', async () => {
+  it('returns early when $queryRaw yields no candidate', async () => {
     const tx = attachSimpleTx(prisma, { rows: [] });
     await service.poll();
     expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
@@ -463,40 +469,36 @@ describe('WorkerService.poll - payload parsing', () => {
     expect(runnerFactory.execute).not.toHaveBeenCalled();
   });
 
-  it.skip('passes through non-object JSON arrays (current behavior)', async () => {
+  it('rejects JSON arrays before invoking a runner', async () => {
     const row = makePendingRow({ payload: '[1,2,3]' });
     attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ payload: '[1,2,3]' }) });
     runnerFactory.execute.mockImplementation(async () => failureResult({ errorMessage: 'x' }));
     await service.poll();
-    const ctx = runnerFactory.execute.mock.calls[0][1];
-    expect(ctx.payload).toEqual([1, 2, 3]);
+    expect(runnerFactory.execute).not.toHaveBeenCalled();
   });
 
-  it.skip('passes through a JSON string primitive (current behavior)', async () => {
+  it('rejects JSON string primitives before invoking a runner', async () => {
     const row = makePendingRow({ payload: '"text"' });
     attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ payload: '"text"' }) });
     runnerFactory.execute.mockImplementation(async () => failureResult({ errorMessage: 'x' }));
     await service.poll();
-    const ctx = runnerFactory.execute.mock.calls[0][1];
-    expect(ctx.payload).toBe('text');
+    expect(runnerFactory.execute).not.toHaveBeenCalled();
   });
 
-  it.skip('passes through a JSON number primitive (current behavior)', async () => {
+  it('rejects JSON number primitives before invoking a runner', async () => {
     const row = makePendingRow({ payload: '123' });
     attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ payload: '123' }) });
     runnerFactory.execute.mockImplementation(async () => failureResult({ errorMessage: 'x' }));
     await service.poll();
-    const ctx = runnerFactory.execute.mock.calls[0][1];
-    expect(ctx.payload).toBe(123);
+    expect(runnerFactory.execute).not.toHaveBeenCalled();
   });
 
-  it.skip('passes through a JSON null literal (current behavior)', async () => {
+  it('rejects the JSON null literal before invoking a runner', async () => {
     const row = makePendingRow({ payload: 'null' });
     attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ payload: 'null' }) });
     runnerFactory.execute.mockImplementation(async () => failureResult({ errorMessage: 'x' }));
     await service.poll();
-    const ctx = runnerFactory.execute.mock.calls[0][1];
-    expect(ctx.payload).toBeNull();
+    expect(runnerFactory.execute).not.toHaveBeenCalled();
   });
 });
 
@@ -815,11 +817,11 @@ describe('WorkerService.poll - runner success', () => {
 
     await service.poll();
 
-    const deployUpdate = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'ROLLED_BACK');
+    const deployUpdate = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'ROLLED_BACK');
     expect(deployUpdate).toBeDefined();
     expect(deployUpdate[0].data.finishedAt).toBeInstanceOf(Date);
     // No SUCCEEDED write on deployment
-    const succeededWrite = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'SUCCEEDED');
+    const succeededWrite = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'SUCCEEDED');
     expect(succeededWrite).toBeUndefined();
     // No next task created
     expect(prisma.task.create).not.toHaveBeenCalled();
@@ -830,7 +832,10 @@ describe('WorkerService.poll - runner success', () => {
       taskType: 'ROLLBACK_DEPLOY',
       payload: JSON.stringify({ rollbackDeploymentId: 'deploy-previous' }),
     });
-    attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ taskType: 'ROLLBACK_DEPLOY', payload: row.payload }) });
+    attachSimpleTx(prisma, {
+      rows: [row],
+      updatedTask: makeClaimedTask({ taskType: 'ROLLBACK_DEPLOY', payload: row.payload }),
+    });
     prisma.deployment.findUnique.mockResolvedValue(makePENDINGDeployment({ status: 'RUNNING' }));
     prisma.deployment.update.mockResolvedValue({
       ...makePENDINGDeployment({ status: 'ROLLED_BACK' }),
@@ -852,7 +857,10 @@ describe('WorkerService.poll - runner success', () => {
       taskType: 'ROLLBACK_DEPLOY',
       payload: JSON.stringify({ rollbackDeploymentId: 'deploy-previous' }),
     });
-    attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ taskType: 'ROLLBACK_DEPLOY', payload: row.payload }) });
+    attachSimpleTx(prisma, {
+      rows: [row],
+      updatedTask: makeClaimedTask({ taskType: 'ROLLBACK_DEPLOY', payload: row.payload }),
+    });
     prisma.deployment.findUnique.mockResolvedValue(makePENDINGDeployment({ status: 'RUNNING' }));
     prisma.deployment.update.mockResolvedValue({
       ...makePENDINGDeployment({ status: 'ROLLED_BACK' }),
@@ -922,13 +930,13 @@ describe('WorkerService.poll - next stage queue matrix', () => {
   });
 
   it('TEMPLATE_SOURCE → PROJECT_BUILD', async () => {
-    await runSuccess('TEMPLATE_SOURCE','{}');
-    expectEnqueued('PROJECT_BUILD','{}');
+    await runSuccess('TEMPLATE_SOURCE', '{}');
+    expectEnqueued('PROJECT_BUILD', '{}');
   });
 
   it('PROJECT_BUILD → PROJECT_DEPLOY', async () => {
-    await runSuccess('PROJECT_BUILD','{}');
-    expectEnqueued('PROJECT_DEPLOY','{}');
+    await runSuccess('PROJECT_BUILD', '{}');
+    expectEnqueued('PROJECT_DEPLOY', '{}');
   });
 
   it('PROJECT_DEPLOY with bootstrapAdminEnabled=true → PROJECT_BOOTSTRAP', async () => {
@@ -942,17 +950,17 @@ describe('WorkerService.poll - next stage queue matrix', () => {
   });
 
   it('PROJECT_DEPLOY with no payload → HEALTH_CHECK', async () => {
-    await runSuccess('PROJECT_DEPLOY','{}');
-    expectEnqueued('HEALTH_CHECK','{}');
+    await runSuccess('PROJECT_DEPLOY', '{}');
+    expectEnqueued('HEALTH_CHECK', '{}');
   });
 
   it('PROJECT_BOOTSTRAP → HEALTH_CHECK', async () => {
-    await runSuccess('PROJECT_BOOTSTRAP','{}');
-    expectEnqueued('HEALTH_CHECK','{}');
+    await runSuccess('PROJECT_BOOTSTRAP', '{}');
+    expectEnqueued('HEALTH_CHECK', '{}');
   });
 
   it('HEALTH_CHECK success does not enqueue a next stage', async () => {
-    await runSuccess('HEALTH_CHECK','{}');
+    await runSuccess('HEALTH_CHECK', '{}');
     expect(prisma.task.create).not.toHaveBeenCalled();
   });
 
@@ -1007,7 +1015,7 @@ describe('WorkerService.poll - deployment completion', () => {
 
     await service.poll();
 
-    const deployUpdate = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'SUCCEEDED');
+    const deployUpdate = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'SUCCEEDED');
     expect(deployUpdate).toBeDefined();
     expect(deployUpdate[0].data.finishedAt).toBeInstanceOf(Date);
     expect(deployUpdate[0].data.accessUrl).toBe('http://nas.example.com:4000');
@@ -1026,7 +1034,7 @@ describe('WorkerService.poll - deployment completion', () => {
     prisma.environment.findUnique.mockResolvedValue({ id: 'env-1', externalPort: 4000 });
     prisma.deployTarget.findUnique.mockResolvedValue({ id: 'target-1', host: 'nas.example.com' });
     await service.poll();
-    const succeeded = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'SUCCEEDED');
+    const succeeded = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'SUCCEEDED');
     expect(succeeded).toBeUndefined();
     expect(prisma.environment.update).not.toHaveBeenCalled();
   });
@@ -1040,19 +1048,19 @@ describe('WorkerService.poll - deployment completion', () => {
     prisma.environment.findUnique.mockResolvedValue({ id: 'env-1', externalPort: 4000 });
     prisma.deployTarget.findUnique.mockResolvedValue({ id: 'target-1', host: 'nas.example.com' });
     await service.poll();
-    const succeeded = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'SUCCEEDED');
+    const succeeded = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'SUCCEEDED');
     expect(succeeded).toBeUndefined();
   });
 
-  it.skip('empty StageLog set evaluates every()=true and marks the deployment SUCCEEDED (current behavior)', async () => {
+  it('does not mark a deployment successful when no stage evidence exists', async () => {
     bootSuccess();
     prisma.deploymentStageLog.findMany.mockResolvedValue([]);
     prisma.environment.findUnique.mockResolvedValue({ id: 'env-1', externalPort: 4000 });
     prisma.deployTarget.findUnique.mockResolvedValue({ id: 'target-1', host: 'nas.example.com' });
     await service.poll();
-    const succeeded = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'SUCCEEDED');
-    expect(succeeded).toBeDefined();
-    expect(succeeded[0].data.accessUrl).toBe('http://nas.example.com:4000');
+    const succeeded = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'SUCCEEDED');
+    expect(succeeded).toBeUndefined();
+    expect(prisma.environment.update).not.toHaveBeenCalled();
   });
 
   it('does not update Deployment/Environment when the deployment is no longer findable', async () => {
@@ -1061,7 +1069,7 @@ describe('WorkerService.poll - deployment completion', () => {
     prisma.deployment.findUnique.mockResolvedValueOnce(makePENDINGDeployment()); // initial lookup
     prisma.deployment.findUnique.mockResolvedValueOnce(null); // checkAndUpdateDeployment lookup
     await service.poll();
-    const succeeded = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'SUCCEEDED');
+    const succeeded = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'SUCCEEDED');
     expect(succeeded).toBeUndefined();
     expect(prisma.environment.update).not.toHaveBeenCalled();
   });
@@ -1070,9 +1078,11 @@ describe('WorkerService.poll - deployment completion', () => {
     bootSuccess();
     prisma.deploymentStageLog.findMany.mockResolvedValue([makeStageLog({ status: 'SUCCEEDED' })]);
     prisma.deployment.findUnique.mockResolvedValueOnce(makePENDINGDeployment());
-    prisma.deployment.findUnique.mockResolvedValueOnce(makePENDINGDeployment({ accessUrl: 'http://pinned.example.com:8080' }));
+    prisma.deployment.findUnique.mockResolvedValueOnce(
+      makePENDINGDeployment({ accessUrl: 'http://pinned.example.com:8080' }),
+    );
     await service.poll();
-    const succeeded = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'SUCCEEDED');
+    const succeeded = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'SUCCEEDED');
     expect(succeeded[0].data.accessUrl).toBe('http://pinned.example.com:8080');
     expect(prisma.environment.findUnique).not.toHaveBeenCalled();
   });
@@ -1085,7 +1095,7 @@ describe('WorkerService.poll - deployment completion', () => {
     prisma.environment.findUnique.mockResolvedValue({ id: 'env-1', externalPort: null });
     prisma.deployTarget.findUnique.mockResolvedValue({ id: 'target-1', host: 'nas.example.com' });
     await service.poll();
-    const succeeded = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'SUCCEEDED');
+    const succeeded = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'SUCCEEDED');
     expect(succeeded[0].data.accessUrl).toBe('http://nas.example.com:3000');
   });
 
@@ -1096,11 +1106,11 @@ describe('WorkerService.poll - deployment completion', () => {
     prisma.deployment.findUnique.mockResolvedValueOnce(makePENDINGDeployment({ deployTargetId: null }));
     prisma.environment.findUnique.mockResolvedValue({ id: 'env-1', externalPort: 4321 });
     await service.poll();
-    const succeeded = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'SUCCEEDED');
+    const succeeded = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'SUCCEEDED');
     expect(succeeded[0].data.accessUrl).toBe('http://localhost:4321');
   });
 
-  it.skip('keeps localhost when deployTargetId is set but the target cannot be found (current behavior)', async () => {
+  it('keeps localhost when deployTargetId is set but the target cannot be found (current behavior)', async () => {
     bootSuccess();
     prisma.deploymentStageLog.findMany.mockResolvedValue([makeStageLog({ status: 'SUCCEEDED' })]);
     prisma.deployment.findUnique.mockResolvedValueOnce(makePENDINGDeployment());
@@ -1108,7 +1118,7 @@ describe('WorkerService.poll - deployment completion', () => {
     prisma.environment.findUnique.mockResolvedValue({ id: 'env-1', externalPort: 4321 });
     prisma.deployTarget.findUnique.mockResolvedValue(null);
     await service.poll();
-    const succeeded = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'SUCCEEDED');
+    const succeeded = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'SUCCEEDED');
     expect(succeeded[0].data.accessUrl).toBe('http://localhost:4321');
   });
 });
@@ -1143,8 +1153,8 @@ describe('WorkerService.poll - runner failure', () => {
     await service.poll();
 
     // Task must be requeued PENDING with cleared error/lease.
-    const updates = prisma.task.update.mock.calls.map(c => c[0]);
-    const retryWrite = updates.find(c => c.data.status === 'PENDING' && c.where.id === 'task-1');
+    const updates = prisma.task.update.mock.calls.map((c) => c[0]);
+    const retryWrite = updates.find((c) => c.data.status === 'PENDING' && c.where.id === 'task-1');
     expect(retryWrite).toBeDefined();
     expect(retryWrite.data.errorMessage).toBeNull();
     expect(retryWrite.data.startedAt).toBeNull();
@@ -1153,13 +1163,13 @@ describe('WorkerService.poll - runner failure', () => {
     expect(retryWrite.data.leaseExpiresAt).toBeNull();
 
     // Deployment must NOT be marked FAILED.
-    const deployFail = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'FAILED');
+    const deployFail = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'FAILED');
     expect(deployFail).toBeUndefined();
 
     // Current implementation finalizes the stage as FAILED, then immediately
     // changes it back to RUNNING for retry without clearing finishedAt.
     const stageWrites = prisma.deploymentStageLog.update.mock.calls.map(([args]) => args);
-    expect(stageWrites.map(args => args.data.status)).toEqual(['RUNNING', 'FAILED', 'RUNNING']);
+    expect(stageWrites.map((args) => args.data.status)).toEqual(['RUNNING', 'FAILED', 'RUNNING']);
     expect(stageWrites[1].data).toEqual({ status: 'FAILED', log: 'boom\n', finishedAt: FIXED_NOW });
     expect(stageWrites[2].data.log).toContain('Retry attempt 1/3: boom');
     expect(stageWrites[2].data).not.toHaveProperty('finishedAt');
@@ -1172,32 +1182,35 @@ describe('WorkerService.poll - runner failure', () => {
     prisma.deploymentStageLog.findFirst.mockResolvedValue(makeStageLog());
     runnerFactory.execute.mockImplementation(async () => failureResult({ errorMessage: 'flake' }));
     await service.poll();
-    const retryWrite = prisma.deploymentStageLog.update.mock.calls.find(c =>
-      c[0].data.status === 'RUNNING' && c[0].data.log && c[0].data.log.includes('Retry attempt'),
+    const retryWrite = prisma.deploymentStageLog.update.mock.calls.find(
+      (c) => c[0].data.status === 'RUNNING' && c[0].data.log && c[0].data.log.includes('Retry attempt'),
     );
     expect(retryWrite).toBeDefined();
     expect(retryWrite[0].data.log).toContain('flake');
   });
 
-  it.skip('sanitizes the FAILED result write but leaks the raw error into the following retry write (current behavior)', async () => {
+  it('sanitizes both the failed result and following retry log', async () => {
     const row = makePendingRow({ taskType: 'REPO_CLONE' });
     attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ taskType: 'REPO_CLONE' }) });
     prisma.deployment.findUnique.mockResolvedValue(null);
     prisma.deploymentStageLog.findFirst.mockResolvedValue(makeStageLog());
-    runnerFactory.execute.mockResolvedValue(failureResult({
-      errorMessage: 'password=hunter2',
-      stdout: 'token=plain-token',
-    }));
+    runnerFactory.execute.mockResolvedValue(
+      failureResult({
+        errorMessage: 'password=hunter2',
+        stdout: 'token=plain-token',
+      }),
+    );
 
     await service.poll();
 
     const stageWrites = prisma.deploymentStageLog.update.mock.calls.map(([args]) => args);
-    const failedWrite = stageWrites.find(args => args.data.status === 'FAILED');
+    const failedWrite = stageWrites.find((args) => args.data.status === 'FAILED');
     const retryWrite = stageWrites.at(-1)!;
     expect(failedWrite.data.log).not.toContain('hunter2');
     expect(failedWrite.data.log).toContain('[REDACTED]');
     expect(retryWrite.data.status).toBe('RUNNING');
-    expect(retryWrite.data.log).toContain('password=hunter2');
+    expect(retryWrite.data.log).not.toContain('hunter2');
+    expect(retryWrite.data.log).toContain('[REDACTED]');
   });
 
   it('permanently fails task and deployment when attempts reach maxAttempts', async () => {
@@ -1232,14 +1245,14 @@ describe('WorkerService.poll - runner failure', () => {
     await service.poll();
 
     // Task ended FAILED
-    const taskFailed = prisma.task.update.mock.calls.find(c => c[0].data.status === 'FAILED');
+    const taskFailed = prisma.task.update.mock.calls.find((c) => c[0].data.status === 'FAILED');
     expect(taskFailed).toBeDefined();
     expect(taskFailed[0].data.errorMessage).toBe('final');
     expect(taskFailed[0].data.finishedAt).toBeInstanceOf(Date);
     expect(taskFailed[0].data.leaseOwner).toBeNull();
     expect(taskFailed[0].data.leaseExpiresAt).toBeNull();
     // Deployment ended FAILED
-    const deployFailed = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'FAILED');
+    const deployFailed = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'FAILED');
     expect(deployFailed).toBeDefined();
     expect(deployFailed[0].data.errorMessage).toBe('final');
   });
@@ -1249,51 +1262,60 @@ describe('WorkerService.poll - runner failure', () => {
     attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ taskType: 'REPO_CLONE' }) });
     prisma.deployment.findUnique.mockResolvedValue(null);
     prisma.deploymentStageLog.findFirst.mockResolvedValue(makeStageLog());
-    runnerFactory.execute.mockImplementation(async () => { throw new Error('runner exploded'); });
+    runnerFactory.execute.mockImplementation(async () => {
+      throw new Error('runner exploded');
+    });
 
     await expect(service.poll()).resolves.toBeUndefined();
-    const retry = prisma.task.update.mock.calls.find(c => c[0].data.status === 'PENDING');
+    const retry = prisma.task.update.mock.calls.find((c) => c[0].data.status === 'PENDING');
     expect(retry).toBeDefined();
     const stageWrites = prisma.deploymentStageLog.update.mock.calls.map(([args]) => args);
-    expect(stageWrites.map(args => args.data.status)).toEqual(['RUNNING', 'RUNNING']);
+    expect(stageWrites.map((args) => args.data.status)).toEqual(['RUNNING', 'RUNNING']);
     expect(stageWrites[1].data.log).toContain('runner exploded');
   });
 
   it('a runner throw at maxAttempts permanently fails task and deployment', async () => {
     const row = makePendingRow({ taskType: 'REPO_CLONE' });
-    attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ taskType: 'REPO_CLONE', attempts: 3, maxAttempts: 3 }) });
+    attachSimpleTx(prisma, {
+      rows: [row],
+      updatedTask: makeClaimedTask({ taskType: 'REPO_CLONE', attempts: 3, maxAttempts: 3 }),
+    });
     prisma.deployment.findUnique.mockResolvedValue(makePENDINGDeployment());
     prisma.deploymentStageLog.findFirst.mockResolvedValue(makeStageLog());
-    runnerFactory.execute.mockImplementation(async () => { throw new Error('runner exploded'); });
+    runnerFactory.execute.mockImplementation(async () => {
+      throw new Error('runner exploded');
+    });
     // No rollback pre-reqs; just verify deployment FAILED
     prisma.deployment.findUnique.mockResolvedValue(makePENDINGDeployment());
 
     await expect(service.poll()).resolves.toBeUndefined();
-    const taskFailed = prisma.task.update.mock.calls.find(c => c[0].data.status === 'FAILED');
+    const taskFailed = prisma.task.update.mock.calls.find((c) => c[0].data.status === 'FAILED');
     expect(taskFailed).toBeDefined();
     expect(taskFailed[0].data.errorMessage).toBe('runner exploded');
-    const deployFailed = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'FAILED');
+    const deployFailed = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'FAILED');
     expect(deployFailed).toBeDefined();
     expect(deployFailed[0].data.errorMessage).toBe('runner exploded');
     // A thrown runner never reaches writeStageLogFinal, leaving the stage RUNNING.
     expect(prisma.deploymentStageLog.update.mock.calls.map(([args]) => args.data.status)).toEqual(['RUNNING']);
   });
 
-  it.skip('an error without a message persists the literal undefined text on retry (current behavior)', async () => {
+  it('uses a stable fallback when a runner error has no message', async () => {
     const row = makePendingRow({ taskType: 'REPO_CLONE' });
     attachSimpleTx(prisma, { rows: [row], updatedTask: makeClaimedTask({ taskType: 'REPO_CLONE' }) });
     prisma.deployment.findUnique.mockResolvedValue(null);
     prisma.deploymentStageLog.findFirst.mockResolvedValue(makeStageLog());
     const err: any = new Error();
     err.message = undefined;
-    runnerFactory.execute.mockImplementation(async () => { throw err; });
+    runnerFactory.execute.mockImplementation(async () => {
+      throw err;
+    });
     await expect(service.poll()).resolves.toBeUndefined();
-    const retry = prisma.task.update.mock.calls.find(c => c[0].data.status === 'PENDING');
+    const retry = prisma.task.update.mock.calls.find((c) => c[0].data.status === 'PENDING');
     expect(retry).toBeDefined();
     const retryStage = prisma.deploymentStageLog.update.mock.calls
       .map(([args]) => args)
-      .find(args => args.data.log?.includes('Retry attempt'));
-    expect(retryStage.data.log).toContain(': undefined');
+      .find((args) => args.data.log?.includes('Retry attempt'));
+    expect(retryStage.data.log).toContain(': 执行失败');
   });
 });
 
@@ -1366,7 +1388,7 @@ describe('WorkerService.timeoutStuckTasks', () => {
 
     // KI-027 修复后：有重试预算的任务只写一次 PENDING（不再先写 FAILED 再覆盖），
     // 状态从 RUNNING 直接转回 PENDING，错误信息保留供运维参考。
-    const updates = prisma.task.update.mock.calls.map(c => c[0]);
+    const updates = prisma.task.update.mock.calls.map((c) => c[0]);
     expect(updates).toHaveLength(1);
     const pendingWrite = updates[0];
     expect(pendingWrite.where).toEqual({
@@ -1386,7 +1408,7 @@ describe('WorkerService.timeoutStuckTasks', () => {
     expect(prisma.deployment.update).not.toHaveBeenCalled();
   });
 
-  it.skip('under maxAttempts: does not write a retry stage log (current behavior)', async () => {
+  it('under maxAttempts: does not write a retry stage log (current behavior)', async () => {
     const stuck = {
       id: 'task-1',
       taskType: 'REPO_CLONE',
@@ -1416,39 +1438,67 @@ describe('WorkerService.timeoutStuckTasks', () => {
 
     await service.timeoutStuckTasks();
 
-    const updates = prisma.task.update.mock.calls.map(c => c[0]);
+    const updates = prisma.task.update.mock.calls.map((c) => c[0]);
     expect(updates).toHaveLength(1);
     expect(updates[0].data.status).toBe('FAILED');
     expect(updates[0].data.errorMessage).toContain('30');
     expect(updates[0].data.errorMessage).toContain('分钟');
-    const deployUpdate = prisma.deployment.update.mock.calls.find(c => c[0].data.status === 'FAILED');
+    const deployUpdate = prisma.deployment.update.mock.calls.find((c) => c[0].data.status === 'FAILED');
     expect(deployUpdate).toBeDefined();
     expect(deployUpdate[0].data.errorMessage).toContain('任务超时失败');
   });
 
   it('processes multiple stuck tasks independently (KI-027: each writes one PENDING)', async () => {
-    const stuck1 = { id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-1', attempts: 1, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000) };
-    const stuck2 = { id: 'task-2', taskType: 'PROJECT_BUILD', refId: 'deploy-2', attempts: 1, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000) };
+    const stuck1 = {
+      id: 'task-1',
+      taskType: 'REPO_CLONE',
+      refId: 'deploy-1',
+      attempts: 1,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+    };
+    const stuck2 = {
+      id: 'task-2',
+      taskType: 'PROJECT_BUILD',
+      refId: 'deploy-2',
+      attempts: 1,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+    };
     prisma.task.findMany.mockResolvedValue([stuck1, stuck2]);
     await service.timeoutStuckTasks();
-    const updates = prisma.task.update.mock.calls.map(c => c[0]);
+    const updates = prisma.task.update.mock.calls.map((c) => c[0]);
     // KI-027 修复后：有重试预算的任务只写一次 PENDING（不再先 FAILED 再 PENDING）。
-    const pendingIds = updates.filter(c => c.data.status === 'PENDING').map(c => c.where.id);
+    const pendingIds = updates.filter((c) => c.data.status === 'PENDING').map((c) => c.where.id);
     expect(pendingIds).toEqual(expect.arrayContaining(['task-1', 'task-2']));
     expect(updates).toHaveLength(2);
   });
 
-  it.skip('stops the timeout batch when updating the first stuck task fails (current behavior)', async () => {
-    const stuck1 = { id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-1', attempts: 1, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000) };
-    const stuck2 = { id: 'task-2', taskType: 'PROJECT_BUILD', refId: 'deploy-2', attempts: 1, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000) };
+  it('continues the timeout batch when recovering one stuck task fails', async () => {
+    const stuck1 = {
+      id: 'task-1',
+      taskType: 'REPO_CLONE',
+      refId: 'deploy-1',
+      attempts: 1,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+    };
+    const stuck2 = {
+      id: 'task-2',
+      taskType: 'PROJECT_BUILD',
+      refId: 'deploy-2',
+      attempts: 1,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+    };
     prisma.task.findMany.mockResolvedValue([stuck1, stuck2]);
     prisma.task.update.mockRejectedValueOnce(new Error('first update failed'));
 
-    await expect(service.timeoutStuckTasks()).rejects.toThrow('first update failed');
+    await expect(service.timeoutStuckTasks()).resolves.toBeUndefined();
 
-    expect(prisma.task.update).toHaveBeenCalledTimes(1);
-    expect(prisma.task.update.mock.calls[0][0].where).toEqual({ id: 'task-1' });
-    expect(prisma.task.update.mock.calls.some(([args]) => args.where.id === 'task-2')).toBe(false);
+    expect(prisma.task.update).toHaveBeenCalledTimes(2);
+    expect(prisma.task.update.mock.calls[0][0].where).toEqual(expect.objectContaining({ id: 'task-1' }));
+    expect(prisma.task.update.mock.calls.some(([args]) => args.where.id === 'task-2')).toBe(true);
   });
 
   it('does nothing when the timeout query returns no stuck tasks', async () => {
@@ -1493,8 +1543,12 @@ describe('WorkerService - automatic rollback', () => {
 
   it('skips rollback when the failed deployment can no longer be found', async () => {
     const stuck = {
-      id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-missing',
-      attempts: 3, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+      id: 'task-1',
+      taskType: 'REPO_CLONE',
+      refId: 'deploy-missing',
+      attempts: 3,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
     };
     prisma.task.findMany.mockResolvedValue([stuck]);
     prisma.deployment.findUnique.mockResolvedValueOnce(null);
@@ -1515,8 +1569,12 @@ describe('WorkerService - automatic rollback', () => {
 
   it('skips rollback when failed deployment has no deployTargetId', async () => {
     const stuck = {
-      id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-failed',
-      attempts: 3, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+      id: 'task-1',
+      taskType: 'REPO_CLONE',
+      refId: 'deploy-failed',
+      attempts: 3,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
     };
     prisma.task.findMany.mockResolvedValue([stuck]);
     prisma.task.update.mockResolvedValueOnce({ id: stuck.id, status: 'FAILED' });
@@ -1531,8 +1589,12 @@ describe('WorkerService - automatic rollback', () => {
 
   it('skips rollback when environment is not found', async () => {
     const stuck = {
-      id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-failed',
-      attempts: 3, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+      id: 'task-1',
+      taskType: 'REPO_CLONE',
+      refId: 'deploy-failed',
+      attempts: 3,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
     };
     prisma.task.findMany.mockResolvedValue([stuck]);
     prisma.task.update.mockResolvedValueOnce({ id: stuck.id, status: 'FAILED' });
@@ -1543,10 +1605,14 @@ describe('WorkerService - automatic rollback', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it.skip('skips rollback when environment has no currentDeploymentId', async () => {
+  it('skips rollback when environment has no currentDeploymentId', async () => {
     const stuck = {
-      id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-failed',
-      attempts: 3, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+      id: 'task-1',
+      taskType: 'REPO_CLONE',
+      refId: 'deploy-failed',
+      attempts: 3,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
     };
     prisma.task.findMany.mockResolvedValue([stuck]);
     prisma.task.update.mockResolvedValueOnce({ id: stuck.id, status: 'FAILED' });
@@ -1557,10 +1623,14 @@ describe('WorkerService - automatic rollback', () => {
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
 
-  it.skip('skips rollback when currentDeploymentId equals the failed deployment id', async () => {
+  it('skips rollback when currentDeploymentId equals the failed deployment id', async () => {
     const stuck = {
-      id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-failed',
-      attempts: 3, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+      id: 'task-1',
+      taskType: 'REPO_CLONE',
+      refId: 'deploy-failed',
+      attempts: 3,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
     };
     prisma.task.findMany.mockResolvedValue([stuck]);
     prisma.task.update.mockResolvedValueOnce({ id: stuck.id, status: 'FAILED' });
@@ -1573,8 +1643,12 @@ describe('WorkerService - automatic rollback', () => {
 
   it('skips rollback when the previous deployment does not exist', async () => {
     const stuck = {
-      id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-failed',
-      attempts: 3, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+      id: 'task-1',
+      taskType: 'REPO_CLONE',
+      refId: 'deploy-failed',
+      attempts: 3,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
     };
     prisma.task.findMany.mockResolvedValue([stuck]);
     prisma.task.update.mockResolvedValueOnce({ id: stuck.id, status: 'FAILED' });
@@ -1588,15 +1662,23 @@ describe('WorkerService - automatic rollback', () => {
 
   it('skips rollback when the previous deployment is not SUCCEEDED', async () => {
     const stuck = {
-      id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-failed',
-      attempts: 3, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+      id: 'task-1',
+      taskType: 'REPO_CLONE',
+      refId: 'deploy-failed',
+      attempts: 3,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
     };
     prisma.task.findMany.mockResolvedValue([stuck]);
     prisma.task.update.mockResolvedValueOnce({ id: stuck.id, status: 'FAILED' });
     prisma.deployment.findUnique.mockResolvedValueOnce(standardFailedDeploymentFixture());
     prisma.environment.findUnique.mockResolvedValueOnce({ id: 'env-1', currentDeploymentId: 'prev-1' });
     prisma.deployment.findUnique.mockResolvedValueOnce({
-      id: 'prev-1', projectId: 'proj-1', environmentId: 'env-1', deployTargetId: 'target-1', status: 'FAILED',
+      id: 'prev-1',
+      projectId: 'proj-1',
+      environmentId: 'env-1',
+      deployTargetId: 'target-1',
+      status: 'FAILED',
     });
 
     await service.timeoutStuckTasks();
@@ -1605,15 +1687,23 @@ describe('WorkerService - automatic rollback', () => {
 
   it('skips rollback when the previous deployment is on a different deployTargetId', async () => {
     const stuck = {
-      id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-failed',
-      attempts: 3, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+      id: 'task-1',
+      taskType: 'REPO_CLONE',
+      refId: 'deploy-failed',
+      attempts: 3,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
     };
     prisma.task.findMany.mockResolvedValue([stuck]);
     prisma.task.update.mockResolvedValueOnce({ id: stuck.id, status: 'FAILED' });
     prisma.deployment.findUnique.mockResolvedValueOnce(standardFailedDeploymentFixture());
     prisma.environment.findUnique.mockResolvedValueOnce({ id: 'env-1', currentDeploymentId: 'prev-1' });
     prisma.deployment.findUnique.mockResolvedValueOnce({
-      id: 'prev-1', projectId: 'proj-1', environmentId: 'env-1', deployTargetId: 'target-2', status: 'SUCCEEDED',
+      id: 'prev-1',
+      projectId: 'proj-1',
+      environmentId: 'env-1',
+      deployTargetId: 'target-2',
+      status: 'SUCCEEDED',
     });
 
     await service.timeoutStuckTasks();
@@ -1622,15 +1712,23 @@ describe('WorkerService - automatic rollback', () => {
 
   it('skips rollback when a ROLLBACK_DEPLOY task already exists for the failed deployment', async () => {
     const stuck = {
-      id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-failed',
-      attempts: 3, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+      id: 'task-1',
+      taskType: 'REPO_CLONE',
+      refId: 'deploy-failed',
+      attempts: 3,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
     };
     prisma.task.findMany.mockResolvedValue([stuck]);
     prisma.task.update.mockResolvedValueOnce({ id: stuck.id, status: 'FAILED' });
     prisma.deployment.findUnique.mockResolvedValueOnce(standardFailedDeploymentFixture());
     prisma.environment.findUnique.mockResolvedValueOnce({ id: 'env-1', currentDeploymentId: 'prev-1' });
     prisma.deployment.findUnique.mockResolvedValueOnce({
-      id: 'prev-1', projectId: 'proj-1', environmentId: 'env-1', deployTargetId: 'target-1', status: 'SUCCEEDED',
+      id: 'prev-1',
+      projectId: 'proj-1',
+      environmentId: 'env-1',
+      deployTargetId: 'target-1',
+      status: 'SUCCEEDED',
     });
     prisma.task.findFirst.mockResolvedValueOnce({ id: 'existing-rollback', taskType: 'ROLLBACK_DEPLOY' });
 
@@ -1640,15 +1738,23 @@ describe('WorkerService - automatic rollback', () => {
 
   it('creates the rollback StageLog and the ROLLBACK_DEPLOY task in a single transaction when all preconditions hold', async () => {
     const stuck = {
-      id: 'task-1', taskType: 'REPO_CLONE', refId: 'deploy-failed',
-      attempts: 3, maxAttempts: 3, startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
+      id: 'task-1',
+      taskType: 'REPO_CLONE',
+      refId: 'deploy-failed',
+      attempts: 3,
+      maxAttempts: 3,
+      startedAt: new Date(FIXED_NOW_MS - 60 * 60 * 1000),
     };
     prisma.task.findMany.mockResolvedValue([stuck]);
     prisma.task.update.mockResolvedValueOnce({ id: stuck.id, status: 'FAILED' });
     prisma.deployment.findUnique.mockResolvedValueOnce(standardFailedDeploymentFixture());
     prisma.environment.findUnique.mockResolvedValueOnce({ id: 'env-1', currentDeploymentId: 'prev-1' });
     prisma.deployment.findUnique.mockResolvedValueOnce({
-      id: 'prev-1', projectId: 'proj-1', environmentId: 'env-1', deployTargetId: 'target-1', status: 'SUCCEEDED',
+      id: 'prev-1',
+      projectId: 'proj-1',
+      environmentId: 'env-1',
+      deployTargetId: 'target-1',
+      status: 'SUCCEEDED',
     });
     prisma.task.findFirst.mockResolvedValueOnce(null);
 

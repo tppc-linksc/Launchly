@@ -11,7 +11,7 @@ export class SecretRotationService {
 
   /** Re-encrypt every workspace-owned secret with the currently active key. */
   async rotate(workspaceId: string) {
-    return this.prisma.$transaction(async tx => {
+    return this.prisma.$transaction(async (tx) => {
       const [variables, repositoryCredentials, deployTargets, bootstrapSecrets] = await Promise.all([
         tx.environmentVariable.findMany({
           where: { environment: { project: { workspaceId } } },

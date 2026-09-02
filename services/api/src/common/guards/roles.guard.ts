@@ -32,7 +32,7 @@ export class RolesGuard implements CanActivate {
     }
 
     const userLevel = ROLE_HIERARCHY[user.role] || 0;
-    const hasRole = requiredRoles.some(role => {
+    const hasRole = requiredRoles.some((role) => {
       const requiredLevel = ROLE_HIERARCHY[role] || 0;
       return userLevel >= requiredLevel;
     });

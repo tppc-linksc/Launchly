@@ -41,14 +41,19 @@ export class InvitationService {
     if (!rawToken || rawToken.length > 255) throw new NotFoundException('邀请不存在或已失效');
     const token = this.hashToken(rawToken);
     const invitation = await this.prisma.invitation.findUnique({ where: { token } });
-    if (!invitation || invitation.status !== 'ACTIVE' || invitation.expiresAt <= new Date() || invitation.usedCount >= invitation.maxUses) {
+    if (
+      !invitation ||
+      invitation.status !== 'ACTIVE' ||
+      invitation.expiresAt <= new Date() ||
+      invitation.usedCount >= invitation.maxUses
+    ) {
       throw new NotFoundException('邀请不存在或已失效');
     }
     if (await this.prisma.user.findUnique({ where: { account: dto.account } })) {
       throw new ConflictException('账号已存在；当前 MVP 邀请仅用于创建新成员');
     }
     const passwordHash = await bcrypt.hash(dto.password, 10);
-    return this.prisma.$transaction(async tx => {
+    return this.prisma.$transaction(async (tx) => {
       const claimed = await tx.invitation.updateMany({
         where: {
           id: invitation.id,

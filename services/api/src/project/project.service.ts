@@ -63,7 +63,11 @@ export class ProjectService {
       }
       if (bootstrapAdmin?.encryptedPassword) {
         await tx.projectBootstrapSecret.create({
-          data: { projectId: p.id, encryptedPassword: bootstrapAdmin.encryptedPassword, maskedPreview: bootstrapAdmin.maskedPreview },
+          data: {
+            projectId: p.id,
+            encryptedPassword: bootstrapAdmin.encryptedPassword,
+            maskedPreview: bootstrapAdmin.maskedPreview,
+          },
         });
       }
 
@@ -93,12 +97,13 @@ export class ProjectService {
   }
 
   async listByWorkspace(workspaceId: string, userId?: string) {
-    const workspaceMember = userId ? await this.prisma.workspaceMember.findFirst({ where: { workspaceId, userId } }) : null;
+    const workspaceMember = userId
+      ? await this.prisma.workspaceMember.findFirst({ where: { workspaceId, userId } })
+      : null;
     if (userId && !workspaceMember) return [];
     return this.prisma.project.findMany({
-      where: workspaceMember?.role === 'OWNER' || !userId
-        ? { workspaceId }
-        : { workspaceId, members: { some: { userId } } },
+      where:
+        workspaceMember?.role === 'OWNER' || !userId ? { workspaceId } : { workspaceId, members: { some: { userId } } },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -167,7 +172,11 @@ export class ProjectService {
     if (bootstrapAdmin?.encryptedPassword) {
       await this.prisma.projectBootstrapSecret.upsert({
         where: { projectId: id },
-        create: { projectId: id, encryptedPassword: bootstrapAdmin.encryptedPassword, maskedPreview: bootstrapAdmin.maskedPreview },
+        create: {
+          projectId: id,
+          encryptedPassword: bootstrapAdmin.encryptedPassword,
+          maskedPreview: bootstrapAdmin.maskedPreview,
+        },
         update: { encryptedPassword: bootstrapAdmin.encryptedPassword, maskedPreview: bootstrapAdmin.maskedPreview },
       });
     }
@@ -186,7 +195,11 @@ export class ProjectService {
     if (!['APPLICATION', 'STATIC_SITE', 'STACK', 'DATABASE', 'CACHE', 'TEMPLATE'].includes(resourceKind)) {
       throw new BadRequestException('不支持的资源类型');
     }
-    if (!['GIT_PUBLIC', 'GITHUB_APP', 'DEPLOY_KEY', 'OCI_IMAGE', 'COMPOSE', 'CATALOG_IMAGE', 'TEMPLATE'].includes(sourceType)) {
+    if (
+      !['GIT_PUBLIC', 'GITHUB_APP', 'DEPLOY_KEY', 'OCI_IMAGE', 'COMPOSE', 'CATALOG_IMAGE', 'TEMPLATE'].includes(
+        sourceType,
+      )
+    ) {
       throw new BadRequestException('不支持的来源类型');
     }
     if (!['BUILDKIT', 'OCI_IMAGE', 'COMPOSE', 'DATABASE'].includes(runtimeMode)) {
@@ -221,7 +234,7 @@ export class ProjectService {
     if (sourceType === 'TEMPLATE' && !templateId) {
       throw new BadRequestException('模板资源必须指定模板 ID');
     }
-    if (!DEPLOYABLE_SOURCES.has(sourceType) && !this.catalog.list().some(item => item.sourceType === sourceType)) {
+    if (!DEPLOYABLE_SOURCES.has(sourceType) && !this.catalog.list().some((item) => item.sourceType === sourceType)) {
       throw new BadRequestException('来源未在资源目录中注册');
     }
     return { sourceType, resourceKind, runtimeMode, projectType, templateId, imageReference, resourceConfig };
@@ -243,7 +256,11 @@ export class ProjectService {
     };
   }
 
-  private assertGithubInstallationBinding(sourceType: string, installationId: string | null | undefined, workspaceId: string) {
+  private assertGithubInstallationBinding(
+    sourceType: string,
+    installationId: string | null | undefined,
+    workspaceId: string,
+  ) {
     if (sourceType !== 'GITHUB_APP') return;
     if (!isGithubInstallationBoundToWorkspace(installationId, workspaceId)) {
       throw new ForbiddenException('GitHub App installation 尚未由管理员绑定到当前工作空间');

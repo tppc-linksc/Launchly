@@ -2,7 +2,7 @@ const SCP_STYLE = /^([A-Za-z_][A-Za-z0-9._-]*)@([A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Z
 const SAFE_PATH = /^[A-Za-z0-9._~!$&'()+,;=:@/-]+$/;
 
 function hasUnsafePathSegment(pathname: string): boolean {
-  return pathname.split('/').some(segment => segment === '.' || segment === '..');
+  return pathname.split('/').some((segment) => segment === '.' || segment === '..');
 }
 /**
  * Accept only repository transports that Git can use without invoking a remote
@@ -35,7 +35,8 @@ export function isSafeGitRepositoryUrl(value: unknown): value is string {
   if (!url.hostname || url.password || url.search || url.hash) return false;
   if (url.protocol === 'https:' && url.username) return false;
   if (url.protocol === 'ssh:' && !url.username) return false;
-  if (!url.pathname || url.pathname === '/' || !SAFE_PATH.test(url.pathname) || hasUnsafePathSegment(url.pathname)) return false;
+  if (!url.pathname || url.pathname === '/' || !SAFE_PATH.test(url.pathname) || hasUnsafePathSegment(url.pathname))
+    return false;
   return true;
 }
 

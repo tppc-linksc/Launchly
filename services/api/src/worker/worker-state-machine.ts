@@ -28,7 +28,7 @@ export interface StageLog {
  */
 export function isDeploymentStagesComplete(logs: StageLog[]): boolean {
   if (!logs || logs.length === 0) return false;
-  return logs.every(l => l.status !== null && STAGE_TERMINAL_STATUSES.has(l.status));
+  return logs.every((l) => l.status !== null && STAGE_TERMINAL_STATUSES.has(l.status));
 }
 
 /** 根据 TaskType 映射到对应 Stage 名。未知返回 null。 */
@@ -50,7 +50,12 @@ export function mapTaskTypeToStage(taskType: string): string | null {
  * 把已超时但仍有重试预算的任务原子地回到 PENDING 状态。
  * 关键点：清空 lease、重置运行时间；attempts 在下次原子认领时增加。
  */
-export async function rescheduleTimedOutTask(prisma: PrismaService, taskId: string, errorMessage: string, leaseOwner?: string | null) {
+export async function rescheduleTimedOutTask(
+  prisma: PrismaService,
+  taskId: string,
+  errorMessage: string,
+  leaseOwner?: string | null,
+) {
   return prisma.task.update({
     where: { id: taskId, status: 'RUNNING', leaseOwner: leaseOwner ?? null, leaseExpiresAt: { lt: new Date() } },
     data: {
@@ -65,7 +70,12 @@ export async function rescheduleTimedOutTask(prisma: PrismaService, taskId: stri
 }
 
 /** 把已超时且无重试预算的任务标记 FAILED。 */
-export async function finalizeTimedOutTask(prisma: PrismaService, taskId: string, errorMessage: string, leaseOwner?: string | null) {
+export async function finalizeTimedOutTask(
+  prisma: PrismaService,
+  taskId: string,
+  errorMessage: string,
+  leaseOwner?: string | null,
+) {
   return prisma.task.update({
     where: { id: taskId, status: 'RUNNING', leaseOwner: leaseOwner ?? null, leaseExpiresAt: { lt: new Date() } },
     data: {

@@ -9,14 +9,13 @@
             ref="searchInputRef"
             v-model="searchQuery"
             placeholder="搜索部署、项目、分支、节点、commit…"
-
             clearable
             class="global-search"
             @focus="searchOpen = true"
             @input="searchOpen = true"
             @clear="closeSearch"
           >
-            <template #prefix><span style="color: #9ca3af;">&#9906;</span></template>
+            <template #prefix><span style="color: #9ca3af">&#9906;</span></template>
           </el-input>
 
           <!-- 搜索结果下拉：项目 / 服务 / 部署 / 节点 / 分支 / commit / 域名 -->
@@ -28,12 +27,7 @@
               <span class="search-empty-text">没有匹配的资源</span>
             </div>
             <ul v-else class="search-results" data-testid="global-search-results">
-              <li
-                v-for="r in searchResults"
-                :key="r.id"
-                class="search-item"
-                @click="onSelectResult(r)"
-              >
+              <li v-for="r in searchResults" :key="r.id" class="search-item" @click="onSelectResult(r)">
                 <span :class="['cat-tag', 'cat-' + r.category]">{{ categoryLabel(r.category) }}</span>
                 <div class="search-item-text">
                   <span class="search-item-title">{{ r.title }}</span>
@@ -44,7 +38,9 @@
           </div>
         </div>
         <div class="top-actions">
-          <el-button v-if="canDeploy" type="primary" class="btn-pill" @click="$router.push('/deployments')">触发部署</el-button>
+          <el-button v-if="canDeploy" type="primary" class="btn-pill" @click="$router.push('/deployments')"
+            >触发部署</el-button
+          >
           <el-button class="btn-pill-ghost" @click="$router.push('/resources/new')">新建资源</el-button>
           <el-dropdown>
             <div class="avatar-wrap">
@@ -69,7 +65,9 @@
           :key="item.key"
           :class="['nav-pill', { active: activeKey === item.key }]"
           @click="onNavClick(item.key)"
-        >{{ item.label }}</button>
+        >
+          {{ item.label }}
+        </button>
       </nav>
     </header>
 
@@ -81,16 +79,16 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
-import { useRouter, useRoute } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
-import { usePermission } from '../composables/usePermission'
-import { useGlobalSearch, ResultCategory, SearchResult } from '../composables/useGlobalSearch'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { useRouter, useRoute } from 'vue-router';
+import { useAuthStore } from '../stores/auth';
+import { usePermission } from '../composables/usePermission';
+import { useGlobalSearch, ResultCategory, SearchResult } from '../composables/useGlobalSearch';
 
-const router = useRouter()
-const route = useRoute()
-const auth = useAuthStore()
-const { canDeploy } = usePermission()
+const router = useRouter();
+const route = useRoute();
+const auth = useAuthStore();
+const { canDeploy } = usePermission();
 
 // KI-014 全局搜索组合式。
 // 用 ref 双向绑定的 searchQuery 直接传给 composable 的 query；
@@ -100,17 +98,18 @@ const {
   results: searchResults,
   loading: searchLoading,
   error: searchError,
-  refresh: refreshSearch,
-} = useGlobalSearch()
+} = useGlobalSearch();
 
 // 全局 v-model 与 composable 的 query 同步
 const searchQuery = computed<string>({
   get: () => composableQuery.value,
-  set: (v: string) => { composableQuery.value = v },
-})
+  set: (v: string) => {
+    composableQuery.value = v;
+  },
+});
 
-const searchOpen = ref(false)
-const searchInputRef = ref<any>(null)
+const searchOpen = ref(false);
+const searchInputRef = ref<any>(null);
 
 // 类别文本（用于彩色 chip）
 const categoryLabels: Record<ResultCategory, string> = {
@@ -121,35 +120,37 @@ const categoryLabels: Record<ResultCategory, string> = {
   branch: '分支',
   commit: 'commit',
   domain: '域名',
+};
+function categoryLabel(c: ResultCategory): string {
+  return categoryLabels[c] || c;
 }
-function categoryLabel(c: ResultCategory): string { return categoryLabels[c] || c }
 
 // 点击搜索结果：跳转目标页 + 关闭浮层
 function onSelectResult(r: SearchResult) {
-  router.push(r.path)
-  closeSearch()
+  router.push(r.path);
+  closeSearch();
 }
 
 // 关闭搜索下拉（保留 query 以便 Tab 切换后还能显示）
 function closeSearch() {
-  searchOpen.value = false
+  searchOpen.value = false;
   // 不主动清空 query，让用户保留输入恢复时还在
 }
 
 // 点击外部关闭：用一个全局 click 监听
 function onDocumentClick(e: MouseEvent) {
-  const target = e.target as HTMLElement
-  if (!target) return
-  if (target.closest('.global-search-wrap')) return
-  searchOpen.value = false
+  const target = e.target as HTMLElement;
+  if (!target) return;
+  if (target.closest('.global-search-wrap')) return;
+  searchOpen.value = false;
 }
 
 onMounted(() => {
-  document.addEventListener('click', onDocumentClick)
-})
+  document.addEventListener('click', onDocumentClick);
+});
 onBeforeUnmount(() => {
-  document.removeEventListener('click', onDocumentClick)
-})
+  document.removeEventListener('click', onDocumentClick);
+});
 
 const navItems = [
   { key: 'overview', label: '概览', path: '/' },
@@ -159,37 +160,30 @@ const navItems = [
   { key: 'releases', label: '发布', path: '/releases' },
   { key: 'quality', label: '测试与 Issue', path: '/tests' },
   { key: 'targets', label: '部署目标', path: '/deploy-targets' },
-]
+];
 
 const activeKey = computed(() => {
-  const path = route.path
-  if (path === '/') return 'overview'
-  if (path.startsWith('/deploy-targets')) return 'targets'
-  if (path.startsWith('/targets')) return 'targets'
-  if (path.startsWith('/deployments')) return 'deployments'
-  if (path.startsWith('/environments')) return 'environments'
-  if (path.startsWith('/projects')) return 'projects'
-  if (path.startsWith('/releases')) return 'releases'
-  if (path.startsWith('/tests') || path.startsWith('/issues')) return 'quality'
-  return 'overview'
-})
+  const path = route.path;
+  if (path === '/') return 'overview';
+  if (path.startsWith('/deploy-targets')) return 'targets';
+  if (path.startsWith('/targets')) return 'targets';
+  if (path.startsWith('/deployments')) return 'deployments';
+  if (path.startsWith('/environments')) return 'environments';
+  if (path.startsWith('/projects')) return 'projects';
+  if (path.startsWith('/releases')) return 'releases';
+  if (path.startsWith('/tests') || path.startsWith('/issues')) return 'quality';
+  return 'overview';
+});
 
 const avatarLetter = computed(() => {
-  const name = auth.user?.displayName || auth.user?.account || '?'
-  return name.charAt(0).toUpperCase()
-})
+  const name = auth.user?.displayName || auth.user?.account || '?';
+  return name.charAt(0).toUpperCase();
+});
 
 function onNavClick(key: string) {
-  const item = navItems.find(i => i.key === key)
-  if (item) router.push(item.path)
+  const item = navItems.find((i) => i.key === key);
+  if (item) router.push(item.path);
 }
-
-// 保留旧字段名以向兼容
-const _legacySearchQuery = searchQuery
-void _legacySearchQuery
-void route
-void searchInputRef
-void refreshSearch
 </script>
 
 <style scoped>
@@ -221,7 +215,9 @@ void refreshSearch
   color: #111827;
   white-space: nowrap;
 }
-.brand .teal { color: #0d9488; }
+.brand .teal {
+  color: #0d9488;
+}
 
 /* 搜索包裹 + 下拉 */
 .global-search-wrap {
@@ -257,7 +253,11 @@ void refreshSearch
   z-index: 30;
   padding: 4px 0;
 }
-.search-results { list-style: none; margin: 0; padding: 0; }
+.search-results {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
 .search-item {
   display: flex;
   align-items: center;
@@ -266,8 +266,15 @@ void refreshSearch
   cursor: pointer;
   transition: background 0.1s;
 }
-.search-item:hover { background: #f3f4f6; }
-.search-item-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.search-item:hover {
+  background: #f3f4f6;
+}
+.search-item-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
 .search-item-title {
   font-size: 14px;
   color: #111827;
@@ -293,15 +300,42 @@ void refreshSearch
   color: #6b7280;
   letter-spacing: 0.04em;
 }
-.cat-project { background: #ccfbf1; color: #0f766e; }
-.cat-service { background: #dbeafe; color: #1d4ed8; }
-.cat-deployment { background: #fef3c7; color: #b45309; }
-.cat-node { background: #f3e8ff; color: #6b21a8; }
-.cat-branch { background: #dcfce7; color: #166534; }
-.cat-commit { background: #fee2e2; color: #b91c1c; }
-.cat-domain { background: #e0e7ff; color: #4338ca; }
-.search-empty { padding: 16px; text-align: center; }
-.search-empty-text { color: #9ca3af; font-size: 13px; }
+.cat-project {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+.cat-service {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.cat-deployment {
+  background: #fef3c7;
+  color: #b45309;
+}
+.cat-node {
+  background: #f3e8ff;
+  color: #6b21a8;
+}
+.cat-branch {
+  background: #dcfce7;
+  color: #166534;
+}
+.cat-commit {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.cat-domain {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+.search-empty {
+  padding: 16px;
+  text-align: center;
+}
+.search-empty-text {
+  color: #9ca3af;
+  font-size: 13px;
+}
 
 .top-actions {
   display: flex;
@@ -329,7 +363,9 @@ void refreshSearch
   border-color: #0d9488;
 }
 
-.avatar-wrap { cursor: pointer; }
+.avatar-wrap {
+  cursor: pointer;
+}
 .avatar {
   width: 36px;
   height: 36px;
@@ -366,7 +402,10 @@ void refreshSearch
   cursor: pointer;
   transition: all 0.15s;
 }
-.nav-pill:hover { color: #111827; background: #f3f4f6; }
+.nav-pill:hover {
+  color: #111827;
+  background: #f3f4f6;
+}
 .nav-pill.active {
   color: #0d9488;
   background: #ccfbf1;
@@ -385,11 +424,28 @@ void refreshSearch
     padding: 10px 16px;
     gap: 12px;
   }
-  .brand { font-size: 18px; }
-  .global-search-wrap { min-width: 140px; max-width: none; }
-  .btn-pill, .btn-pill-ghost { padding: 6px 12px; font-size: 13px; }
-  .nav-row { padding: 0 16px 10px; gap: 4px; }
-  .nav-pill { padding: 6px 12px; font-size: 13px; }
-  .content { padding: 16px; }
+  .brand {
+    font-size: 18px;
+  }
+  .global-search-wrap {
+    min-width: 140px;
+    max-width: none;
+  }
+  .btn-pill,
+  .btn-pill-ghost {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .nav-row {
+    padding: 0 16px 10px;
+    gap: 4px;
+  }
+  .nav-pill {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+  .content {
+    padding: 16px;
+  }
 }
 </style>

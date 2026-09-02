@@ -72,9 +72,11 @@ function makeSshClient(state: SshMockState): any {
 
 function makeSecrets(): jest.Mocked<SecretValueService> {
   return {
-    encrypt: jest.fn().mockImplementation((plain: string) =>
-      plain === PRIVATE_KEY_PLAINTEXT ? ENCRYPTED_PRIVATE_KEY : 'v2:enc(' + plain + ')',
-    ),
+    encrypt: jest
+      .fn()
+      .mockImplementation((plain: string) =>
+        plain === PRIVATE_KEY_PLAINTEXT ? ENCRYPTED_PRIVATE_KEY : 'v2:enc(' + plain + ')',
+      ),
     decrypt: jest.fn().mockImplementation((enc: string) => {
       if (enc === ENCRYPTED_PRIVATE_KEY) return PRIVATE_KEY_PLAINTEXT;
       throw new Error('unknown ciphertext');
@@ -87,7 +89,9 @@ function makeSecrets(): jest.Mocked<SecretValueService> {
 function makeSecretsDecryptFail(): jest.Mocked<SecretValueService> {
   return {
     encrypt: jest.fn((plain: string) => 'v2:enc(' + plain + ')'),
-    decrypt: jest.fn(() => { throw new Error('decrypt-failure'); }),
+    decrypt: jest.fn(() => {
+      throw new Error('decrypt-failure');
+    }),
     reencrypt: jest.fn(),
     mask: jest.fn(),
   } as unknown as jest.Mocked<SecretValueService>;
@@ -101,12 +105,7 @@ function triggerError(state: SshMockState, err: Error) {
   state.handlers['error']?.(err);
 }
 
-function deliverExecResult(
-  state: SshMockState,
-  stdout: string,
-  stderr = '',
-  code: number = 0,
-) {
+function deliverExecResult(state: SshMockState, stdout: string, stderr = '', code: number = 0) {
   state.execCallback?.(null, state.stream);
   if (stdout.length > 0) state.streamHandlers['data']?.(Buffer.from(stdout));
   // stderr is delivered via stderr.on('data', ...)
@@ -198,7 +197,7 @@ describe('DeployTargetService', () => {
       expect(result[0].createdAt).toBe('2026-01-01T00:00:00.000Z');
     });
 
-    it.skip('lastVerifiedAt is null → result.lastVerifiedAt is undefined (current implementation contract)', async () => {
+    it('lastVerifiedAt is null → result.lastVerifiedAt is undefined (current implementation contract)', async () => {
       prisma.deployTarget.findMany.mockResolvedValue([{ ...PLAIN_TARGET, lastVerifiedAt: null }]);
 
       const result = await service.listByProject('proj-1');
@@ -216,14 +215,32 @@ describe('DeployTargetService', () => {
 
       expect(result).toEqual([
         {
-          id: 'tgt-a', projectId: 'proj-1', name: 'a', type: 'SSH', host: '10.0.0.1', port: 22,
-          username: 'deployer', authMethod: 'KEY', workRoot: DEFAULT_WORK_ROOT, status: 'VERIFIED',
-          lastVerifiedAt: '2026-08-10T00:00:00.000Z', createdAt: '2026-02-01T00:00:00.000Z',
+          id: 'tgt-a',
+          projectId: 'proj-1',
+          name: 'a',
+          type: 'SSH',
+          host: '10.0.0.1',
+          port: 22,
+          username: 'deployer',
+          authMethod: 'KEY',
+          workRoot: DEFAULT_WORK_ROOT,
+          status: 'VERIFIED',
+          lastVerifiedAt: '2026-08-10T00:00:00.000Z',
+          createdAt: '2026-02-01T00:00:00.000Z',
         },
         {
-          id: 'tgt-b', projectId: 'proj-1', name: 'b', type: 'SSH', host: '10.0.0.1', port: 22,
-          username: 'deployer', authMethod: 'KEY', workRoot: DEFAULT_WORK_ROOT, status: 'VERIFIED',
-          lastVerifiedAt: '2026-08-10T00:00:00.000Z', createdAt: '2026-01-01T00:00:00.000Z',
+          id: 'tgt-b',
+          projectId: 'proj-1',
+          name: 'b',
+          type: 'SSH',
+          host: '10.0.0.1',
+          port: 22,
+          username: 'deployer',
+          authMethod: 'KEY',
+          workRoot: DEFAULT_WORK_ROOT,
+          status: 'VERIFIED',
+          lastVerifiedAt: '2026-08-10T00:00:00.000Z',
+          createdAt: '2026-01-01T00:00:00.000Z',
         },
       ]);
     });
@@ -245,9 +262,7 @@ describe('DeployTargetService', () => {
   // ============================================================
   describe('B. listAll', () => {
     it('queries with where={project:{workspaceId}} and includes the project name', async () => {
-      prisma.deployTarget.findMany.mockResolvedValue([
-        { ...PLAIN_TARGET, project: { name: 'Project X' } },
-      ]);
+      prisma.deployTarget.findMany.mockResolvedValue([{ ...PLAIN_TARGET, project: { name: 'Project X' } }]);
 
       await service.listAll('ws-1');
 
@@ -259,18 +274,27 @@ describe('DeployTargetService', () => {
     });
 
     it('returns projectName from the included project', async () => {
-      prisma.deployTarget.findMany.mockResolvedValue([
-        { ...PLAIN_TARGET, project: { name: 'Project X' } },
-      ]);
+      prisma.deployTarget.findMany.mockResolvedValue([{ ...PLAIN_TARGET, project: { name: 'Project X' } }]);
 
       const result = await service.listAll('ws-1');
 
-      expect(result).toEqual([{
-        id: 'tgt-1', projectId: 'proj-1', projectName: 'Project X', name: 'production-nas', type: 'SSH',
-        host: '10.0.0.1', port: 22, username: 'deployer', authMethod: 'KEY', workRoot: DEFAULT_WORK_ROOT,
-        status: 'VERIFIED', lastVerifiedAt: '2026-08-10T00:00:00.000Z',
-        createdAt: '2026-01-01T00:00:00.000Z',
-      }]);
+      expect(result).toEqual([
+        {
+          id: 'tgt-1',
+          projectId: 'proj-1',
+          projectName: 'Project X',
+          name: 'production-nas',
+          type: 'SSH',
+          host: '10.0.0.1',
+          port: 22,
+          username: 'deployer',
+          authMethod: 'KEY',
+          workRoot: DEFAULT_WORK_ROOT,
+          status: 'VERIFIED',
+          lastVerifiedAt: '2026-08-10T00:00:00.000Z',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+      ]);
     });
 
     it('orders by createdAt desc', async () => {
@@ -286,9 +310,7 @@ describe('DeployTargetService', () => {
     });
 
     it('lastVerifiedAt is mapped to ISO string and createdAt to ISO string', async () => {
-      prisma.deployTarget.findMany.mockResolvedValue([
-        { ...PLAIN_TARGET, project: { name: 'P' } },
-      ]);
+      prisma.deployTarget.findMany.mockResolvedValue([{ ...PLAIN_TARGET, project: { name: 'P' } }]);
 
       const result = await service.listAll('ws-1');
 
@@ -297,9 +319,7 @@ describe('DeployTargetService', () => {
     });
 
     it('does not leak encryptedCredential, hostKey, or any ciphertext/plaintext', async () => {
-      prisma.deployTarget.findMany.mockResolvedValue([
-        { ...PLAIN_TARGET, project: { name: 'P' } },
-      ]);
+      prisma.deployTarget.findMany.mockResolvedValue([{ ...PLAIN_TARGET, project: { name: 'P' } }]);
 
       const result = await service.listAll('ws-1');
 
@@ -391,17 +411,6 @@ describe('DeployTargetService', () => {
       expect(data.authMethod).toBe('KEY');
     });
 
-    it.skip('rejects a missing authMethod before encryption or persistence (source currently defaults undefined authMethod to KEY)', async () => {
-      // 注：assertSafeTargetInput 中 'input.authMethod !== undefined && input.authMethod !== 'KEY'' 的
-      // 短路求值意味着 undefined 不会触发拒绝。create() 在 DTO 缺失 authMethod 时会以 'KEY' 默认值落库。
-      // 这是源端已知候选改进点（应强制显式 authMethod=KEY）；本测试跳过以反映当前行为。
-      const { authMethod, ...dto } = baseDto;
-
-      await expect(service.create('proj-1', dto)).rejects.toThrow(BadRequestException);
-      expect(secrets.encrypt).not.toHaveBeenCalled();
-      expect(prisma.deployTarget.create).not.toHaveBeenCalled();
-    });
-
     it('missing authMethod defaults to KEY (current source contract)', async () => {
       const { authMethod, ...dto } = baseDto;
 
@@ -427,13 +436,13 @@ describe('DeployTargetService', () => {
     });
 
     it.each([
-      ['/',                 'root path'],
-      ['relative/path',     'relative path'],
-      ['/path with space',  'whitespace in segment'],
-      ['/path"quote',       'quote character'],
-      ['/path;semicolon',   'semicolon'],
-      ['/a/../b',           'parent traversal segment'],
-      ['/a//b',             'double slash between segments'],
+      ['/', 'root path'],
+      ['relative/path', 'relative path'],
+      ['/path with space', 'whitespace in segment'],
+      ['/path"quote', 'quote character'],
+      ['/path;semicolon', 'semicolon'],
+      ['/a/../b', 'parent traversal segment'],
+      ['/a//b', 'double slash between segments'],
     ])('workRoot: %s (%s) is rejected with BadRequestException', async (badRoot) => {
       // KI-023 修复后：workRoot 校验在加密之前，无效路径直接抛 BadRequestException；
       // secrets.encrypt 不会被调用，prisma.deployTarget.create 也不会执行。
@@ -449,7 +458,9 @@ describe('DeployTargetService', () => {
     });
 
     it('authMethod="PASSWORD" is rejected', async () => {
-      await expect(service.create('proj-1', { ...baseDto, authMethod: 'PASSWORD' })).rejects.toThrow(BadRequestException);
+      await expect(service.create('proj-1', { ...baseDto, authMethod: 'PASSWORD' })).rejects.toThrow(
+        BadRequestException,
+      );
       expect(secrets.encrypt).not.toHaveBeenCalled();
       expect(prisma.deployTarget.create).not.toHaveBeenCalled();
     });
@@ -542,9 +553,9 @@ describe('DeployTargetService', () => {
     it('not found: NotFoundException, no encrypt, no Prisma.update', async () => {
       prisma.deployTarget.findUnique.mockResolvedValue(null);
 
-      await expect(
-        service.update('tgt-missing', { name: 'x', credential: PRIVATE_KEY_PLAINTEXT }),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.update('tgt-missing', { name: 'x', credential: PRIVATE_KEY_PLAINTEXT })).rejects.toThrow(
+        NotFoundException,
+      );
 
       expect(secrets.encrypt).not.toHaveBeenCalled();
       expect(prisma.deployTarget.update).not.toHaveBeenCalled();
@@ -637,51 +648,25 @@ describe('DeployTargetService', () => {
       expect(prisma.deployTarget.update).not.toHaveBeenCalled();
     });
 
-    it.skip('currently accepts an unknown authMethod and persists it (candidate KEY-only contract defect)', async () => {
-      const result = await service.update('tgt-1', { authMethod: 'OAUTH' });
-
-      expect(prisma.deployTarget.update).toHaveBeenCalledWith({
-        where: { id: 'tgt-1' },
-        data: { authMethod: 'OAUTH' },
-      });
-      expect(result.authMethod).toBe('OAUTH');
+    it('rejects an unknown authMethod', async () => {
+      await expect(service.update('tgt-1', { authMethod: 'OAUTH' })).rejects.toThrow(BadRequestException);
+      expect(prisma.deployTarget.update).not.toHaveBeenCalled();
     });
 
-    it.skip('currently encrypts and persists an empty credential (candidate credential-validation defect)', async () => {
-      await service.update('tgt-1', { credential: '' });
-
-      expect(secrets.encrypt).toHaveBeenCalledWith('');
-      expect(prisma.deployTarget.update).toHaveBeenCalledWith({
-        where: { id: 'tgt-1' },
-        data: { encryptedCredential: 'v2:enc()' },
-      });
+    it('rejects an empty credential', async () => {
+      await expect(service.update('tgt-1', { credential: '' })).rejects.toThrow(BadRequestException);
+      expect(secrets.encrypt).not.toHaveBeenCalled();
+      expect(prisma.deployTarget.update).not.toHaveBeenCalled();
     });
 
-    it.skip('currently persists an empty Host Key (candidate fixed-host-key contract defect)', async () => {
-      await service.update('tgt-1', { hostKey: '' });
-
-      expect(prisma.deployTarget.update).toHaveBeenCalledWith({
-        where: { id: 'tgt-1' },
-        data: { hostKey: '' },
-      });
+    it('rejects an empty Host Key', async () => {
+      await expect(service.update('tgt-1', { hostKey: '' })).rejects.toThrow(BadRequestException);
+      expect(prisma.deployTarget.update).not.toHaveBeenCalled();
     });
 
-    it.skip('currently persists an invalid username format other than root (candidate validation defect)', async () => {
-      await service.update('tgt-1', { username: 'bad user;name' });
-
-      expect(prisma.deployTarget.update).toHaveBeenCalledWith({
-        where: { id: 'tgt-1' },
-        data: { username: 'bad user;name' },
-      });
-    });
-
-    it.skip('empty update object: Prisma.update is called with data={} (current production behaviour)', async () => {
-      await service.update('tgt-1', {});
-
-      expect(prisma.deployTarget.update).toHaveBeenCalledWith({
-        where: { id: 'tgt-1' },
-        data: {},
-      });
+    it('rejects an invalid username format other than root', async () => {
+      await expect(service.update('tgt-1', { username: 'bad user;name' })).rejects.toThrow(BadRequestException);
+      expect(prisma.deployTarget.update).not.toHaveBeenCalled();
     });
 
     it('return does not leak credential/encryptedCredential/hostKey', async () => {
@@ -736,7 +721,7 @@ describe('DeployTargetService', () => {
       expect(prisma.deployTarget.delete).toHaveBeenCalledWith({ where: { id: 'tgt-1' } });
     });
 
-    it.skip('current return value is undefined (no fabricated payload)', async () => {
+    it('current return value is undefined (no fabricated payload)', async () => {
       prisma.deployTarget.findUnique.mockResolvedValue(PLAIN_TARGET);
       prisma.deployment.count.mockResolvedValue(0);
       prisma.deployTarget.delete.mockResolvedValue(PLAIN_TARGET);
@@ -826,10 +811,7 @@ describe('DeployTargetService', () => {
       const promise = service.verify('tgt-1');
       await flushPromises();
       triggerReady(ssh);
-      deliverExecResult(
-        ssh,
-        ['24.0.5', '2.20.0', 'x86_64', '1073741824', 'AVAILABLE'].join('\n'),
-      );
+      deliverExecResult(ssh, ['24.0.5', '2.20.0', 'x86_64', '1073741824', 'AVAILABLE'].join('\n'));
       await promise;
 
       // hostVerifier encodes the Buffer as base64 and compares to the second token.
@@ -860,10 +842,7 @@ describe('DeployTargetService', () => {
       expect(verifier(mismatchingBuffer)).toBe(false);
 
       // Settle the verify call so the test does not leak
-      deliverExecResult(
-        ssh,
-        ['24.0.5', '2.20.0', 'x86_64', '1073741824', 'AVAILABLE'].join('\n'),
-      );
+      deliverExecResult(ssh, ['24.0.5', '2.20.0', 'x86_64', '1073741824', 'AVAILABLE'].join('\n'));
       await promise;
     });
 
@@ -901,13 +880,15 @@ describe('DeployTargetService', () => {
       await flushPromises();
       triggerReady(ssh);
 
-      expect(ssh.lastConnectConfig).toEqual(expect.objectContaining({
-        host: '10.0.0.1',
-        port: 22,
-        username: 'deployer',
-        privateKey: PRIVATE_KEY_PLAINTEXT,
-        readyTimeout: 15_000,
-      }));
+      expect(ssh.lastConnectConfig).toEqual(
+        expect.objectContaining({
+          host: '10.0.0.1',
+          port: 22,
+          username: 'deployer',
+          privateKey: PRIVATE_KEY_PLAINTEXT,
+          readyTimeout: 15_000,
+        }),
+      );
       expect(typeof ssh.lastConnectConfig.hostVerifier).toBe('function');
 
       // Settle so the test does not leak
@@ -926,19 +907,19 @@ describe('DeployTargetService', () => {
 
       const cmd = ssh.lastExecCommand;
       // Required command fragments
-      expect(cmd).toContain("command -v docker");
+      expect(cmd).toContain('command -v docker');
       expect(cmd).toContain("docker version --format '{{.Server.Version}}'");
-      expect(cmd).toContain("docker compose version --short");
+      expect(cmd).toContain('docker compose version --short');
       expect(cmd).toContain("docker info --format '{{.Architecture}}'");
-      expect(cmd).toContain("mkdir -p");
-      expect(cmd).toContain("chmod 700");
-      expect(cmd).toContain("test -w");
-      expect(cmd).toContain("df -Pk");
-      expect(cmd).toContain("command -v ss");
-      expect(cmd).toContain("[:.]80");
-      expect(cmd).toContain("OCCUPIED");
-      expect(cmd).toContain("AVAILABLE");
-      expect(cmd).toContain("UNKNOWN");
+      expect(cmd).toContain('mkdir -p');
+      expect(cmd).toContain('chmod 700');
+      expect(cmd).toContain('test -w');
+      expect(cmd).toContain('df -Pk');
+      expect(cmd).toContain('command -v ss');
+      expect(cmd).toContain('[:.]80');
+      expect(cmd).toContain('OCCUPIED');
+      expect(cmd).toContain('AVAILABLE');
+      expect(cmd).toContain('UNKNOWN');
       // Normalized workRoot: trailing slashes are stripped
       expect(cmd).toContain("'/srv/launchly'");
     });

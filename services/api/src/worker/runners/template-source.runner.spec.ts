@@ -29,9 +29,11 @@ const fsMock = (fs as any).__launchlyFsOverrides as {
   writeFileSync: jest.Mock;
 };
 
-const unexpectedSync = (name: string) => (...args: unknown[]) => {
-  throw new Error(`Unexpected unconfigured fs.${name} call: ${JSON.stringify(args)}`);
-};
+const unexpectedSync =
+  (name: string) =>
+  (...args: unknown[]) => {
+    throw new Error(`Unexpected unconfigured fs.${name} call: ${JSON.stringify(args)}`);
+  };
 
 beforeEach(() => {
   for (const fn of Object.values(fsMock)) {
@@ -66,7 +68,13 @@ describe('TemplateSourceRunner.execute - unsupported template', () => {
   it('rejects non-static-blog templateId without touching fs or callback', async () => {
     const runner = makeRunner();
     const result = await runner.execute(makeContext({ payload: { templateId: 'fancy-template' } }));
-    expect(result).toEqual({ success: false, stdout: '', stderr: 'Template is not supported by the deployment executor', exitCode: -1, errorMessage: 'Template is not supported by the deployment executor' });
+    expect(result).toEqual({
+      success: false,
+      stdout: '',
+      stderr: 'Template is not supported by the deployment executor',
+      exitCode: -1,
+      errorMessage: 'Template is not supported by the deployment executor',
+    });
     expect(fsMock.rmSync).not.toHaveBeenCalled();
     expect(fsMock.mkdirSync).not.toHaveBeenCalled();
     expect(fsMock.writeFileSync).not.toHaveBeenCalled();
@@ -83,15 +91,18 @@ describe('TemplateSourceRunner.execute - unsupported template', () => {
   it.each([
     ['undefined', undefined],
     ['null', null],
-  ])('rejects with TypeError before filesystem access when payload is %s (current behavior)', async (_label, payload) => {
-    const runner = makeRunner();
+  ])(
+    'rejects with TypeError before filesystem access when payload is %s (current behavior)',
+    async (_label, payload) => {
+      const runner = makeRunner();
 
-    await expect(runner.execute(makeContext({ payload: payload as any }))).rejects.toBeInstanceOf(TypeError);
+      await expect(runner.execute(makeContext({ payload: payload as any }))).rejects.toBeInstanceOf(TypeError);
 
-    expect(fsMock.rmSync).not.toHaveBeenCalled();
-    expect(fsMock.mkdirSync).not.toHaveBeenCalled();
-    expect(fsMock.writeFileSync).not.toHaveBeenCalled();
-  });
+      expect(fsMock.rmSync).not.toHaveBeenCalled();
+      expect(fsMock.mkdirSync).not.toHaveBeenCalled();
+      expect(fsMock.writeFileSync).not.toHaveBeenCalled();
+    },
+  );
 });
 
 // ─── B. Default title ──────────────────────────────────────────────────────
@@ -152,7 +163,9 @@ describe('TemplateSourceRunner.execute - custom title HTML escape (hard-coded ex
     fsMock.rmSync.mockReturnValueOnce(undefined);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
     fsMock.writeFileSync.mockReturnValueOnce(undefined).mockReturnValueOnce(undefined);
-    await runner.execute(makeContext({ payload: { templateId: 'static-blog', templateTitle: '<script>alert(1)</script>' } }));
+    await runner.execute(
+      makeContext({ payload: { templateId: 'static-blog', templateTitle: '<script>alert(1)</script>' } }),
+    );
     const indexHtml = fsMock.writeFileSync.mock.calls[1][1] as string;
     expect(indexHtml).toContain('<title>&lt;script&gt;alert(1)&lt;/script&gt;</title>');
     expect(indexHtml).toContain('<h1>&lt;script&gt;alert(1)&lt;/script&gt;</h1>');
@@ -175,7 +188,7 @@ describe('TemplateSourceRunner.execute - custom title HTML escape (hard-coded ex
     fsMock.writeFileSync.mockReturnValueOnce(undefined).mockReturnValueOnce(undefined);
     await runner.execute(makeContext({ payload: { templateId: 'static-blog', templateTitle: "Don't panic" } }));
     const indexHtml = fsMock.writeFileSync.mock.calls[1][1] as string;
-    expect(indexHtml).toContain("<title>Don&#39;t panic</title>");
+    expect(indexHtml).toContain('<title>Don&#39;t panic</title>');
   });
 
   it('escapes all five special chars in one title (order: & first)', async () => {
@@ -285,14 +298,22 @@ describe('TemplateSourceRunner.execute - stageLogCallback', () => {
   it('callback is invoked AFTER both writeFileSync calls (rm, mkdir, write-dockerfile, write-indexhtml, callback)', async () => {
     const runner = makeRunner();
     const callOrder: string[] = [];
-    fsMock.rmSync.mockImplementation((..._a: any[]) => { callOrder.push('rm'); return undefined; });
-    fsMock.mkdirSync.mockImplementation((..._a: any[]) => { callOrder.push('mkdir'); return undefined; });
+    fsMock.rmSync.mockImplementation((..._a: any[]) => {
+      callOrder.push('rm');
+      return undefined;
+    });
+    fsMock.mkdirSync.mockImplementation((..._a: any[]) => {
+      callOrder.push('mkdir');
+      return undefined;
+    });
     fsMock.writeFileSync.mockImplementation((p: any) => {
       callOrder.push(p && typeof p === 'string' && p.endsWith('Dockerfile') ? 'write-dockerfile' : 'write-indexhtml');
       return undefined;
     });
     const ctx = makeContext({ payload: { templateId: 'static-blog' } });
-    (ctx.stageLogCallback as jest.Mock).mockImplementation(async () => { callOrder.push('cb'); });
+    (ctx.stageLogCallback as jest.Mock).mockImplementation(async () => {
+      callOrder.push('cb');
+    });
     await runner.execute(ctx);
     expect(callOrder).toEqual(['rm', 'mkdir', 'write-dockerfile', 'write-indexhtml', 'cb']);
   });
@@ -303,7 +324,9 @@ describe('TemplateSourceRunner.execute - stageLogCallback', () => {
 describe('TemplateSourceRunner.execute - side-effect error propagation', () => {
   it('rmSync throws: failure with that message; no mkdir, no writes, no callback', async () => {
     const runner = makeRunner();
-    fsMock.rmSync.mockImplementationOnce(() => { throw new Error('EACCES on rm'); });
+    fsMock.rmSync.mockImplementationOnce(() => {
+      throw new Error('EACCES on rm');
+    });
     const ctx = makeContext({ payload: { templateId: 'static-blog' } });
     const result = await runner.execute(ctx);
     expect(result.success).toBe(false);
@@ -317,7 +340,9 @@ describe('TemplateSourceRunner.execute - side-effect error propagation', () => {
   it('mkdirSync throws: failure with that message; no writes, no callback', async () => {
     const runner = makeRunner();
     fsMock.rmSync.mockReturnValueOnce(undefined);
-    fsMock.mkdirSync.mockImplementationOnce(() => { throw new Error('EACCES on mkdir'); });
+    fsMock.mkdirSync.mockImplementationOnce(() => {
+      throw new Error('EACCES on mkdir');
+    });
     const ctx = makeContext({ payload: { templateId: 'static-blog' } });
     const result = await runner.execute(ctx);
     expect(result.success).toBe(false);
@@ -330,7 +355,9 @@ describe('TemplateSourceRunner.execute - side-effect error propagation', () => {
     const runner = makeRunner();
     fsMock.rmSync.mockReturnValueOnce(undefined);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
-    fsMock.writeFileSync.mockImplementationOnce(() => { throw new Error('ENOSPC on dockerfile'); });
+    fsMock.writeFileSync.mockImplementationOnce(() => {
+      throw new Error('ENOSPC on dockerfile');
+    });
     const ctx = makeContext({ payload: { templateId: 'static-blog' } });
     const result = await runner.execute(ctx);
     expect(result.success).toBe(false);
@@ -343,7 +370,9 @@ describe('TemplateSourceRunner.execute - side-effect error propagation', () => {
     const runner = makeRunner();
     fsMock.rmSync.mockReturnValueOnce(undefined);
     fsMock.mkdirSync.mockReturnValueOnce(undefined);
-    fsMock.writeFileSync.mockReturnValueOnce(undefined).mockImplementationOnce(() => { throw new Error('ENOSPC on index'); });
+    fsMock.writeFileSync.mockReturnValueOnce(undefined).mockImplementationOnce(() => {
+      throw new Error('ENOSPC on index');
+    });
     const ctx = makeContext({ payload: { templateId: 'static-blog' } });
     const result = await runner.execute(ctx);
     expect(result.success).toBe(false);
@@ -366,7 +395,9 @@ describe('TemplateSourceRunner.execute - side-effect error propagation', () => {
 
   it('an error without a message uses the generic template failure', async () => {
     const runner = makeRunner();
-    fsMock.rmSync.mockImplementationOnce(() => { throw {}; });
+    fsMock.rmSync.mockImplementationOnce(() => {
+      throw {};
+    });
     const ctx = makeContext({ payload: { templateId: 'static-blog' } });
 
     const result = await runner.execute(ctx);

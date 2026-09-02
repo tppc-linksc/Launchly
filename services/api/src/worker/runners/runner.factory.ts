@@ -46,20 +46,29 @@ export class RunnerFactory {
     return runner.execute(context);
   }
 
-  private getRunner(taskType: string, context: RunnerContext): { execute: (ctx: RunnerContext) => Promise<RunnerResult> } | null {
+  private getRunner(
+    taskType: string,
+    context: RunnerContext,
+  ): { execute: (ctx: RunnerContext) => Promise<RunnerResult> } | null {
     switch (taskType) {
-      case 'REPO_CLONE': return this.gitRunner;
-      case 'PROJECT_BUILD': return this.buildkitRunner;
-      case 'PROJECT_IMAGE_PREPARE': return this.ociImageRunner;
-      case 'TEMPLATE_SOURCE': return this.templateSourceRunner;
+      case 'REPO_CLONE':
+        return this.gitRunner;
+      case 'PROJECT_BUILD':
+        return this.buildkitRunner;
+      case 'PROJECT_IMAGE_PREPARE':
+        return this.ociImageRunner;
+      case 'TEMPLATE_SOURCE':
+        return this.templateSourceRunner;
       case 'PROJECT_DEPLOY':
       case 'PROJECT_BOOTSTRAP':
         if (context.payload.deployTargetId) return this.remoteSshRunner;
         return null;
       case 'ROLLBACK_DEPLOY':
         return this.remoteSshRunner;
-      case 'HEALTH_CHECK': return this.shellRunner;
-      default: return null;
+      case 'HEALTH_CHECK':
+        return this.shellRunner;
+      default:
+        return null;
     }
   }
 }

@@ -40,20 +40,14 @@ vi.mock('child_process', () => ({
     execCalls.push({ file, args, options });
     if (execQueue.length === 0) {
       unconfiguredCallCount++;
-      throw new Error(
-        `Unexpected unconfigured execFileSync call: ${file} ${JSON.stringify(args)}`,
-      );
+      throw new Error(`Unexpected unconfigured execFileSync call: ${file} ${JSON.stringify(args)}`);
     }
     const r = execQueue.shift()!;
     if (r.file !== undefined && r.file !== file) {
-      throw new Error(
-        `execFileSync file mismatch: expected ${JSON.stringify(r.file)}, got ${JSON.stringify(file)}`,
-      );
+      throw new Error(`execFileSync file mismatch: expected ${JSON.stringify(r.file)}, got ${JSON.stringify(file)}`);
     }
     if (r.args !== undefined && !argsEqual(args, r.args)) {
-      throw new Error(
-        `execFileSync args mismatch: expected ${JSON.stringify(r.args)}, got ${JSON.stringify(args)}`,
-      );
+      throw new Error(`execFileSync args mismatch: expected ${JSON.stringify(r.args)}, got ${JSON.stringify(args)}`);
     }
     if (r.throw) throw r.throw;
     return r.stdout ?? '';
@@ -193,7 +187,18 @@ describe('CLI install --dry-run', () => {
 
 describe('CLI install (first time)', () => {
   it('creates data root + logs/data/config subdirs, .env (mode 0o600) with secrets, compose.yml, single docker command', async () => {
-    queueExec({ file: 'docker', args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), '--env-file', path.join(dataDir, '.env'), 'up', '-d'] });
+    queueExec({
+      file: 'docker',
+      args: [
+        'compose',
+        '-f',
+        path.join(dataDir, 'docker-compose.yml'),
+        '--env-file',
+        path.join(dataDir, '.env'),
+        'up',
+        '-d',
+      ],
+    });
     await runCli(['install']);
 
     expect(fs.existsSync(dataDir)).toBe(true);
@@ -253,7 +258,15 @@ describe('CLI install (first time)', () => {
   it('custom port --port 3000 is written into .env and completion output', async () => {
     queueExec({
       file: 'docker',
-      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), '--env-file', path.join(dataDir, '.env'), 'up', '-d'],
+      args: [
+        'compose',
+        '-f',
+        path.join(dataDir, 'docker-compose.yml'),
+        '--env-file',
+        path.join(dataDir, '.env'),
+        'up',
+        '-d',
+      ],
     });
     await runCli(['install', '--port', '3000']);
 
@@ -263,15 +276,7 @@ describe('CLI install (first time)', () => {
     const envPath = path.join(dataDir, '.env');
     const composePath = path.join(dataDir, 'docker-compose.yml');
     expect(execCalls).toHaveLength(1);
-    expect(execCalls[0].args).toEqual([
-      'compose',
-      '-f',
-      composePath,
-      '--env-file',
-      envPath,
-      'up',
-      '-d',
-    ]);
+    expect(execCalls[0].args).toEqual(['compose', '-f', composePath, '--env-file', envPath, 'up', '-d']);
     expect(execCalls[0].options).toEqual({ stdio: 'inherit' });
 
     const log = captureLog();
@@ -286,7 +291,8 @@ describe('CLI install (repeated)', () => {
   it('pre-existing .env bytes are preserved exactly; compose.yml is rewritten; only one docker command; output mentions skipping', async () => {
     fs.mkdirSync(dataDir, { recursive: true });
     const envPath = path.join(dataDir, '.env');
-    const fixedEnv = '# frozen\nLAUNCHLY_DB_PASSWORD=FROZEN_DB\nLAUNCHLY_JWT_SECRET=FROZEN_JWT\nLAUNCHLY_ENCRYPTION_KEY=FROZEN_KEY\nLAUNCHLY_APP_IMAGE=ghcr.io/tppc-linksc/launchly:latest\nLAUNCHLY_APP_PORT=8080\nCOMPOSE_PROFILES=\n';
+    const fixedEnv =
+      '# frozen\nLAUNCHLY_DB_PASSWORD=FROZEN_DB\nLAUNCHLY_JWT_SECRET=FROZEN_JWT\nLAUNCHLY_ENCRYPTION_KEY=FROZEN_KEY\nLAUNCHLY_APP_IMAGE=ghcr.io/tppc-linksc/launchly:latest\nLAUNCHLY_APP_PORT=8080\nCOMPOSE_PROFILES=\n';
     fs.writeFileSync(envPath, fixedEnv, { mode: 0o600 });
 
     queueExec({
@@ -373,11 +379,13 @@ describe('CLI up', () => {
 
     await expect(runCli(['up'])).rejects.toBe(failure);
 
-    expect(execCalls).toEqual([{
-      file: 'docker',
-      args: ['compose', '-f', composePath, 'up', '-d'],
-      options: { stdio: 'inherit' },
-    }]);
+    expect(execCalls).toEqual([
+      {
+        file: 'docker',
+        args: ['compose', '-f', composePath, 'up', '-d'],
+        options: { stdio: 'inherit' },
+      },
+    ]);
     expect(captureLog()).not.toContain('服务已启动。');
   });
 });
@@ -537,7 +545,16 @@ describe('CLI logs', () => {
     await runCli(['logs', '--follow', '--service', 'launchly-worker']);
 
     expect(execCalls).toHaveLength(1);
-    expect(execCalls[0].args).toEqual(['compose', '-f', composePath, '--env-file', envPath, 'logs', '-f', 'launchly-worker']);
+    expect(execCalls[0].args).toEqual([
+      'compose',
+      '-f',
+      composePath,
+      '--env-file',
+      envPath,
+      'logs',
+      '-f',
+      'launchly-worker',
+    ]);
     expect(execCalls[0].options).toEqual({ stdio: 'inherit' });
   });
 });
@@ -594,11 +611,13 @@ describe('CLI upgrade', () => {
 
     await expect(runCli(['upgrade'])).rejects.toBe(failure);
 
-    expect(execCalls).toEqual([{
-      file: 'docker',
-      args: ['compose', '-f', composePath, 'pull'],
-      options: { stdio: 'inherit' },
-    }]);
+    expect(execCalls).toEqual([
+      {
+        file: 'docker',
+        args: ['compose', '-f', composePath, 'pull'],
+        options: { stdio: 'inherit' },
+      },
+    ]);
     expect(captureLog()).not.toContain('重建服务');
     expect(captureLog()).not.toContain('升级完成。');
   });

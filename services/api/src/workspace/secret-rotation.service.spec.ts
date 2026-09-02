@@ -25,20 +25,26 @@ describe('SecretRotationService', () => {
     const service = new SecretRotationService(prisma, secrets);
 
     await expect(service.rotate('workspace-a')).resolves.toEqual({ success: true, rotated: 4 });
-    expect(tx.environmentVariable.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { environment: { project: { workspaceId: 'workspace-a' } } },
-    }));
+    expect(tx.environmentVariable.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { environment: { project: { workspaceId: 'workspace-a' } } },
+      }),
+    );
     expect(tx.environmentVariable.update).toHaveBeenCalledWith({
-      where: { id: 'env-secret' }, data: { encryptedValue: 'new(old-env)' },
+      where: { id: 'env-secret' },
+      data: { encryptedValue: 'new(old-env)' },
     });
     expect(tx.repositoryCredential.update).toHaveBeenCalledWith({
-      where: { id: 'repo-secret' }, data: { encryptedValue: 'new(old-repo)' },
+      where: { id: 'repo-secret' },
+      data: { encryptedValue: 'new(old-repo)' },
     });
     expect(tx.deployTarget.update).toHaveBeenCalledWith({
-      where: { id: 'target-secret' }, data: { encryptedCredential: 'new(old-target)' },
+      where: { id: 'target-secret' },
+      data: { encryptedCredential: 'new(old-target)' },
     });
     expect(tx.projectBootstrapSecret.update).toHaveBeenCalledWith({
-      where: { projectId: 'bootstrap-project' }, data: { encryptedPassword: 'new(old-bootstrap)' },
+      where: { projectId: 'bootstrap-project' },
+      data: { encryptedPassword: 'new(old-bootstrap)' },
     });
   });
 });

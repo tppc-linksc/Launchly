@@ -63,7 +63,10 @@ describe('GlobalExceptionFilter', () => {
 
     it('extracts the message field when the HttpException response is an object with a string message', () => {
       const { host, response } = makeHost();
-      const ex = new HttpException({ message: 'invalid payload', error: 'Bad Request' }, HttpStatus.UNPROCESSABLE_ENTITY);
+      const ex = new HttpException(
+        { message: 'invalid payload', error: 'Bad Request' },
+        HttpStatus.UNPROCESSABLE_ENTITY,
+      );
 
       filter.catch(ex, host);
 

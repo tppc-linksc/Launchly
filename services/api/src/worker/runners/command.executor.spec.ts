@@ -127,7 +127,9 @@ describe('CommandExecutor.exec - spawn wiring', () => {
     const prev = process.env.LAUNCHLY_TEST_EXISTING;
     process.env.LAUNCHLY_TEST_EXISTING = 'from-process';
     try {
-      const exec = makeExecutor().exec('env', { env: { LAUNCHLY_TEST_EXISTING: 'from-options', LAUNCHLY_TEST_NEW: 'new' } });
+      const exec = makeExecutor().exec('env', {
+        env: { LAUNCHLY_TEST_EXISTING: 'from-options', LAUNCHLY_TEST_NEW: 'new' },
+      });
       await Promise.resolve();
       const env = lastSpawn!.options.env as Record<string, string>;
       expect(env.LAUNCHLY_TEST_EXISTING).toBe('from-options');
@@ -165,7 +167,7 @@ describe('CommandExecutor.exec - stdout/stderr/close behaviour', () => {
     await expect(promise).resolves.toEqual({ stdout: 'out-aout-b', stderr: 'err-a\nerr-b', exitCode: 1 });
   });
 
-  it.skip('resolves with exitCode -1 when close fires with null (current behavior)', async () => {
+  it('resolves with exitCode -1 when close fires with null (current behavior)', async () => {
     const promise = makeExecutor().exec('null-close');
     await Promise.resolve();
     emitClose(null);
@@ -203,7 +205,12 @@ describe('CommandExecutor.execFile - spawn wiring', () => {
   });
 
   it('preserves the caller-supplied args array exactly (no mutation, no extra elements)', async () => {
-    const originalArgs = ['--upload-file', '/tmp/file with spaces.txt; rm -rf $HOME', '$(echo evil)', '`echo backtick`'];
+    const originalArgs = [
+      '--upload-file',
+      '/tmp/file with spaces.txt; rm -rf $HOME',
+      '$(echo evil)',
+      '`echo backtick`',
+    ];
     const argsCopy = [...originalArgs];
     const promise = makeExecutor().execFile('/usr/bin/rsync', originalArgs);
     await Promise.resolve();
@@ -355,7 +362,8 @@ describe('CommandExecutor.sanitize - database URLs and PEM keys', () => {
   });
 
   it('redacts multi-line PEM PRIVATE KEY blocks', () => {
-    const pem = '-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQ\n-----END PRIVATE KEY-----';
+    const pem =
+      '-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQ\n-----END PRIVATE KEY-----';
     const out = CommandExecutor.sanitize(`key material: ${pem} done`);
     expect(out).not.toContain('MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQ');
     expect(out).not.toContain('PRIVATE KEY');
@@ -395,14 +403,14 @@ describe('CommandExecutor.sanitize - multi-secret and stability', () => {
     expect(CommandExecutor.sanitize(wordMention)).toBe(wordMention);
   });
 
-  it.skip('does not redact secrets whose JSON object keys are quoted (current behavior)', () => {
+  it('redacts secrets whose JSON object keys are quoted', () => {
     const input = '{"password":"hunter2","token":"plain-token","api_key":"api-secret"}';
 
     const output = CommandExecutor.sanitize(input);
 
-    expect(output).toBe(input);
-    expect(output).toContain('hunter2');
-    expect(output).toContain('plain-token');
-    expect(output).toContain('api-secret');
+    expect(output).not.toContain('hunter2');
+    expect(output).not.toContain('plain-token');
+    expect(output).not.toContain('api-secret');
+    expect(output.match(/\[REDACTED\]/g)).toHaveLength(3);
   });
 });

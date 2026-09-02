@@ -1,4 +1,5 @@
-const KEY_ALGORITHM = /^(?:ssh-(?:rsa|dss|ed25519)|ecdsa-sha2-[a-z0-9-]+|sk-(?:ssh-ed25519|ecdsa-sha2-nistp256)@openssh\.com)$/;
+const KEY_ALGORITHM =
+  /^(?:ssh-(?:rsa|dss|ed25519)|ecdsa-sha2-[a-z0-9-]+|sk-(?:ssh-ed25519|ecdsa-sha2-nistp256)@openssh\.com)$/;
 const KEY_BODY = /^[A-Za-z0-9+/]+={0,3}$/;
 
 export interface ParsedSshHostKey {

@@ -1,9 +1,9 @@
 <template>
   <div>
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px">
       <div>
-        <h2 style="margin: 0;">成员管理</h2>
-        <p style="color: #8c8c8c; margin: 4px 0 0;">管理工作空间成员与角色。</p>
+        <h2 style="margin: 0">成员管理</h2>
+        <p style="color: #8c8c8c; margin: 4px 0 0">管理工作空间成员与角色。</p>
       </div>
       <el-button v-if="isOwner" type="primary" @click="inviteVisible = true">邀请成员</el-button>
     </div>
@@ -12,11 +12,11 @@
       <el-table :data="members" v-loading="loading" row-key="id" size="default">
         <el-table-column label="成员">
           <template #default="{ row }">
-            <div style="display: flex; align-items: center; gap: 8px;">
+            <div style="display: flex; align-items: center; gap: 8px">
               <div class="member-avatar">{{ (row.displayName || row.account || '?').charAt(0).toUpperCase() }}</div>
               <div>
-                <div style="font-weight: 500;">{{ row.displayName || row.account }}</div>
-                <div style="font-size: 12px; color: #8c8c8c;">{{ row.account }}</div>
+                <div style="font-weight: 500">{{ row.displayName || row.account }}</div>
+                <div style="font-size: 12px; color: #8c8c8c">{{ row.account }}</div>
               </div>
             </div>
           </template>
@@ -35,7 +35,7 @@
               <el-select
                 :model-value="row.role"
                 size="small"
-                style="width: 120px;"
+                style="width: 120px"
                 @change="(val: string) => handleRoleChange(row.id, val)"
               >
                 <el-option value="ADMIN" label="管理员" />
@@ -49,36 +49,46 @@
                 </template>
               </el-popconfirm>
             </el-space>
-            <span v-else-if="row.role === 'OWNER'" style="color: #8c8c8c; font-size: 12px;">所有者</span>
+            <span v-else-if="row.role === 'OWNER'" style="color: #8c8c8c; font-size: 12px">所有者</span>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
     <el-dialog v-model="inviteVisible" title="创建邀请" width="480px">
       <el-form label-position="top">
-        <el-form-item label="角色"><el-select v-model="inviteRole" style="width: 100%"><el-option v-for="role in ['ADMIN','DEVELOPER','TESTER','VIEWER']" :key="role" :value="role" :label="roleMap[role]" /></el-select></el-form-item>
+        <el-form-item label="角色"
+          ><el-select v-model="inviteRole" style="width: 100%"
+            ><el-option
+              v-for="role in ['ADMIN', 'DEVELOPER', 'TESTER', 'VIEWER']"
+              :key="role"
+              :value="role"
+              :label="roleMap[role]" /></el-select
+        ></el-form-item>
         <el-form-item v-if="inviteUrl" label="邀请链接"><el-input :model-value="inviteUrl" readonly /></el-form-item>
       </el-form>
-      <template #footer><el-button @click="inviteVisible = false">关闭</el-button><el-button type="primary" :loading="inviting" @click="handleInvite">生成链接</el-button></template>
+      <template #footer
+        ><el-button @click="inviteVisible = false">关闭</el-button
+        ><el-button type="primary" :loading="inviting" @click="handleInvite">生成链接</el-button></template
+      >
     </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { fetchMembers, updateMemberRole, removeMember, createInvitation } from '../api/client'
-import { formatTime } from '../utils/display'
-import { usePermission } from '../composables/usePermission'
+import { ref, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
+import { fetchMembers, updateMemberRole, removeMember, createInvitation } from '../api/client';
+import { formatTime } from '../utils/display';
+import { usePermission } from '../composables/usePermission';
 
-const { isOwner } = usePermission()
+const { isOwner } = usePermission();
 
-const members = ref<any[]>([])
-const loading = ref(false)
-const inviteVisible = ref(false)
-const inviting = ref(false)
-const inviteRole = ref('DEVELOPER')
-const inviteUrl = ref('')
+const members = ref<any[]>([]);
+const loading = ref(false);
+const inviteVisible = ref(false);
+const inviting = ref(false);
+const inviteRole = ref('DEVELOPER');
+const inviteUrl = ref('');
 
 const roleMap: Record<string, string> = {
   OWNER: '所有者',
@@ -86,64 +96,70 @@ const roleMap: Record<string, string> = {
   DEVELOPER: '开发者',
   TESTER: '测试员',
   VIEWER: '观察者',
-}
+};
 
 function roleType(role: string) {
   const map: Record<string, string> = {
-    OWNER: 'warning', ADMIN: 'primary', DEVELOPER: 'success', TESTER: 'warning', VIEWER: 'info',
-  }
-  return (map[role] || 'info') as any
+    OWNER: 'warning',
+    ADMIN: 'primary',
+    DEVELOPER: 'success',
+    TESTER: 'warning',
+    VIEWER: 'info',
+  };
+  return (map[role] || 'info') as any;
 }
 
 async function loadMembers() {
-  loading.value = true
+  loading.value = true;
   try {
-    const res = await fetchMembers()
-    members.value = res.data || []
+    const res = await fetchMembers();
+    members.value = res.data || [];
   } catch {
-    ElMessage.error('加载成员列表失败')
+    ElMessage.error('加载成员列表失败');
   }
-  loading.value = false
+  loading.value = false;
 }
 
 async function handleRoleChange(id: string, role: string) {
   try {
-    await updateMemberRole(id, role)
-    ElMessage.success('角色已更新')
-    await loadMembers()
+    await updateMemberRole(id, role);
+    ElMessage.success('角色已更新');
+    await loadMembers();
   } catch (e: any) {
-    ElMessage.error(e.response?.data?.message || '更新角色失败')
+    ElMessage.error(e.response?.data?.message || '更新角色失败');
   }
 }
 
 async function handleRemove(id: string) {
   try {
-    await removeMember(id)
-    ElMessage.success('成员已移除')
-    await loadMembers()
+    await removeMember(id);
+    ElMessage.success('成员已移除');
+    await loadMembers();
   } catch (e: any) {
     if (e.response?.status === 409) {
-      ElMessage.error('不能移除最后一个所有者')
+      ElMessage.error('不能移除最后一个所有者');
     } else {
-      ElMessage.error(e.response?.data?.message || '移除失败')
+      ElMessage.error(e.response?.data?.message || '移除失败');
     }
   }
 }
 
 async function handleInvite() {
-  inviting.value = true
+  inviting.value = true;
   try {
-    const response = await createInvitation({ role: inviteRole.value })
-    inviteUrl.value = `${window.location.origin}${window.location.pathname}#/invite/${response.data.token}`
-    ElMessage.success('邀请链接已生成')
+    const response = await createInvitation({ role: inviteRole.value });
+    inviteUrl.value = `${window.location.origin}${window.location.pathname}#/invite/${response.data.token}`;
+    ElMessage.success('邀请链接已生成');
   } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || '创建邀请失败')
+    ElMessage.error(error.response?.data?.message || '创建邀请失败');
   } finally {
-    inviting.value = false
+    inviting.value = false;
   }
 }
 
-onMounted(() => { loadMembers() })
+onMounted(() => {
+  loadMembers();
+});
 </script>
 
 <style scoped>

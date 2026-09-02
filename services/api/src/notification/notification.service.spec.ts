@@ -115,24 +115,43 @@ describe('NotificationService', () => {
 
   describe('create', () => {
     it.each([
-      { label: 'content + refId',       content: 'hello',  refId: 'ref-1',  expectedContent: 'hello',  expectedRefId: 'ref-1'  },
-      { label: 'content only',           content: 'hello',  refId: undefined, expectedContent: 'hello',  expectedRefId: undefined },
-      { label: 'refId only',             content: undefined, refId: 'ref-2', expectedContent: undefined, expectedRefId: 'ref-2' },
-      { label: 'both undefined',         content: undefined, refId: undefined, expectedContent: undefined, expectedRefId: undefined },
-      { label: 'empty string content',   content: '',       refId: '',      expectedContent: '',       expectedRefId: ''      },
-    ])('$label: forwards values verbatim and returns the created notification', async ({ content, refId, expectedContent, expectedRefId }) => {
-      prisma.notification.create.mockResolvedValue({
-        id: 'n-new', userId, type: 'INFO', title: 'hello', content, refId,
-      });
+      { label: 'content + refId', content: 'hello', refId: 'ref-1', expectedContent: 'hello', expectedRefId: 'ref-1' },
+      { label: 'content only', content: 'hello', refId: undefined, expectedContent: 'hello', expectedRefId: undefined },
+      { label: 'refId only', content: undefined, refId: 'ref-2', expectedContent: undefined, expectedRefId: 'ref-2' },
+      {
+        label: 'both undefined',
+        content: undefined,
+        refId: undefined,
+        expectedContent: undefined,
+        expectedRefId: undefined,
+      },
+      { label: 'empty string content', content: '', refId: '', expectedContent: '', expectedRefId: '' },
+    ])(
+      '$label: forwards values verbatim and returns the created notification',
+      async ({ content, refId, expectedContent, expectedRefId }) => {
+        prisma.notification.create.mockResolvedValue({
+          id: 'n-new',
+          userId,
+          type: 'INFO',
+          title: 'hello',
+          content,
+          refId,
+        });
 
-      const result = await service.create(userId, 'INFO', 'hello', content, refId);
+        const result = await service.create(userId, 'INFO', 'hello', content, refId);
 
-      expect(prisma.notification.create).toHaveBeenCalledWith({
-        data: { userId, type: 'INFO', title: 'hello', content, refId },
-      });
-      expect(result).toEqual({
-        id: 'n-new', userId, type: 'INFO', title: 'hello', content: expectedContent, refId: expectedRefId,
-      });
-    });
+        expect(prisma.notification.create).toHaveBeenCalledWith({
+          data: { userId, type: 'INFO', title: 'hello', content, refId },
+        });
+        expect(result).toEqual({
+          id: 'n-new',
+          userId,
+          type: 'INFO',
+          title: 'hello',
+          content: expectedContent,
+          refId: expectedRefId,
+        });
+      },
+    );
   });
 });

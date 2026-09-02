@@ -14,21 +14,25 @@
           </div>
           <div v-for="d in deployments" :key="d.id" class="run-item" @click="$router.push(`/deployments/${d.id}`)">
             <div>
-              <div class="run-title">{{ projectNameMap[d.projectId] || '未知项目' }} → {{ envName(d.environmentId) }}</div>
+              <div class="run-title">
+                {{ projectNameMap[d.projectId] || '未知项目' }} → {{ envName(d.environmentId) }}
+              </div>
               <div class="run-meta">
                 分支 {{ d.branch || '—' }}
-                <span v-if="d.triggeredByName || d.triggeredBy"> · 触发人 {{ d.triggeredByName || d.triggeredBy }}</span>
+                <span v-if="d.triggeredByName || d.triggeredBy">
+                  · 触发人 {{ d.triggeredByName || d.triggeredBy }}</span
+                >
                 <span v-if="d.createdAt"> · {{ formatTime(d.createdAt) }}</span>
               </div>
               <div class="pipeline" v-if="stageLogs[d.id]">
-                <span
-                  v-for="s in stageLogs[d.id]"
-                  :key="s.stage"
-                  :class="['pipe-step', pipeClass(s.status)]"
-                >{{ deployStageMap[s.stage] || s.stage }}</span>
+                <span v-for="s in stageLogs[d.id]" :key="s.stage" :class="['pipe-step', pipeClass(s.status)]">{{
+                  deployStageMap[s.stage] || s.stage
+                }}</span>
               </div>
             </div>
-            <span :class="['status-badge', statusBadgeClass(d.status)]">{{ deployStatusMap[d.status] || d.status }}</span>
+            <span :class="['status-badge', statusBadgeClass(d.status)]">{{
+              deployStatusMap[d.status] || d.status
+            }}</span>
           </div>
         </div>
       </el-card>
@@ -57,76 +61,78 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { fetchDeployments, fetchProjects, fetchDeploymentLogs, fetchEnvironments } from '../api/client'
-import { deployStatusMap, deployStageMap, formatTime } from '../utils/display'
+import { ref, computed, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
+import { fetchDeployments, fetchProjects, fetchDeploymentLogs, fetchEnvironments } from '../api/client';
+import { deployStatusMap, deployStageMap, formatTime } from '../utils/display';
 
-const deployments = ref<any[]>([])
-const projects = ref<any[]>([])
-const envs = ref<any[]>([])
-const stageLogs = ref<Record<string, any[]>>({})
-const loading = ref(false)
+const deployments = ref<any[]>([]);
+const projects = ref<any[]>([]);
+const envs = ref<any[]>([]);
+const stageLogs = ref<Record<string, any[]>>({});
+const loading = ref(false);
 
 const projectNameMap = computed(() => {
-  const map: Record<string, string> = {}
-  projects.value.forEach((p: any) => { map[p.id] = p.name })
-  return map
-})
+  const map: Record<string, string> = {};
+  projects.value.forEach((p: any) => {
+    map[p.id] = p.name;
+  });
+  return map;
+});
 
-const projectCount = computed(() => projects.value.length)
-const failedCount = computed(() => deployments.value.filter(d => d.status === 'FAILED').length)
-const runningCount = computed(() => deployments.value.filter(d => d.status === 'RUNNING' || d.status === 'PENDING').length)
+const projectCount = computed(() => projects.value.length);
+const failedCount = computed(() => deployments.value.filter((d) => d.status === 'FAILED').length);
+const runningCount = computed(
+  () => deployments.value.filter((d) => d.status === 'RUNNING' || d.status === 'PENDING').length,
+);
 
 function envName(id: string) {
-  if (!id) return '—'
-  const env = envs.value.find((e: any) => e.id === id)
-  return env?.name || '环境'
+  if (!id) return '—';
+  const env = envs.value.find((e: any) => e.id === id);
+  return env?.name || '环境';
 }
 
 function statusBadgeClass(status: string) {
-  if (status === 'RUNNING' || status === 'PENDING') return 'status-running'
-  if (status === 'SUCCEEDED') return 'status-ok'
-  if (status === 'FAILED') return 'status-fail'
-  return 'status-default'
+  if (status === 'RUNNING' || status === 'PENDING') return 'status-running';
+  if (status === 'SUCCEEDED') return 'status-ok';
+  if (status === 'FAILED') return 'status-fail';
+  return 'status-default';
 }
 
 function pipeClass(status: string) {
-  if (status === 'SUCCEEDED' || status === 'SKIPPED') return 'done'
-  if (status === 'RUNNING') return 'on'
-  return ''
+  if (status === 'SUCCEEDED' || status === 'SKIPPED') return 'done';
+  if (status === 'RUNNING') return 'on';
+  return '';
 }
 
 onMounted(async () => {
-  loading.value = true
+  loading.value = true;
   try {
     const [dRes, pRes] = await Promise.all([
       fetchDeployments().catch(() => ({ data: [] })),
       fetchProjects().catch(() => ({ data: [] })),
-    ])
-    deployments.value = (dRes.data || []).slice(0, 10)
-    projects.value = pRes.data || []
+    ]);
+    deployments.value = (dRes.data || []).slice(0, 10);
+    projects.value = pRes.data || [];
 
     // Fetch environments for all projects to display env names
-    const projectIds = [...new Set(deployments.value.map(d => d.projectId).filter(Boolean))]
+    const projectIds = [...new Set(deployments.value.map((d) => d.projectId).filter(Boolean))];
     if (projectIds.length > 0) {
-      const envResults = await Promise.all(
-        projectIds.map(pid => fetchEnvironments(pid).catch(() => ({ data: [] })))
-      )
-      envs.value = envResults.flatMap(r => r.data || [])
+      const envResults = await Promise.all(projectIds.map((pid) => fetchEnvironments(pid).catch(() => ({ data: [] }))));
+      envs.value = envResults.flatMap((r) => r.data || []);
     }
 
     // Fetch stage logs for each deployment (limit to first 5 for performance)
-    const toFetch = deployments.value.slice(0, 5)
-    const logResults = await Promise.all(
-      toFetch.map(d => fetchDeploymentLogs(d.id).catch(() => ({ data: [] })))
-    )
+    const toFetch = deployments.value.slice(0, 5);
+    const logResults = await Promise.all(toFetch.map((d) => fetchDeploymentLogs(d.id).catch(() => ({ data: [] }))));
     toFetch.forEach((d, i) => {
-      stageLogs.value[d.id] = logResults[i].data || []
-    })
-  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
-  loading.value = false
-})
+      stageLogs.value[d.id] = logResults[i].data || [];
+    });
+  } catch (e) {
+    ElMessage.error('操作失败，请稍后重试');
+  }
+  loading.value = false;
+});
 </script>
 
 <style scoped>
@@ -150,7 +156,9 @@ onMounted(async () => {
   align-items: start;
 }
 @media (max-width: 900px) {
-  .grid-2 { grid-template-columns: 1fr; }
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
 }
 
 .card-surface {
@@ -179,11 +187,28 @@ onMounted(async () => {
   cursor: pointer;
   transition: background 0.1s;
 }
-.run-item:hover { background: #f9fafb; margin: 0 -20px; padding-left: 20px; padding-right: 20px; }
-.run-item:last-child { border-bottom: none; padding-bottom: 0; }
-.run-item:first-child { padding-top: 0; }
-.run-title { font-weight: 600; margin-bottom: 4px; color: #111827; }
-.run-meta { font-size: 13px; color: #6b7280; }
+.run-item:hover {
+  background: #f9fafb;
+  margin: 0 -20px;
+  padding-left: 20px;
+  padding-right: 20px;
+}
+.run-item:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+.run-item:first-child {
+  padding-top: 0;
+}
+.run-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+  color: #111827;
+}
+.run-meta {
+  font-size: 13px;
+  color: #6b7280;
+}
 
 .status-badge {
   font-size: 12px;
@@ -192,10 +217,22 @@ onMounted(async () => {
   border-radius: 999px;
   white-space: nowrap;
 }
-.status-running { background: #dbeafe; color: #1d4ed8; }
-.status-ok { background: #d1fae5; color: #047857; }
-.status-fail { background: #fee2e2; color: #b91c1c; }
-.status-default { background: #f3f4f6; color: #6b7280; }
+.status-running {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.status-ok {
+  background: #d1fae5;
+  color: #047857;
+}
+.status-fail {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+.status-default {
+  background: #f3f4f6;
+  color: #6b7280;
+}
 
 .pipeline {
   display: flex;
@@ -210,8 +247,15 @@ onMounted(async () => {
   background: #f3f4f6;
   color: #6b7280;
 }
-.pipe-step.done { background: #d1fae5; color: #065f46; }
-.pipe-step.on { background: #cffafe; color: #0e7490; font-weight: 600; }
+.pipe-step.done {
+  background: #d1fae5;
+  color: #065f46;
+}
+.pipe-step.on {
+  background: #cffafe;
+  color: #0e7490;
+  font-weight: 600;
+}
 
 .side-list {
   list-style: none;
@@ -226,7 +270,9 @@ onMounted(async () => {
   justify-content: space-between;
   gap: 8px;
 }
-.side-list li:last-child { border-bottom: none; }
+.side-list li:last-child {
+  border-bottom: none;
+}
 
 .side-hint {
   margin: 16px 0 0;
@@ -240,5 +286,7 @@ onMounted(async () => {
   color: #6b7280;
   font-size: 14px;
 }
-.empty-soft p { margin-bottom: 16px; }
+.empty-soft p {
+  margin-bottom: 16px;
+}
 </style>

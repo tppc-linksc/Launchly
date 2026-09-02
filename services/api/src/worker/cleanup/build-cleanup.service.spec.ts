@@ -23,18 +23,20 @@ jest.mock('fs', () => {
   });
 });
 
-const fsMock = ((fs as any).__launchlyFsOverrides as {
+const fsMock = (fs as any).__launchlyFsOverrides as {
   existsSync: jest.Mock;
   readdirSync: jest.Mock;
   statSync: jest.Mock;
   rmSync: jest.Mock;
-});
+};
 
 const ORIGINAL_ENV = { ...process.env };
 
-const unexpectedSync = (name: string) => (...args: unknown[]) => {
-  throw new Error(`Unexpected unconfigured fs.${name} call: ${JSON.stringify(args)}`);
-};
+const unexpectedSync =
+  (name: string) =>
+  (...args: unknown[]) => {
+    throw new Error(`Unexpected unconfigured fs.${name} call: ${JSON.stringify(args)}`);
+  };
 
 function resetFsMock() {
   for (const fn of Object.values(fsMock)) {
@@ -93,7 +95,7 @@ function restoreLogger(spies: { logSpy: jest.SpyInstance; warnSpy: jest.SpyInsta
 }
 
 function allOutput(spies: { logSpy: jest.SpyInstance; warnSpy: jest.SpyInstance }): string {
-  return [...spies.logSpy.mock.calls, ...spies.warnSpy.mock.calls].map(c => String(c[0])).join('');
+  return [...spies.logSpy.mock.calls, ...spies.warnSpy.mock.calls].map((c) => String(c[0])).join('');
 }
 
 function allowRemove() {
@@ -123,7 +125,9 @@ describe('BuildCleanupService.cleanupOldBuilds - readdirSync error', () => {
     const svc = makeService();
     const spies = installLogger();
     fsMock.existsSync.mockReturnValue(true);
-    fsMock.readdirSync.mockImplementationOnce(() => { throw new Error('EACCES'); });
+    fsMock.readdirSync.mockImplementationOnce(() => {
+      throw new Error('EACCES');
+    });
     svc.cleanupOldBuilds();
     const out = allOutput(spies);
     expect(out).toContain('Failed to list build root');
@@ -142,10 +146,7 @@ describe('BuildCleanupService.cleanupOldBuilds - directory filtering', () => {
     const now = fixedNow();
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
-    fsMock.readdirSync.mockReturnValueOnce([
-      buildDirent('a-file.txt', false),
-      buildDirent('not-a-dir', false),
-    ] as any);
+    fsMock.readdirSync.mockReturnValueOnce([buildDirent('a-file.txt', false), buildDirent('not-a-dir', false)] as any);
     svc.cleanupOldBuilds();
     expect(fsMock.statSync).not.toHaveBeenCalled();
     expect(fsMock.rmSync).not.toHaveBeenCalled();
@@ -240,10 +241,7 @@ describe('BuildCleanupService.cleanupOldBuilds - per-entry error isolation', () 
     const now = fixedNow();
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
-    fsMock.readdirSync.mockReturnValueOnce([
-      buildDirent('bad', true),
-      buildDirent('good', true),
-    ] as any);
+    fsMock.readdirSync.mockReturnValueOnce([buildDirent('bad', true), buildDirent('good', true)] as any);
     fsMock.statSync.mockImplementation(((p: any) => {
       if (p === `${BUILD_ROOT}/bad`) throw new Error('ESTALE');
       return statFor(now - 8 * DAY);
@@ -265,10 +263,7 @@ describe('BuildCleanupService.cleanupOldBuilds - per-entry error isolation', () 
     const now = fixedNow();
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
-    fsMock.readdirSync.mockReturnValueOnce([
-      buildDirent('rmfail', true),
-      buildDirent('good', true),
-    ] as any);
+    fsMock.readdirSync.mockReturnValueOnce([buildDirent('rmfail', true), buildDirent('good', true)] as any);
     fsMock.statSync.mockReturnValue(statFor(now - 8 * DAY));
     fsMock.rmSync.mockImplementation(((p: any) => {
       if (p === `${BUILD_ROOT}/rmfail`) throw new Error('EBUSY');
@@ -335,10 +330,7 @@ describe('BuildCleanupService.cleanupOldBuilds - log gating', () => {
     const now = fixedNow();
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
-    fsMock.readdirSync.mockReturnValueOnce([
-      buildDirent('fresh1', true),
-      buildDirent('fresh2', true),
-    ] as any);
+    fsMock.readdirSync.mockReturnValueOnce([buildDirent('fresh1', true), buildDirent('fresh2', true)] as any);
     fsMock.statSync.mockReturnValue(statFor(now - 1 * DAY));
     svc.cleanupOldBuilds();
     expect(allOutput(spies)).toBe('');
@@ -371,10 +363,7 @@ describe('BuildCleanupService - maxAgeDays env var read at construction', () => 
     const now = fixedNow();
     const nowSpy = jest.spyOn(Date, 'now').mockReturnValue(now);
     fsMock.existsSync.mockReturnValue(true);
-    fsMock.readdirSync.mockReturnValueOnce([
-      buildDirent('8day', true),
-      buildDirent('15day', true),
-    ] as any);
+    fsMock.readdirSync.mockReturnValueOnce([buildDirent('8day', true), buildDirent('15day', true)] as any);
     fsMock.statSync.mockImplementation(((p: any) => {
       if (p === `${BUILD_ROOT}/8day`) return statFor(now - 8 * DAY);
       if (p === `${BUILD_ROOT}/15day`) return statFor(now - 15 * DAY);

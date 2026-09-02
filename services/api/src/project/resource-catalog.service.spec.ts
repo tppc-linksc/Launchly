@@ -13,7 +13,7 @@ describe('ResourceCatalogService', () => {
     });
 
     it('all ids are unique', () => {
-      const ids = service.list().map(i => i.id);
+      const ids = service.list().map((i) => i.id);
       expect(new Set(ids).size).toBe(ids.length);
     });
 
@@ -39,33 +39,23 @@ describe('ResourceCatalogService', () => {
       }
     });
 
-    it.each([
-      'git-public',
-      'github-app',
-      'deploy-key',
-      'dockerfile',
-      'static-site',
-      'oci-image',
-      'static-blog',
-    ])('exactly lists %s as DEPLOYABLE', (id) => {
-      const item = service.list().find(i => i.id === id);
-      expect(item).toBeDefined();
-      expect(item!.availability).toBe('DEPLOYABLE');
-    });
+    it.each(['git-public', 'github-app', 'deploy-key', 'dockerfile', 'static-site', 'oci-image', 'static-blog'])(
+      'exactly lists %s as DEPLOYABLE',
+      (id) => {
+        const item = service.list().find((i) => i.id === id);
+        expect(item).toBeDefined();
+        expect(item!.availability).toBe('DEPLOYABLE');
+      },
+    );
 
-    it.each([
-      'compose-stack',
-      'postgres',
-      'mysql',
-      'mariadb',
-      'redis',
-      'wordpress',
-      'ghost',
-    ])('exactly lists %s as CONFIGURATION_ONLY', (id) => {
-      const item = service.list().find(i => i.id === id);
-      expect(item).toBeDefined();
-      expect(item!.availability).toBe('CONFIGURATION_ONLY');
-    });
+    it.each(['compose-stack', 'postgres', 'mysql', 'mariadb', 'redis', 'wordpress', 'ghost'])(
+      'exactly lists %s as CONFIGURATION_ONLY',
+      (id) => {
+        const item = service.list().find((i) => i.id === id);
+        expect(item).toBeDefined();
+        expect(item!.availability).toBe('CONFIGURATION_ONLY');
+      },
+    );
 
     it('requirements (when present) is a non-empty array of non-empty strings', () => {
       for (const item of service.list()) {
@@ -81,16 +71,16 @@ describe('ResourceCatalogService', () => {
     });
 
     it.each([
-      ['github-app',    ['配置 GitHub App', '填写 Installation ID']],
-      ['deploy-key',    ['SSH 仓库地址', 'Deploy Key', '仓库 Host Key']],
-      ['oci-image',     ['镜像必须使用 @sha256: digest']],
+      ['github-app', ['配置 GitHub App', '填写 Installation ID']],
+      ['deploy-key', ['SSH 仓库地址', 'Deploy Key', '仓库 Host Key']],
+      ['oci-image', ['镜像必须使用 @sha256: digest']],
       ['compose-stack', ['执行器尚未支持 Compose 清单发布']],
-      ['postgres',      ['执行器尚未支持有状态资源生命周期']],
-      ['static-blog',   ['配置 OCI Registry 仓库']],
-      ['wordpress',     ['执行器尚未支持模板数据库初始化、备份与升级']],
-      ['ghost',         ['执行器尚未支持模板数据库初始化、备份与升级']],
+      ['postgres', ['执行器尚未支持有状态资源生命周期']],
+      ['static-blog', ['配置 OCI Registry 仓库']],
+      ['wordpress', ['执行器尚未支持模板数据库初始化、备份与升级']],
+      ['ghost', ['执行器尚未支持模板数据库初始化、备份与升级']],
     ])('%s has the expected requirements list', (id, expected) => {
-      const item = service.list().find(i => i.id === id);
+      const item = service.list().find((i) => i.id === id);
       expect(item).toBeDefined();
       expect(item!.requirements).toEqual(expected);
     });
@@ -112,7 +102,7 @@ describe('ResourceCatalogService', () => {
   describe('isolation from caller-side mutation', () => {
     it('mutating the list array, an item, or nested requirements does not bleed into subsequent calls', () => {
       const first = service.list();
-      const firstStaticBlog = first.find(i => i.id === 'static-blog')!;
+      const firstStaticBlog = first.find((i) => i.id === 'static-blog')!;
 
       // Mutate the returned array
       first.pop();
@@ -130,9 +120,9 @@ describe('ResourceCatalogService', () => {
       // Subsequent list() must still return the original catalog
       const second = service.list();
       expect(second).toHaveLength(14);
-      expect(second.find(i => i.id === 'INJECTED')).toBeUndefined();
+      expect(second.find((i) => i.id === 'INJECTED')).toBeUndefined();
 
-      const secondStaticBlog = second.find(i => i.id === 'static-blog')!;
+      const secondStaticBlog = second.find((i) => i.id === 'static-blog')!;
       expect(secondStaticBlog.title).not.toBe('PWNED');
       expect(secondStaticBlog.availability).toBe('DEPLOYABLE');
       expect(secondStaticBlog.requirements).toEqual(['配置 OCI Registry 仓库']);

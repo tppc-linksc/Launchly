@@ -1,9 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
@@ -89,7 +84,12 @@ export class ProjectResourceAccessPolicy {
   }
 
   /** Environment 子资源：先按 ID 反查所属 projectId，再走统一校验。 */
-  async requireEnvironment(environmentId: string, userId: string, workspaceId: string, minimumRole: ProjectRole | string = 'VIEWER') {
+  async requireEnvironment(
+    environmentId: string,
+    userId: string,
+    workspaceId: string,
+    minimumRole: ProjectRole | string = 'VIEWER',
+  ) {
     const env = await this.prisma.environment.findUnique({
       where: { id: environmentId },
       select: { projectId: true },
@@ -99,7 +99,12 @@ export class ProjectResourceAccessPolicy {
   }
 
   /** EnvironmentVariable 子资源：通过所属 Environment 反查项目。 */
-  async requireEnvironmentVariable(variableId: string, userId: string, workspaceId: string, minimumRole: ProjectRole | string = 'VIEWER') {
+  async requireEnvironmentVariable(
+    variableId: string,
+    userId: string,
+    workspaceId: string,
+    minimumRole: ProjectRole | string = 'VIEWER',
+  ) {
     const variable = await this.prisma.environmentVariable.findUnique({
       where: { id: variableId },
       select: { environment: { select: { projectId: true } } },
@@ -109,7 +114,12 @@ export class ProjectResourceAccessPolicy {
   }
 
   /** DeployTarget 子资源。 */
-  async requireDeployTarget(targetId: string, userId: string, workspaceId: string, minimumRole: ProjectRole | string = 'VIEWER') {
+  async requireDeployTarget(
+    targetId: string,
+    userId: string,
+    workspaceId: string,
+    minimumRole: ProjectRole | string = 'VIEWER',
+  ) {
     const target = await this.prisma.deployTarget.findUnique({
       where: { id: targetId },
       select: { projectId: true },
@@ -119,7 +129,12 @@ export class ProjectResourceAccessPolicy {
   }
 
   /** Issue 子资源。 */
-  async requireIssue(issueId: string, userId: string, workspaceId: string, minimumRole: ProjectRole | string = 'VIEWER') {
+  async requireIssue(
+    issueId: string,
+    userId: string,
+    workspaceId: string,
+    minimumRole: ProjectRole | string = 'VIEWER',
+  ) {
     const issue = await this.prisma.issue.findUnique({
       where: { id: issueId },
       select: { projectId: true },
@@ -129,7 +144,12 @@ export class ProjectResourceAccessPolicy {
   }
 
   /** Release 子资源。 */
-  async requireRelease(releaseId: string, userId: string, workspaceId: string, minimumRole: ProjectRole | string = 'VIEWER') {
+  async requireRelease(
+    releaseId: string,
+    userId: string,
+    workspaceId: string,
+    minimumRole: ProjectRole | string = 'VIEWER',
+  ) {
     const release = await this.prisma.release.findUnique({
       where: { id: releaseId },
       select: { projectId: true },
@@ -139,7 +159,12 @@ export class ProjectResourceAccessPolicy {
   }
 
   /** TestCase 子资源。 */
-  async requireTestCase(testCaseId: string, userId: string, workspaceId: string, minimumRole: ProjectRole | string = 'VIEWER') {
+  async requireTestCase(
+    testCaseId: string,
+    userId: string,
+    workspaceId: string,
+    minimumRole: ProjectRole | string = 'VIEWER',
+  ) {
     const tc = await this.prisma.testCase.findUnique({
       where: { id: testCaseId },
       select: { projectId: true },
@@ -149,7 +174,12 @@ export class ProjectResourceAccessPolicy {
   }
 
   /** TestRun 子资源。 */
-  async requireTestRun(testRunId: string, userId: string, workspaceId: string, minimumRole: ProjectRole | string = 'VIEWER') {
+  async requireTestRun(
+    testRunId: string,
+    userId: string,
+    workspaceId: string,
+    minimumRole: ProjectRole | string = 'VIEWER',
+  ) {
     const tr = await this.prisma.testRun.findUnique({
       where: { id: testRunId },
       select: { projectId: true },
@@ -159,7 +189,12 @@ export class ProjectResourceAccessPolicy {
   }
 
   /** Deployment 子资源：用于跨项目边界校验（KI-004 触发面）。 */
-  async requireDeployment(deploymentId: string, userId: string, workspaceId: string, minimumRole: ProjectRole | string = 'VIEWER') {
+  async requireDeployment(
+    deploymentId: string,
+    userId: string,
+    workspaceId: string,
+    minimumRole: ProjectRole | string = 'VIEWER',
+  ) {
     const dep = await this.prisma.deployment.findUnique({
       where: { id: deploymentId },
       select: { projectId: true },

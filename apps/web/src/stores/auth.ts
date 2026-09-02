@@ -1,24 +1,24 @@
-import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import { fetchSetupStatus, logoutSession } from '../api/client'
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
+import { fetchSetupStatus, logoutSession } from '../api/client';
 
 export interface AuthUser {
-  id: string
-  account?: string
-  displayName?: string
-  role?: string
+  id: string;
+  account?: string;
+  displayName?: string;
+  role?: string;
 }
 
 export interface AuthWorkspace {
-  id: string
-  name?: string
+  id: string;
+  name?: string;
 }
 
 interface JwtPayload {
-  uid?: string
-  wid?: string
-  role?: string
-  exp?: number
+  uid?: string;
+  wid?: string;
+  role?: string;
+  exp?: number;
 }
 
 /**
@@ -29,40 +29,40 @@ interface JwtPayload {
  */
 function decodeJwtPayload(token: string): JwtPayload | null {
   try {
-    const parts = token.split('.')
-    if (parts.length !== 3) return null
-    const decoded = atob(parts[1])
-    const payload = JSON.parse(decoded) as JwtPayload
-    return payload && typeof payload === 'object' ? payload : null
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const decoded = atob(parts[1]);
+    const payload = JSON.parse(decoded) as JwtPayload;
+    return payload && typeof payload === 'object' ? payload : null;
   } catch {
-    return null
+    return null;
   }
 }
 
 function isExpired(payload: JwtPayload, nowSec = Math.floor(Date.now() / 1000)): boolean {
-  if (typeof payload.exp !== 'number') return false
-  return payload.exp <= nowSec
+  if (typeof payload.exp !== 'number') return false;
+  return payload.exp <= nowSec;
 }
 
 export const useAuthStore = defineStore('auth', () => {
-  const initialized = ref<boolean | null>(null)
-  const user = ref<AuthUser | null>(null)
-  const workspace = ref<AuthWorkspace | null>(null)
+  const initialized = ref<boolean | null>(null);
+  const user = ref<AuthUser | null>(null);
+  const workspace = ref<AuthWorkspace | null>(null);
 
   async function checkSetupStatus() {
     try {
-      const res = await fetchSetupStatus()
-      initialized.value = res.data.initialized
+      const res = await fetchSetupStatus();
+      initialized.value = res.data.initialized;
     } catch {
-      initialized.value = false
+      initialized.value = false;
     }
   }
 
   function setAuth(data: { accessToken: string; refreshToken: string; user: any; workspace: any }) {
-    localStorage.setItem('accessToken', data.accessToken)
-    localStorage.setItem('refreshToken', data.refreshToken)
-    user.value = data.user
-    workspace.value = data.workspace
+    localStorage.setItem('accessToken', data.accessToken);
+    localStorage.setItem('refreshToken', data.refreshToken);
+    user.value = data.user;
+    workspace.value = data.workspace;
   }
 
   /**
@@ -74,37 +74,37 @@ export const useAuthStore = defineStore('auth', () => {
    * payload has no uid, or the token has already expired.
    */
   function restoreSession(): boolean {
-    const token = localStorage.getItem('accessToken')
-    if (!token) return false
+    const token = localStorage.getItem('accessToken');
+    if (!token) return false;
 
-    const payload = decodeJwtPayload(token)
-    if (!payload || !payload.uid) return false
+    const payload = decodeJwtPayload(token);
+    if (!payload || !payload.uid) return false;
     if (isExpired(payload)) {
       // Expired token: clear it so subsequent refresh attempts start clean.
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('refreshToken')
-      return false
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      return false;
     }
 
     user.value = {
       id: payload.uid,
       role: payload.role || 'VIEWER',
-    }
+    };
     if (payload.wid) {
-      workspace.value = { id: payload.wid }
+      workspace.value = { id: payload.wid };
     }
-    return true
+    return true;
   }
 
   function logout() {
-    const refreshToken = localStorage.getItem('refreshToken')
-    if (refreshToken) void logoutSession(refreshToken).catch(() => undefined)
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('refreshToken')
-    user.value = null
-    workspace.value = null
-    window.location.hash = '#/login'
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) void logoutSession(refreshToken).catch(() => undefined);
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    user.value = null;
+    workspace.value = null;
+    window.location.hash = '#/login';
   }
 
-  return { initialized, user, workspace, checkSetupStatus, setAuth, logout, restoreSession }
-})
+  return { initialized, user, workspace, checkSetupStatus, setAuth, logout, restoreSession };
+});

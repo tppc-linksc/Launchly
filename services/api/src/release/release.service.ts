@@ -19,7 +19,11 @@ export class ReleaseService {
     @Optional() private readonly audit?: AuditService,
   ) {}
 
-  async createRelease(projectId: string, data: { environmentId: string; deploymentId: string; version: string; notes?: string }, userId: string) {
+  async createRelease(
+    projectId: string,
+    data: { environmentId: string; deploymentId: string; version: string; notes?: string },
+    userId: string,
+  ) {
     if (!data.version || !data.version.trim()) {
       throw new BadRequestException('version 不能为空');
     }
@@ -37,7 +41,8 @@ export class ReleaseService {
     if (!deployment) throw new BadRequestException('部署不存在');
     if (deployment.projectId !== projectId) throw new BadRequestException('部署不属于当前项目');
     if (deployment.environmentId !== data.environmentId) throw new BadRequestException('部署不属于指定环境');
-    if (!['SUCCEEDED', 'ROLLED_BACK'].includes(deployment.status)) throw new BadRequestException('只能为已成功部署的制品创建发布');
+    if (!['SUCCEEDED', 'ROLLED_BACK'].includes(deployment.status))
+      throw new BadRequestException('只能为已成功部署的制品创建发布');
     if (!deployment.artifactId) throw new BadRequestException('部署缺少不可变制品，不能创建发布');
 
     return this.prisma.release.create({
@@ -87,11 +92,11 @@ export class ReleaseService {
     }
 
     const exemptions = await this.prisma.gateExemption.findMany({ where: { releaseId: id } });
-    const exemptedGates = new Set(exemptions.map(e => e.gateName));
+    const exemptedGates = new Set(exemptions.map((e) => e.gateName));
 
-    const unresolvedFailures = gateStatus.gates.filter(g => !g.passed && !exemptedGates.has(g.name));
+    const unresolvedFailures = gateStatus.gates.filter((g) => !g.passed && !exemptedGates.has(g.name));
     if (unresolvedFailures.length > 0) {
-      throw new ForbiddenException('Gate 未通过: ' + unresolvedFailures.map(g => g.message).join('; '));
+      throw new ForbiddenException('Gate 未通过: ' + unresolvedFailures.map((g) => g.message).join('; '));
     }
 
     // EXEMPTED 状态判定：所有未通过的 gate 都已有豁免，且没有任何 unresolved failure。

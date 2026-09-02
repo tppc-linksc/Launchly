@@ -271,7 +271,9 @@ describe('TestService', () => {
     it('rejects when deployment is not found', async () => {
       prisma.deployment.findUnique.mockResolvedValue(null);
 
-      await expect(service.createTestRun(deploymentId, projectId, environmentId, userId)).rejects.toThrow(NotFoundException);
+      await expect(service.createTestRun(deploymentId, projectId, environmentId, userId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
 
     it('rejects when deployment does not belong to target project', async () => {
@@ -281,7 +283,9 @@ describe('TestService', () => {
         environmentId,
       });
 
-      await expect(service.createTestRun(deploymentId, projectId, environmentId, userId)).rejects.toThrowError('部署不属于当前项目');
+      await expect(service.createTestRun(deploymentId, projectId, environmentId, userId)).rejects.toThrowError(
+        '部署不属于当前项目',
+      );
     });
 
     it('rejects when environmentId is provided but not equal to deployment environment', async () => {
@@ -292,7 +296,9 @@ describe('TestService', () => {
         environmentId,
       });
 
-      await expect(service.createTestRun(deploymentId, projectId, otherEnv, userId)).rejects.toThrowError('环境不属于当前部署');
+      await expect(service.createTestRun(deploymentId, projectId, otherEnv, userId)).rejects.toThrowError(
+        '环境不属于当前部署',
+      );
     });
   });
 
@@ -391,10 +397,12 @@ describe('TestService', () => {
       // Counters were updated (private method reached via the public update)
       expect(prisma.testRunCase.findMany).toHaveBeenCalledWith({ where: { testRunId } });
       expect(prisma.testRun.update).toHaveBeenCalled();
-      expect(prisma.testRunCase.update.mock.invocationCallOrder[0])
-        .toBeLessThan(prisma.testRunCase.findMany.mock.invocationCallOrder[0]);
-      expect(prisma.testRunCase.findMany.mock.invocationCallOrder[0])
-        .toBeLessThan(prisma.testRun.update.mock.invocationCallOrder[0]);
+      expect(prisma.testRunCase.update.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.testRunCase.findMany.mock.invocationCallOrder[0],
+      );
+      expect(prisma.testRunCase.findMany.mock.invocationCallOrder[0]).toBeLessThan(
+        prisma.testRun.update.mock.invocationCallOrder[0],
+      );
       expect(result.id).toBe(runCaseId);
     });
   });
@@ -416,9 +424,11 @@ describe('TestService', () => {
 
     afterEach(() => {
       try {
-        expect(prisma.testRun.update).toHaveBeenCalledWith(expect.objectContaining({
-          where: { id: testRunId },
-        }));
+        expect(prisma.testRun.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { id: testRunId },
+          }),
+        );
       } finally {
         jest.useRealTimers();
         capturedRunUpdate = undefined;
@@ -507,9 +517,7 @@ describe('TestService', () => {
     });
 
     it('only one case in PENDING: status=RUNNING, finishedAt=null', async () => {
-      prisma.testRunCase.findMany.mockResolvedValue([
-        { id: 'rc-1', result: 'PENDING' },
-      ]);
+      prisma.testRunCase.findMany.mockResolvedValue([{ id: 'rc-1', result: 'PENDING' }]);
 
       await service.updateTestRunCase(testRunId, runCaseId, { result: 'PENDING' }, userId);
 
@@ -553,10 +561,12 @@ describe('TestService', () => {
 
       await service.updateTestRunCase(testRunId, runCaseId, { result: 'WHATEVER' }, userId);
 
-      expect(prisma.testRunCase.update).toHaveBeenCalledWith(expect.objectContaining({
-        where: { id: runCaseId },
-        data: expect.objectContaining({ result: 'WHATEVER' }),
-      }));
+      expect(prisma.testRunCase.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: runCaseId },
+          data: expect.objectContaining({ result: 'WHATEVER' }),
+        }),
+      );
       expect(capturedRunUpdate.passedCases).toBe(1);
       expect(capturedRunUpdate.failedCases).toBe(0);
       expect(capturedRunUpdate.skippedCases).toBe(0);

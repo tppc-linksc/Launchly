@@ -23,7 +23,7 @@ export class GateCheckService {
 
     return {
       gates,
-      allPassed: gates.every(g => g.passed),
+      allPassed: gates.every((g) => g.passed),
     };
   }
 
@@ -55,8 +55,8 @@ export class GateCheckService {
     const testRuns = await this.prisma.testRun.findMany({
       where: { deploymentId: release.deploymentId },
     });
-    const completedRuns = testRuns.filter(r => r.status === 'SUCCEEDED' || r.status === 'FAILED');
-    const hasFailure = completedRuns.some(r => r.status !== 'SUCCEEDED' || r.failedCases > 0);
+    const completedRuns = testRuns.filter((r) => r.status === 'SUCCEEDED' || r.status === 'FAILED');
+    const hasFailure = completedRuns.some((r) => r.status !== 'SUCCEEDED' || r.failedCases > 0);
     const hasEvidence = completedRuns.length > 0;
     return {
       name: 'p0_tests',

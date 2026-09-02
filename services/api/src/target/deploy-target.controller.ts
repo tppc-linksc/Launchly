@@ -24,7 +24,11 @@ export class DeployTargetController {
   }
 
   @Post('projects/:projectId/deploy-targets')
-  async create(@Param('projectId') projectId: string, @Body() body: CreateDeployTargetDto, @CurrentUser() user: AuthPrincipal) {
+  async create(
+    @Param('projectId') projectId: string,
+    @Body() body: CreateDeployTargetDto,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
     await this.accessPolicy.requireProject(projectId, user.userId, user.workspaceId!, 'DEVELOPER');
     return this.service.create(projectId, { ...body, credential: body.privateKey });
   }

@@ -1,7 +1,7 @@
-import { execFileSync } from 'child_process'
-import * as path from 'path'
-import * as fs from 'fs'
-import { fileExists, COMPOSE_FILE, ENV_FILE } from './config.js'
+import { execFileSync } from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs';
+import { fileExists, COMPOSE_FILE, ENV_FILE } from './config.js';
 
 // ── docker compose 调用封装（KI-041 修复） ─────────────────────────────────
 // 历史实现：把路径和参数拼成字符串后 execSync，存在命令注入风险。
@@ -14,12 +14,12 @@ import { fileExists, COMPOSE_FILE, ENV_FILE } from './config.js'
  * 若 .env 不存在则省略 --env-file 段。
  */
 export function composeBaseArgs(dataDir: string): string[] {
-  const args: string[] = ['compose', '-f', path.join(dataDir, COMPOSE_FILE)]
-  const envPath = path.join(dataDir, ENV_FILE)
+  const args: string[] = ['compose', '-f', path.join(dataDir, COMPOSE_FILE)];
+  const envPath = path.join(dataDir, ENV_FILE);
   if (fileExists(envPath)) {
-    args.push('--env-file', envPath)
+    args.push('--env-file', envPath);
   }
-  return args
+  return args;
 }
 
 /**
@@ -31,8 +31,8 @@ export function runCompose(
   extra: string[],
   options: { stdio?: 'inherit' | 'pipe' } = { stdio: 'inherit' },
 ): void {
-  const args = [...composeBaseArgs(dataDir), ...extra]
-  execFileSync('docker', args, { stdio: options.stdio ?? 'inherit' })
+  const args = [...composeBaseArgs(dataDir), ...extra];
+  execFileSync('docker', args, { stdio: options.stdio ?? 'inherit' });
 }
 
 /**
@@ -40,29 +40,25 @@ export function runCompose(
  * dataDir 必须是绝对路径；返回值为 Buffer，可指定 encoding 拿到字符串。
  * 与 runCompose 不同：默认不附加 --env-file，以避免 .env 内容影响 dump 内容。
  */
-export function runComposeCapture(
-  dataDir: string,
-  extra: string[],
-  options: { encoding?: 'utf-8' } = {},
-): string {
-  const args = ['compose', '-f', path.join(dataDir, COMPOSE_FILE), ...extra]
+export function runComposeCapture(dataDir: string, extra: string[], options: { encoding?: 'utf-8' } = {}): string {
+  const args = ['compose', '-f', path.join(dataDir, COMPOSE_FILE), ...extra];
   // 显式声明返回类型为 string | Buffer，避开 Node typings 对 Buffer#toString 的窄化
   const result = execFileSync('docker', args, {
     encoding: options.encoding ?? 'utf-8',
     stdio: ['pipe', 'pipe', 'pipe'],
-  }) as string | Buffer
-  if (typeof result === 'string') return result
-  return Buffer.from(result).toString('utf-8')
+  }) as string | Buffer;
+  if (typeof result === 'string') return result;
+  return Buffer.from(result).toString('utf-8');
 }
 
 /** Stream command stdout directly to a file so large database dumps never sit in memory. */
 export function runComposeToFile(dataDir: string, extra: string[], outputFile: string): void {
-  const args = ['compose', '-f', path.join(dataDir, COMPOSE_FILE), ...extra]
-  const outputFd = fs.openSync(outputFile, 'w', 0o600)
+  const args = ['compose', '-f', path.join(dataDir, COMPOSE_FILE), ...extra];
+  const outputFd = fs.openSync(outputFile, 'w', 0o600);
   try {
-    execFileSync('docker', args, { stdio: ['ignore', outputFd, 'inherit'] })
+    execFileSync('docker', args, { stdio: ['ignore', outputFd, 'inherit'] });
   } finally {
-    fs.closeSync(outputFd)
+    fs.closeSync(outputFd);
   }
 }
 
@@ -73,14 +69,10 @@ export function runComposeToFile(dataDir: string, extra: string[], outputFile: s
  * 因为 psql 等子命令通过 stdin 接收数据，不需要环境注入；
  * 同时减小 .env 内容对子进程的影响面。
  */
-export function runComposeWithInput(
-  dataDir: string,
-  extra: string[],
-  input: string,
-): void {
-  const args = ['compose', '-f', path.join(dataDir, COMPOSE_FILE), ...extra]
+export function runComposeWithInput(dataDir: string, extra: string[], input: string): void {
+  const args = ['compose', '-f', path.join(dataDir, COMPOSE_FILE), ...extra];
   execFileSync('docker', args, {
     input,
     stdio: ['pipe', 'inherit', 'inherit'],
-  })
+  });
 }

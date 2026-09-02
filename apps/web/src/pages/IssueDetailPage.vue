@@ -1,13 +1,13 @@
 <template>
   <div>
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px;">
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 24px">
       <el-button link @click="() => $router.back()">&larr; 返回</el-button>
-      <h2 style="margin: 0;">{{ issue?.title }}</h2>
+      <h2 style="margin: 0">{{ issue?.title }}</h2>
       <el-tag :type="priorityType(issue?.priority)">{{ priorityMap[issue?.priority] || issue?.priority }}</el-tag>
       <el-tag :type="statusType(issue?.status)">{{ issueStatusMap[issue?.status] || issue?.status }}</el-tag>
     </div>
 
-    <el-descriptions border size="small" :column="2" style="margin-bottom: 24px;">
+    <el-descriptions border size="small" :column="2" style="margin-bottom: 24px">
       <el-descriptions-item label="项目">{{ issue?.projectId }}</el-descriptions-item>
       <el-descriptions-item label="环境">{{ issue?.environmentId || '-' }}</el-descriptions-item>
       <el-descriptions-item label="关联部署">{{ issue?.deploymentId || '-' }}</el-descriptions-item>
@@ -18,14 +18,14 @@
       <el-descriptions-item label="修复 Commit">{{ issue?.fixedCommitSha || '-' }}</el-descriptions-item>
     </el-descriptions>
 
-    <div v-if="issue?.description" style="margin-bottom: 24px; padding: 12px; background: #fafafa; border-radius: 4px;">
+    <div v-if="issue?.description" style="margin-bottom: 24px; padding: 12px; background: #fafafa; border-radius: 4px">
       <h4>描述</h4>
-      <p style="white-space: pre-wrap;">{{ issue?.description }}</p>
+      <p style="white-space: pre-wrap">{{ issue?.description }}</p>
     </div>
 
     <!-- State Transition Actions -->
-    <div style="margin-bottom: 24px;">
-      <h4 style="margin-bottom: 12px;">状态操作</h4>
+    <div style="margin-bottom: 24px">
+      <h4 style="margin-bottom: 12px">状态操作</h4>
       <el-space wrap>
         <el-button v-if="canTransition('ASSIGNED')" type="primary" @click="showAssignModal = true">指派</el-button>
         <el-button v-if="canTransition('FIXING')" @click="doTransition('FIXING')">开始修复</el-button>
@@ -60,18 +60,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { fetchIssue, updateIssue, transitionIssue } from '../api/client'
-import { issueStatusMap, priorityMap } from '../utils/display'
+import { ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
+import { ElMessage } from 'element-plus';
+import { fetchIssue, updateIssue, transitionIssue } from '../api/client';
+import { issueStatusMap, priorityMap } from '../utils/display';
 
-const route = useRoute()
-const issue = ref<any>(null)
-const showAssignModal = ref(false)
-const showFixedModal = ref(false)
-const assignForm = ref({ assigneeId: '' })
-const fixedForm = ref({ commitSha: '' })
+const route = useRoute();
+const issue = ref<any>(null);
+const showAssignModal = ref(false);
+const showFixedModal = ref(false);
+const assignForm = ref({ assigneeId: '' });
+const fixedForm = ref({ commitSha: '' });
 const TRANSITIONS: Record<string, string[]> = {
   OPEN: ['ASSIGNED', 'CLOSED'],
   ASSIGNED: ['FIXING', 'CLOSED'],
@@ -79,59 +79,67 @@ const TRANSITIONS: Record<string, string[]> = {
   FIXED: ['CLOSED', 'REOPENED'],
   REOPENED: ['ASSIGNED', 'CLOSED'],
   CLOSED: [],
-}
+};
 
 function canTransition(target: string) {
-  if (!issue.value) return false
-  return (TRANSITIONS[issue.value.status] || []).includes(target)
+  if (!issue.value) return false;
+  return (TRANSITIONS[issue.value.status] || []).includes(target);
 }
 
 function priorityType(p: string) {
-  const map: Record<string, string> = { P0: 'danger', P1: 'warning', P2: 'primary', P3: 'info' }
-  return map[p] || 'info'
+  const map: Record<string, string> = { P0: 'danger', P1: 'warning', P2: 'primary', P3: 'info' };
+  return map[p] || 'info';
 }
 
 function statusType(s: string) {
   const map: Record<string, string> = {
-    OPEN: 'info', ASSIGNED: 'primary', FIXING: 'warning',
-    FIXED: 'success', REOPENED: 'warning', CLOSED: 'info'
-  }
-  return map[s] || 'info'
+    OPEN: 'info',
+    ASSIGNED: 'primary',
+    FIXING: 'warning',
+    FIXED: 'success',
+    REOPENED: 'warning',
+    CLOSED: 'info',
+  };
+  return map[s] || 'info';
 }
 
 async function doTransition(target: string, commitSha?: string) {
   try {
-    const body: any = { toStatus: target }
-    if (commitSha) body.fixedCommitSha = commitSha
-    const res = await transitionIssue(issue.value.projectId, issue.value.id, body)
-    issue.value = res.data
+    const body: any = { toStatus: target };
+    if (commitSha) body.fixedCommitSha = commitSha;
+    const res = await transitionIssue(issue.value.projectId, issue.value.id, body);
+    issue.value = res.data;
   } catch (e: any) {
-    console.error('Transition failed', e)
+    console.error('Transition failed', e);
   }
 }
 
 async function handleAssign() {
   try {
     const res = await updateIssue(issue.value.projectId, issue.value.id, {
-      assigneeId: assignForm.value.assigneeId
-    })
-    issue.value = res.data
-    showAssignModal.value = false
-    assignForm.value.assigneeId = ''
-  } catch (e) { console.error(e) }
+      assigneeId: assignForm.value.assigneeId,
+    });
+    issue.value = res.data;
+    showAssignModal.value = false;
+    assignForm.value.assigneeId = '';
+  } catch (e) {
+    console.error(e);
+  }
 }
 
 async function handleFixed() {
-  await doTransition('FIXED', fixedForm.value.commitSha)
-  showFixedModal.value = false
-  fixedForm.value.commitSha = ''
+  await doTransition('FIXED', fixedForm.value.commitSha);
+  showFixedModal.value = false;
+  fixedForm.value.commitSha = '';
 }
 
 onMounted(async () => {
   try {
-    const projectId = route.params.projectId as string
-    const res = await fetchIssue(projectId, route.params.id as string)
-    issue.value = res.data
-  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
-})
+    const projectId = route.params.projectId as string;
+    const res = await fetchIssue(projectId, route.params.id as string);
+    issue.value = res.data;
+  } catch (e) {
+    ElMessage.error('操作失败，请稍后重试');
+  }
+});
 </script>

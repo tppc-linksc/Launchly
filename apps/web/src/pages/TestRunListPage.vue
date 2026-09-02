@@ -1,18 +1,24 @@
 <template>
   <div>
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px">
       <div>
         <h2>测试任务</h2>
-        <p style="color: #8c8c8c;">查看所有测试任务及其执行状态。</p>
+        <p style="color: #8c8c8c">查看所有测试任务及其执行状态。</p>
       </div>
-      <div style="display: flex; gap: 12px;">
-        <el-select v-model="selectedProjectId" placeholder="选择项目" style="width: 200px;" @change="loadTestRuns">
+      <div style="display: flex; gap: 12px">
+        <el-select v-model="selectedProjectId" placeholder="选择项目" style="width: 200px" @change="loadTestRuns">
           <el-option v-for="p in projects" :key="p.id" :label="p.name" :value="p.id" />
         </el-select>
       </div>
     </div>
 
-    <el-table :data="testRuns" row-key="id" v-loading="loading" @row-click="(r: any) => $router.push(`/tests/runs/${r.id}`)" style="cursor: pointer;">
+    <el-table
+      :data="testRuns"
+      row-key="id"
+      v-loading="loading"
+      @row-click="(r: any) => $router.push(`/tests/runs/${r.id}`)"
+      style="cursor: pointer"
+    >
       <el-table-column prop="deploymentId" label="关联部署" show-overflow-tooltip />
       <el-table-column label="状态">
         <template #default="{ row }">
@@ -33,42 +39,46 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
-import { fetchProjects, fetchTestRuns } from '../api/client'
+import { ref, onMounted } from 'vue';
+import { useRoute } from 'vue-router';
+import { ElMessage } from 'element-plus';
+import { fetchProjects, fetchTestRuns } from '../api/client';
 
-const route = useRoute()
+const route = useRoute();
 
-const projects = ref<any[]>([])
-const selectedProjectId = ref('')
-const testRuns = ref<any[]>([])
-const loading = ref(false)
+const projects = ref<any[]>([]);
+const selectedProjectId = ref('');
+const testRuns = ref<any[]>([]);
+const loading = ref(false);
 
 function statusType(s: string) {
-  const map: Record<string, string> = { PENDING: 'info', RUNNING: 'warning', COMPLETED: 'success' }
-  return map[s] || 'info'
+  const map: Record<string, string> = { PENDING: 'info', RUNNING: 'warning', COMPLETED: 'success' };
+  return map[s] || 'info';
 }
 
 async function loadTestRuns() {
-  if (!selectedProjectId.value) return
-  loading.value = true
+  if (!selectedProjectId.value) return;
+  loading.value = true;
   try {
-    const res = await fetchTestRuns(selectedProjectId.value)
-    testRuns.value = res.data
-  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
-  loading.value = false
+    const res = await fetchTestRuns(selectedProjectId.value);
+    testRuns.value = res.data;
+  } catch (e) {
+    ElMessage.error('操作失败，请稍后重试');
+  }
+  loading.value = false;
 }
 
 onMounted(async () => {
   try {
-    const res = await fetchProjects()
-    projects.value = res.data
-  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
-  const qp = route.query.projectId as string
-  if (qp) {
-    selectedProjectId.value = qp
-    loadTestRuns()
+    const res = await fetchProjects();
+    projects.value = res.data;
+  } catch (e) {
+    ElMessage.error('操作失败，请稍后重试');
   }
-})
+  const qp = route.query.projectId as string;
+  if (qp) {
+    selectedProjectId.value = qp;
+    loadTestRuns();
+  }
+});
 </script>

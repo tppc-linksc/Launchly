@@ -1,10 +1,4 @@
-import {
-  SAFE_REF_ID,
-  assertSafeRefId,
-  assertSafeTagSegment,
-  isSafeRefId,
-  isSafeTagSegment,
-} from './ref-id-safety';
+import { SAFE_REF_ID, assertSafeRefId, assertSafeTagSegment, isSafeRefId, isSafeTagSegment } from './ref-id-safety';
 
 /**
  * ref-id-safety 单元测试（KI-032）。
@@ -18,8 +12,13 @@ describe('ref-id-safety', () => {
   describe('A. SAFE_REF_ID 正则基础行为', () => {
     it('期望的合法字符串全部通过', () => {
       const samples = [
-        'a', 'A', '0',
-        'abc', 'ABC', 'abc-123', 'abc_123',
+        'a',
+        'A',
+        '0',
+        'abc',
+        'ABC',
+        'abc-123',
+        'abc_123',
         'A_b-c-1',
         '1'.repeat(128), // 边界长度
       ];
@@ -35,10 +34,10 @@ describe('ref-id-safety', () => {
         'a&b',
         'a$b',
         'a`b',
-        'a b',         // 空格
+        'a b', // 空格
         'a' + '\n' + 'b',
         'a' + '\t' + 'b',
-        'a\'b',
+        "a'b",
         'a"b',
         'a<b',
         'a>b',

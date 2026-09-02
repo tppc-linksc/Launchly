@@ -13,8 +13,12 @@ export function isGithubInstallationBoundToWorkspace(
   if (!rawBindings || Buffer.byteLength(rawBindings, 'utf8') > 64 * 1024) return false;
   try {
     const parsed = JSON.parse(rawBindings);
-    return Boolean(parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-      && (parsed as Record<string, unknown>)[installationId] === workspaceId);
+    return Boolean(
+      parsed &&
+      typeof parsed === 'object' &&
+      !Array.isArray(parsed) &&
+      (parsed as Record<string, unknown>)[installationId] === workspaceId,
+    );
   } catch {
     return false;
   }

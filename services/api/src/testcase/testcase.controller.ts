@@ -40,11 +40,7 @@ export class TestCaseController {
   }
 
   @Put(':id')
-  async update(
-    @Param('id') id: string,
-    @Body() body: UpdateTestCaseDto,
-    @CurrentUser() user: AuthPrincipal,
-  ) {
+  async update(@Param('id') id: string, @Body() body: UpdateTestCaseDto, @CurrentUser() user: AuthPrincipal) {
     await this.accessPolicy.requireTestCase(id, user.userId, user.workspaceId!, 'TESTER');
     return this.testService.updateTestCase(id, body);
   }

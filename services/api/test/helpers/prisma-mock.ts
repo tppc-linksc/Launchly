@@ -11,14 +11,29 @@ export function createPrismaMock(): MockPrismaService {
   };
 
   const models = [
-    'user', 'revokedRefreshToken', 'workspace', 'workspaceMember', 'invitation',
-    'project', 'component', 'repositoryCredential', 'artifact',
-    'environment', 'environmentVariable',
-    'deployment', 'deploymentStageLog',
-    'deployTarget', 'task',
-    'testCase', 'testRun', 'testRunCase',
-    'issue', 'release', 'gateExemption',
-    'notification', 'auditLog',
+    'user',
+    'revokedRefreshToken',
+    'workspace',
+    'workspaceMember',
+    'invitation',
+    'project',
+    'component',
+    'repositoryCredential',
+    'artifact',
+    'environment',
+    'environmentVariable',
+    'deployment',
+    'deploymentStageLog',
+    'deployTarget',
+    'task',
+    'testCase',
+    'testRun',
+    'testRunCase',
+    'issue',
+    'release',
+    'gateExemption',
+    'notification',
+    'auditLog',
   ];
 
   for (const model of models) {

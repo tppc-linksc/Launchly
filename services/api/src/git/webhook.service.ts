@@ -41,13 +41,7 @@ export class WebhookService {
    * 返回值包含 accepted / ignored / blocked / duplicate / deploymentId 等字段，
    * 控制面可用其驱动 UI 状态展示。
    */
-  async receiveGithub(input: {
-    deliveryId?: string;
-    event?: string;
-    signature?: string;
-    rawBody: Buffer;
-    body: any;
-  }) {
+  async receiveGithub(input: { deliveryId?: string; event?: string; signature?: string; rawBody: Buffer; body: any }) {
     const secret = process.env.LAUNCHLY_GITHUB_WEBHOOK_SECRET;
     if (!secret) throw new ServiceUnavailableException('GitHub webhook 未配置');
     if (!input.deliveryId || !input.event || !this.validSignature(secret, input.rawBody, input.signature)) {
@@ -104,9 +98,10 @@ export class WebhookService {
 
     if (environment.requireCi) {
       const effectiveInstallation = installationId || project.githubInstallationId || '';
-      const checksPassed = effectiveInstallation && this.githubApp.isConfigured()
-        ? await this.githubApp.commitChecksPassed(effectiveInstallation, repositoryUrl, commitSha)
-        : false;
+      const checksPassed =
+        effectiveInstallation && this.githubApp.isConfigured()
+          ? await this.githubApp.commitChecksPassed(effectiveInstallation, repositoryUrl, commitSha)
+          : false;
       if (!checksPassed) {
         await this.recordDelivery(input.deliveryId, { projectId: project.id, commitSha, status: 'BLOCKED_CI' });
         return { accepted: true, blocked: 'CI 未通过或未配置' };
@@ -129,7 +124,10 @@ export class WebhookService {
     return { accepted: true, deploymentId: deployment.id };
   }
 
-  private async matchProject(criteria: { installationId: string | null; repositoryId: string | null }): Promise<{ id: string; githubInstallationId: string | null; workspaceId: string } | null> {
+  private async matchProject(criteria: {
+    installationId: string | null;
+    repositoryId: string | null;
+  }): Promise<{ id: string; githubInstallationId: string | null; workspaceId: string } | null> {
     if (!criteria.installationId || !criteria.repositoryId) return null;
     const project = await this.prisma.project.findFirst({
       where: {
@@ -169,5 +167,4 @@ export class WebhookService {
     if (expected.length !== received.length) return false;
     return timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(received, 'hex'));
   }
-
 }

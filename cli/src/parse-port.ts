@@ -7,12 +7,12 @@
  * 合法条件：非空、纯十进制整数、范围 1–65535。
  */
 export function isValidPort(value: string | undefined | null): boolean {
-  if (typeof value !== 'string') return false
-  const trimmed = value.trim()
-  if (trimmed.length === 0) return false
-  if (!/^\d+$/.test(trimmed)) return false
-  const n = Number(trimmed)
-  return Number.isInteger(n) && n >= 1 && n <= 65535
+  if (typeof value !== 'string') return false;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return false;
+  if (!/^\d+$/.test(trimmed)) return false;
+  const n = Number(trimmed);
+  return Number.isInteger(n) && n >= 1 && n <= 65535;
 }
 
 /**
@@ -22,11 +22,9 @@ export function isValidPort(value: string | undefined | null): boolean {
 export function parsePort(value: string | undefined | null, label = '端口'): number {
   if (!isValidPort(value)) {
     const reason =
-      value === undefined || value === null || value.trim().length === 0
-        ? '不能为空'
-        : '必须是 1 到 65535 之间的整数'
-    console.error(`错误：${label} ${reason}（当前值：${JSON.stringify(value ?? null)}）`)
-    process.exit(1)
+      value === undefined || value === null || value.trim().length === 0 ? '不能为空' : '必须是 1 到 65535 之间的整数';
+    console.error(`错误：${label} ${reason}（当前值：${JSON.stringify(value ?? null)}）`);
+    process.exit(1);
   }
-  return Number(value!.trim())
+  return Number(value!.trim());
 }

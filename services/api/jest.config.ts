@@ -21,6 +21,16 @@ const config: Config = {
   coveragePathIgnorePatterns: ['/node_modules/', '/dist/'],
   coverageReporters: ['text', 'json-summary'],
   coverageDirectory: './coverage',
+  // Ratchet at the verified 2026-09-02 baseline. These floors prevent silent
+  // regression while the remaining API function/branch gaps are filled to R0.
+  coverageThreshold: {
+    global: {
+      statements: 82,
+      branches: 67,
+      functions: 67,
+      lines: 82,
+    },
+  },
   testEnvironment: 'node',
 };
 

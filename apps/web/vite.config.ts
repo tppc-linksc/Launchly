@@ -22,14 +22,15 @@ export default defineConfig({
       reporter: ['text', 'json-summary'],
       reportsDirectory: './coverage',
       include: ['src/**/*.ts', 'src/**/*.vue'],
-      exclude: [
-        'src/**/*.spec.ts',
-        'src/**/*.test.ts',
-        'src/**/*.d.ts',
-      ],
+      exclude: ['src/**/*.spec.ts', 'src/**/*.test.ts', 'src/**/*.d.ts'],
       all: true,
       clean: true,
+      thresholds: {
+        statements: 94,
+        branches: 84,
+        functions: 60,
+        lines: 94,
+      },
     },
   },
 });
-

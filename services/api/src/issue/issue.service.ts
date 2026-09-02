@@ -55,7 +55,13 @@ export class IssueService {
     });
   }
 
-  async createFromFailedTest(testRunCaseId: string, projectId: string, deploymentId: string, testCaseTitle: string | null, userId: string) {
+  async createFromFailedTest(
+    testRunCaseId: string,
+    projectId: string,
+    deploymentId: string,
+    testCaseTitle: string | null,
+    userId: string,
+  ) {
     const runCase = await this.prisma.testRunCase.findUnique({
       where: { id: testRunCaseId },
       include: { testCase: true, testRun: true },
@@ -108,7 +114,7 @@ export class IssueService {
     });
   }
 
-  async transition(id: string, data: { toStatus: string }, userId: string) {
+  async transition(id: string, data: { toStatus: string }, _userId: string) {
     const issue = await this.prisma.issue.findUnique({ where: { id } });
     if (!issue) throw new NotFoundException('Issue not found');
 

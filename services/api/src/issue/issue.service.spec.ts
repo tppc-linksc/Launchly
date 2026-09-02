@@ -12,10 +12,7 @@ describe('IssueService', () => {
     prisma = createPrismaMock();
 
     const module: TestingModule = await Test.createTestingModule({
-      providers: [
-        IssueService,
-        { provide: PrismaService, useValue: prisma },
-      ],
+      providers: [IssueService, { provide: PrismaService, useValue: prisma }],
     }).compile();
 
     service = module.get<IssueService>(IssueService);
@@ -130,7 +127,9 @@ describe('IssueService', () => {
     it('should reject issue creation when environmentId belongs to another project', async () => {
       prisma.environment.findUnique.mockResolvedValue({ projectId: 'other-project' });
 
-      await expect(service.createIssue('p1', { title: '跨项目', environmentId: 'env-x' }, 'u1')).rejects.toThrow(BadRequestException);
+      await expect(service.createIssue('p1', { title: '跨项目', environmentId: 'env-x' }, 'u1')).rejects.toThrow(
+        BadRequestException,
+      );
     });
   });
 });

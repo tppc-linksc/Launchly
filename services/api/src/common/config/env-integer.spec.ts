@@ -44,23 +44,16 @@ describe('resolveBoundedInt', () => {
   // B. 非数字字符串
   // ============================================================
   describe('B. 非数字字符串', () => {
-    it.each([
-      'abc',
-      '   ',
-      '--3',
-      'NaN',
-      'not-a-number',
-      'foo123bar',
-    ])('parseInt("%s")=NaN → defaultValue', (raw) => {
+    it.each(['abc', '   ', '--3', 'NaN', 'not-a-number', 'foo123bar'])('parseInt("%s")=NaN → defaultValue', (raw) => {
       expect(resolveBoundedInt(raw, 9, 1, 100, 'X')).toBe(9);
     });
 
     it.each([
       // parseInt 在 radix=10 下逐字符解析；这些看起来"奇怪"的字符串实际会被
       // parseInt 截断到非数字字符为止，得到一个有限整数。然后由区间校验判断是否合法。
-      ['0xZZ',  9],    // parseInt('0xZZ', 10) = 0 → 0 < min=1 → 落到 default
-      ['1.5.5', 1],    // parseInt('1.5.5', 10) = 1 → 合法，原样返回
-      ['1.0e5', 1],    // parseInt('1.0e5', 10) = 1 → 合法，原样返回
+      ['0xZZ', 9], // parseInt('0xZZ', 10) = 0 → 0 < min=1 → 落到 default
+      ['1.5.5', 1], // parseInt('1.5.5', 10) = 1 → 合法，原样返回
+      ['1.0e5', 1], // parseInt('1.0e5', 10) = 1 → 合法，原样返回
     ])('parseInt("%s")=%d 后由范围校验决定最终返回值', (raw, expected) => {
       expect(resolveBoundedInt(raw, 9, 1, 100, 'X')).toBe(expected);
     });

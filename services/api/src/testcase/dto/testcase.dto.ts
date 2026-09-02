@@ -56,21 +56,28 @@ export class UpdateTestRunCaseDto {
 }
 
 export class UpdateTestCaseDto {
-  @IsOptional() @IsString() @IsNotEmpty({ message: "标题不能为空" })
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty({ message: '标题不能为空' })
   title?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   description?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   priority?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   steps?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   expectedResult?: string;
 
-  @IsOptional() @IsString()
+  @IsOptional()
+  @IsString()
   status?: string;
 }

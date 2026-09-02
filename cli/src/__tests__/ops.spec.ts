@@ -257,15 +257,19 @@ describe('CLI backup', () => {
     fs.mkdirSync(dataDir, { recursive: true });
     fs.mkdirSync(path.join(dataDir, 'launchly-data'), { recursive: true });
     fs.mkdirSync(path.join(dataDir, 'launchly-worker-data'), { recursive: true });
-    fs.writeFileSync(path.join(dataDir, '.env'), [
-      'LAUNCHLY_DB_PASSWORD=x',
-      'LAUNCHLY_JWT_SECRET=jwt-secret',
-      'LAUNCHLY_ENCRYPTION_KEY=encryption-secret',
-      'LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS=old-encryption-secret',
-      'LAUNCHLY_GITHUB_APP_PRIVATE_KEY_BASE64=private-key-material',
-      'LAUNCHLY_APP_PORT=8080',
-      '',
-    ].join('\n'), { mode: 0o600 });
+    fs.writeFileSync(
+      path.join(dataDir, '.env'),
+      [
+        'LAUNCHLY_DB_PASSWORD=x',
+        'LAUNCHLY_JWT_SECRET=jwt-secret',
+        'LAUNCHLY_ENCRYPTION_KEY=encryption-secret',
+        'LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS=old-encryption-secret',
+        'LAUNCHLY_GITHUB_APP_PRIVATE_KEY_BASE64=private-key-material',
+        'LAUNCHLY_APP_PORT=8080',
+        '',
+      ].join('\n'),
+      { mode: 0o600 },
+    );
     fs.writeFileSync(path.join(dataDir, 'launchly-data', 'app.data'), 'app');
     fs.writeFileSync(path.join(dataDir, 'launchly-worker-data', 'worker.data'), 'worker');
     fs.writeFileSync(path.join(dataDir, 'docker-compose.yml'), 'services:\n');
@@ -274,15 +278,58 @@ describe('CLI backup', () => {
     const tmpPath = path.join(dataDir, 'backups', `tmp_${fixedTs}`);
     queueExec({
       file: 'docker',
-      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), 'exec', '-T', 'launchly-postgres', 'pg_dump', '-U', 'launchly', '-d', 'launchly', '--clean', '--if-exists', '--create'],
+      args: [
+        'compose',
+        '-f',
+        path.join(dataDir, 'docker-compose.yml'),
+        'exec',
+        '-T',
+        'launchly-postgres',
+        'pg_dump',
+        '-U',
+        'launchly',
+        '-d',
+        'launchly',
+        '--clean',
+        '--if-exists',
+        '--create',
+      ],
     });
     queueExec({
       file: 'docker',
-      args: ['run', '--rm', '-v', 'launchly_launchly-data:/source:ro', '-v', `${tmpPath}:/backup`, 'alpine:3.20', 'tar', '-cf', '/backup/launchly-data.tar', '-C', '/source', '.'],
+      args: [
+        'run',
+        '--rm',
+        '-v',
+        'launchly_launchly-data:/source:ro',
+        '-v',
+        `${tmpPath}:/backup`,
+        'alpine:3.20',
+        'tar',
+        '-cf',
+        '/backup/launchly-data.tar',
+        '-C',
+        '/source',
+        '.',
+      ],
     });
     queueExec({
       file: 'docker',
-      args: ['run', '--rm', '-v', 'launchly_launchly-worker-data:/source:ro', '-v', `${tmpPath}:/backup`, 'alpine:3.20', 'tar', '-cf', '/backup/launchly-worker-data.tar', '-C', '/source', '.'],
+      args: [
+        'run',
+        '--rm',
+        '-v',
+        'launchly_launchly-worker-data:/source:ro',
+        '-v',
+        `${tmpPath}:/backup`,
+        'alpine:3.20',
+        'tar',
+        '-cf',
+        '/backup/launchly-worker-data.tar',
+        '-C',
+        '/source',
+        '.',
+      ],
     });
     let archivedEnv = '';
     queueExec({
@@ -339,7 +386,22 @@ describe('CLI backup', () => {
     fs.mkdirSync(dataDir, { recursive: true });
     queueExec({
       file: 'docker',
-      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), 'exec', '-T', 'launchly-postgres', 'pg_dump', '-U', 'launchly', '-d', 'launchly', '--clean', '--if-exists', '--create'],
+      args: [
+        'compose',
+        '-f',
+        path.join(dataDir, 'docker-compose.yml'),
+        'exec',
+        '-T',
+        'launchly-postgres',
+        'pg_dump',
+        '-U',
+        'launchly',
+        '-d',
+        'launchly',
+        '--clean',
+        '--if-exists',
+        '--create',
+      ],
       throw: fail,
     });
     expectedExitCodes = [1];
@@ -394,7 +456,10 @@ describe('CLI restore', () => {
       sideEffect: () => {
         fs.mkdirSync(restoreDir, { recursive: true });
         fs.writeFileSync(backupDbFile, 'CREATE TABLE test;');
-        fs.writeFileSync(path.join(restoreDir, '.env'), 'LAUNCHLY_DB_PASSWORD=restored\nLAUNCHLY_JWT_SECRET=restored-jwt\nLAUNCHLY_ENCRYPTION_KEY=restored-key\n');
+        fs.writeFileSync(
+          path.join(restoreDir, '.env'),
+          'LAUNCHLY_DB_PASSWORD=restored\nLAUNCHLY_JWT_SECRET=restored-jwt\nLAUNCHLY_ENCRYPTION_KEY=restored-key\n',
+        );
         fs.mkdirSync(path.join(restoreDir, 'launchly-data'), { recursive: true });
         fs.writeFileSync(path.join(restoreDir, 'launchly-data', 'restored.data'), 'restored-data');
         fs.mkdirSync(path.join(restoreDir, 'launchly-worker-data'), { recursive: true });
@@ -403,7 +468,21 @@ describe('CLI restore', () => {
     });
     queueExec({
       file: 'docker',
-      args: ['compose', '-f', path.join(dataDir, 'docker-compose.yml'), 'exec', '-T', 'launchly-postgres', 'psql', '-U', 'launchly', '--set', 'ON_ERROR_STOP=on', '-d', 'postgres'],
+      args: [
+        'compose',
+        '-f',
+        path.join(dataDir, 'docker-compose.yml'),
+        'exec',
+        '-T',
+        'launchly-postgres',
+        'psql',
+        '-U',
+        'launchly',
+        '--set',
+        'ON_ERROR_STOP=on',
+        '-d',
+        'postgres',
+      ],
       stdout: '',
     });
 
@@ -419,9 +498,13 @@ describe('CLI restore', () => {
     expect(execCalls[1].args).toContain('launchly');
     expect(execCalls[1].options.stdio[0]).toEqual(expect.any(Number));
     expect(execCalls[1].options.stdio.slice(1)).toEqual(['inherit', 'inherit']);
-    expect(cpSyncSpy).toHaveBeenCalledWith(path.join(restoreDir, 'launchly-data'), path.join(dataDir, 'launchly-data'), {
-      recursive: true,
-    });
+    expect(cpSyncSpy).toHaveBeenCalledWith(
+      path.join(restoreDir, 'launchly-data'),
+      path.join(dataDir, 'launchly-data'),
+      {
+        recursive: true,
+      },
+    );
     expect(cpSyncSpy).toHaveBeenCalledWith(
       path.join(restoreDir, 'launchly-worker-data'),
       path.join(dataDir, 'launchly-worker-data'),

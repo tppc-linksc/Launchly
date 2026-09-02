@@ -1,14 +1,4 @@
-import {
-  Controller,
-  Get,
-  Post,
-  Put,
-  Delete,
-  Param,
-  Body,
-  NotFoundException,
-  ConflictException,
-} from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../common/prisma/prisma.service';
 import { CurrentUser, AuthPrincipal } from '../common/decorators/current-user.decorator';
 import { ProjectAccessService } from './project-access.service';
@@ -26,7 +16,10 @@ import { CreateComponentDto, UpdateComponentDto } from './dto';
  */
 @Controller('projects/:projectId/components')
 export class ComponentController {
-  constructor(private readonly prisma: PrismaService, private readonly access: ProjectAccessService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly access: ProjectAccessService,
+  ) {}
 
   @Get()
   async list(@Param('projectId') projectId: string, @CurrentUser() user: AuthPrincipal) {
@@ -87,11 +80,7 @@ export class ComponentController {
   }
 
   @Delete(':id')
-  async delete(
-    @Param('projectId') projectId: string,
-    @Param('id') id: string,
-    @CurrentUser() user: AuthPrincipal,
-  ) {
+  async delete(@Param('projectId') projectId: string, @Param('id') id: string, @CurrentUser() user: AuthPrincipal) {
     await this.access.require(projectId, user.userId, user.workspaceId!, 'ADMIN');
     const component = await this.prisma.component.findFirst({ where: { id, projectId } });
     if (!component) throw new NotFoundException('组件不存在');

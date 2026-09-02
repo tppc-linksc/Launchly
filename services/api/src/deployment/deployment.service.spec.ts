@@ -55,7 +55,15 @@ describe('DeploymentService.create', () => {
     prisma.deployTarget.findUnique.mockResolvedValue(mockTarget);
     prisma.$transaction.mockImplementation(async (fn: any) => {
       const tx = {
-        deployment: { create: jest.fn().mockResolvedValue({ id: 'deploy-1', ...baseDto, status: 'PENDING', triggeredBy: userId, createdAt: new Date() }) },
+        deployment: {
+          create: jest.fn().mockResolvedValue({
+            id: 'deploy-1',
+            ...baseDto,
+            status: 'PENDING',
+            triggeredBy: userId,
+            createdAt: new Date(),
+          }),
+        },
         deploymentStageLog: { createMany: jest.fn().mockResolvedValue({ count: 4 }) },
         task: { create: jest.fn().mockResolvedValue({ id: 'task-1' }) },
       };
@@ -104,7 +112,15 @@ describe('DeploymentService.create', () => {
 
     const tx = (prisma.$transaction as jest.Mock).mock.calls[0][0];
     const mockTx = {
-      deployment: { create: jest.fn().mockResolvedValue({ id: 'deploy-1', ...baseDto, status: 'PENDING', triggeredBy: userId, createdAt: new Date() }) },
+      deployment: {
+        create: jest.fn().mockResolvedValue({
+          id: 'deploy-1',
+          ...baseDto,
+          status: 'PENDING',
+          triggeredBy: userId,
+          createdAt: new Date(),
+        }),
+      },
       deploymentStageLog: { createMany: jest.fn() },
       task: { create: jest.fn() },
     };
@@ -239,25 +255,39 @@ describe('DeploymentService.createAutomated idempotency', () => {
 
     const result = await service.createAutomated(input);
 
-    expect(create).toHaveBeenCalledWith(expect.objectContaining({
-      projectId: 'proj-1', environmentId: 'env-1', deployTargetId: 'target-1',
-    }), '', 'ws-1', {
-      triggerSource: 'GITHUB_WEBHOOK',
-      idempotencyKey: input.idempotencyKey,
-    });
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        projectId: 'proj-1',
+        environmentId: 'env-1',
+        deployTargetId: 'target-1',
+      }),
+      '',
+      'ws-1',
+      {
+        triggerSource: 'GITHUB_WEBHOOK',
+        idempotencyKey: input.idempotencyKey,
+      },
+    );
     expect(result).toEqual({ id: 'deploy-1', triggerSource: 'GITHUB_WEBHOOK' });
   });
 
   it('returns the transaction winner when a concurrent insert hits the unique key', async () => {
     const winner = {
-      id: 'deploy-winner', projectId: 'proj-1', environmentId: 'env-1',
-      deployTargetId: 'target-1', branch: 'main', commitSha: input.commitSha,
-      status: 'PENDING', triggeredBy: null, accessUrl: null, startedAt: null,
-      finishedAt: null, errorMessage: null, createdAt: new Date('2026-08-20T00:00:00Z'),
+      id: 'deploy-winner',
+      projectId: 'proj-1',
+      environmentId: 'env-1',
+      deployTargetId: 'target-1',
+      branch: 'main',
+      commitSha: input.commitSha,
+      status: 'PENDING',
+      triggeredBy: null,
+      accessUrl: null,
+      startedAt: null,
+      finishedAt: null,
+      errorMessage: null,
+      createdAt: new Date('2026-08-20T00:00:00Z'),
     };
-    prisma.deployment.findFirst
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(winner as any);
+    prisma.deployment.findFirst.mockResolvedValueOnce(null).mockResolvedValueOnce(winner as any);
     prisma.project.findUnique.mockResolvedValue({ id: 'proj-1', workspaceId: 'ws-1' });
     prisma.deployTarget.findFirst.mockResolvedValue({ id: 'target-1' });
     jest.spyOn(service, 'create').mockRejectedValue(Object.assign(new Error('unique'), { code: 'P2002' }));

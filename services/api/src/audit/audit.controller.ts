@@ -10,12 +10,12 @@ export class AuditLogController {
   constructor(private readonly auditService: AuditService) {}
 
   @Get()
-  async list(
-    @CurrentUser() user: AuthPrincipal,
-    @Query('limit') limit?: string,
-    @Query('offset') offset?: string,
-  ) {
-    return this.auditService.list(this.workspaceId(user), this.boundedInt(limit, 50, 1, 500, 'limit'), this.boundedInt(offset, 0, 0, 10_000_000, 'offset'));
+  async list(@CurrentUser() user: AuthPrincipal, @Query('limit') limit?: string, @Query('offset') offset?: string) {
+    return this.auditService.list(
+      this.workspaceId(user),
+      this.boundedInt(limit, 50, 1, 500, 'limit'),
+      this.boundedInt(offset, 0, 0, 10_000_000, 'offset'),
+    );
   }
 
   @Get('export')
@@ -25,14 +25,13 @@ export class AuditLogController {
     const logs = truncated ? fetchedLogs.slice(0, AUDIT_EXPORT_LIMIT) : fetchedLogs;
 
     const header = '时间,用户ID,操作,目标类型,目标ID,详情\n';
-    const rows = logs.map(l => [
-      l.createdAt.toISOString(),
-      l.userId,
-      l.action,
-      l.targetType,
-      l.targetId,
-      l.detail,
-    ].map(value => this.csvCell(value)).join(',')).join('\n');
+    const rows = logs
+      .map((l) =>
+        [l.createdAt.toISOString(), l.userId, l.action, l.targetType, l.targetId, l.detail]
+          .map((value) => this.csvCell(value))
+          .join(','),
+      )
+      .join('\n');
 
     res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', 'attachment; filename=audit-logs.csv');

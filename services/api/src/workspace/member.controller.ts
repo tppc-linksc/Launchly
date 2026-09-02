@@ -14,7 +14,7 @@ export class MemberController {
       where: { workspaceId: user.workspaceId },
       include: { user: true },
     });
-    return members.map(m => ({
+    return members.map((m) => ({
       id: m.id,
       userId: m.userId,
       account: m.user.account,
@@ -62,7 +62,7 @@ export class MemberController {
       if (ownerCount <= 1) throw new ConflictException('不能移除最后一个 Owner');
     }
 
-    await this.prisma.$transaction(async tx => {
+    await this.prisma.$transaction(async (tx) => {
       await tx.projectMember.deleteMany({
         where: {
           userId: member.userId,

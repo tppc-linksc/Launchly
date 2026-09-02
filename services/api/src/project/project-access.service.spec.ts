@@ -92,11 +92,11 @@ describe('ProjectAccessService.require', () => {
     });
 
     it.each([
-      ['VIEWER',    1],
-      ['TESTER',    2],
+      ['VIEWER', 1],
+      ['TESTER', 2],
       ['DEVELOPER', 3],
-      ['ADMIN',     4],
-      ['OWNER',     5],
+      ['ADMIN', 4],
+      ['OWNER', 5],
     ])('returns the project when ProjectMember role is %s', async (role) => {
       prisma.projectMember.findFirst.mockResolvedValue({ role });
 
@@ -109,35 +109,35 @@ describe('ProjectAccessService.require', () => {
   describe('minimumRole matrix (5 × 5)', () => {
     const matrix: Array<[string, string, boolean]> = [
       // membership VIEWER (1)
-      ['VIEWER', 'VIEWER',    true],
-      ['VIEWER', 'TESTER',    false],
+      ['VIEWER', 'VIEWER', true],
+      ['VIEWER', 'TESTER', false],
       ['VIEWER', 'DEVELOPER', false],
-      ['VIEWER', 'ADMIN',     false],
-      ['VIEWER', 'OWNER',     false],
+      ['VIEWER', 'ADMIN', false],
+      ['VIEWER', 'OWNER', false],
       // membership TESTER (2)
-      ['TESTER', 'VIEWER',    true],
-      ['TESTER', 'TESTER',    true],
+      ['TESTER', 'VIEWER', true],
+      ['TESTER', 'TESTER', true],
       ['TESTER', 'DEVELOPER', false],
-      ['TESTER', 'ADMIN',     false],
-      ['TESTER', 'OWNER',     false],
+      ['TESTER', 'ADMIN', false],
+      ['TESTER', 'OWNER', false],
       // membership DEVELOPER (3)
-      ['DEVELOPER', 'VIEWER',    true],
-      ['DEVELOPER', 'TESTER',    true],
+      ['DEVELOPER', 'VIEWER', true],
+      ['DEVELOPER', 'TESTER', true],
       ['DEVELOPER', 'DEVELOPER', true],
-      ['DEVELOPER', 'ADMIN',     false],
-      ['DEVELOPER', 'OWNER',     false],
+      ['DEVELOPER', 'ADMIN', false],
+      ['DEVELOPER', 'OWNER', false],
       // membership ADMIN (4)
-      ['ADMIN', 'VIEWER',    true],
-      ['ADMIN', 'TESTER',    true],
+      ['ADMIN', 'VIEWER', true],
+      ['ADMIN', 'TESTER', true],
       ['ADMIN', 'DEVELOPER', true],
-      ['ADMIN', 'ADMIN',     true],
-      ['ADMIN', 'OWNER',     false],
+      ['ADMIN', 'ADMIN', true],
+      ['ADMIN', 'OWNER', false],
       // membership OWNER (5)
-      ['OWNER', 'VIEWER',    true],
-      ['OWNER', 'TESTER',    true],
+      ['OWNER', 'VIEWER', true],
+      ['OWNER', 'TESTER', true],
       ['OWNER', 'DEVELOPER', true],
-      ['OWNER', 'ADMIN',     true],
-      ['OWNER', 'OWNER',     true],
+      ['OWNER', 'ADMIN', true],
+      ['OWNER', 'OWNER', true],
     ];
 
     it.each(matrix)('membership=%s minimumRole=%s → allowed=%s', async (membershipRole, minimumRole, allowed) => {

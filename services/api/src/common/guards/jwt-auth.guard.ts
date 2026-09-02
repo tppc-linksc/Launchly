@@ -34,11 +34,11 @@ export class JwtAuthGuard implements CanActivate {
       const token = authHeader.substring(7);
       const payload = this.jwtService.verify(token, { audience: ACCESS_AUDIENCE });
       if (
-        payload?.typ !== ACCESS_TOKEN_TYPE
-        || typeof payload?.uid !== 'string'
-        || !payload.uid
-        || typeof payload?.wid !== 'string'
-        || !payload.wid
+        payload?.typ !== ACCESS_TOKEN_TYPE ||
+        typeof payload?.uid !== 'string' ||
+        !payload.uid ||
+        typeof payload?.wid !== 'string' ||
+        !payload.wid
       ) {
         throw new UnauthorizedException('Invalid access token');
       }

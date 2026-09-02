@@ -1,7 +1,7 @@
 packages:
-  - "apps/*"
-  - "cli"
-  - "services/*"
+  - 'apps/*'
+  - 'cli'
+  - 'services/*'
 
 # pnpm v11+: lifecycle scripts on dependencies must be explicitly allowed (replaces onlyBuiltDependencies).
 allowBuilds:

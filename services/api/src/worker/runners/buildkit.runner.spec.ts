@@ -37,9 +37,11 @@ const ORIGINAL_REGISTRY = process.env.LAUNCHLY_DEFAULT_REGISTRY_REPOSITORY;
 const ORIGINAL_BUILDKIT_ADDR = process.env.LAUNCHLY_BUILDKIT_ADDR;
 const ORIGINAL_REGISTRY_AUTH = process.env.LAUNCHLY_REGISTRY_AUTH_JSON;
 
-const unexpectedSync = (name: string) => (...args: unknown[]) => {
-  throw new Error(`Unexpected unconfigured fs.${name} call: ${JSON.stringify(args)}`);
-};
+const unexpectedSync =
+  (name: string) =>
+  (...args: unknown[]) => {
+    throw new Error(`Unexpected unconfigured fs.${name} call: ${JSON.stringify(args)}`);
+  };
 
 beforeEach(() => {
   delete process.env.LAUNCHLY_DEFAULT_REGISTRY_REPOSITORY;
@@ -79,9 +81,10 @@ function makeContext(over: Partial<RunnerContext> = {}): RunnerContext {
 }
 
 function makePrismaDouble() {
-  const unexpectedAsync = (name: string) => jest.fn(async (...args: unknown[]) => {
-    throw new Error(`Unexpected unconfigured ${name} call: ${JSON.stringify(args)}`);
-  });
+  const unexpectedAsync = (name: string) =>
+    jest.fn(async (...args: unknown[]) => {
+      throw new Error(`Unexpected unconfigured ${name} call: ${JSON.stringify(args)}`);
+    });
   const prisma: any = {
     deployment: {
       findUnique: unexpectedAsync('prisma.deployment.findUnique'),
@@ -117,7 +120,13 @@ describe('BuildkitRunner.execute - pre-validation', () => {
     const executor = makeExecutor();
     const runner = makeRunner(prisma, executor);
     const result = await runner.execute(makeContext());
-    expect(result).toEqual({ success: false, stdout: '', stderr: 'Deployment not found', exitCode: -1, errorMessage: 'Deployment not found' });
+    expect(result).toEqual({
+      success: false,
+      stdout: '',
+      stderr: 'Deployment not found',
+      exitCode: -1,
+      errorMessage: 'Deployment not found',
+    });
     expect(executor.execFile).not.toHaveBeenCalled();
     expect(prisma.artifact.upsert).not.toHaveBeenCalled();
     expect(prisma.deployment.update).not.toHaveBeenCalled();
@@ -138,7 +147,12 @@ describe('BuildkitRunner.execute - pre-validation', () => {
     process.env.LAUNCHLY_DEFAULT_REGISTRY_REPOSITORY = 'env.example.com/team/from-env';
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'unix:///run/buildkit/buildkitd.sock';
     const prisma = makePrismaDouble();
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: 'project.example.com/team/from-project' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: 'project.example.com/team/from-project' },
+    });
     fsMock.existsSync.mockReturnValueOnce(true).mockReturnValueOnce(true).mockReturnValueOnce(true);
     fsMock.readFileSync.mockReturnValueOnce(metadataJson(`sha256:${FIXED_DIGEST}`));
     const executor = makeExecutor();
@@ -157,7 +171,12 @@ describe('BuildkitRunner.execute - pre-validation', () => {
     process.env.LAUNCHLY_DEFAULT_REGISTRY_REPOSITORY = 'env.example.com/team/from-env';
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'unix:///run/buildkit/buildkitd.sock';
     const prisma = makePrismaDouble();
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: null } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: null },
+    });
     fsMock.existsSync.mockReturnValueOnce(true).mockReturnValueOnce(true).mockReturnValueOnce(true);
     fsMock.readFileSync.mockReturnValueOnce(metadataJson(`sha256:${FIXED_DIGEST}`));
     const executor = makeExecutor();
@@ -173,7 +192,12 @@ describe('BuildkitRunner.execute - pre-validation', () => {
 
   it('rejects when both repository and address are missing (current behavior)', async () => {
     const prisma = makePrismaDouble();
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: null } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: null },
+    });
     const executor = makeExecutor();
     const runner = makeRunner(prisma, executor);
     const result = await runner.execute(makeContext());
@@ -185,7 +209,12 @@ describe('BuildkitRunner.execute - pre-validation', () => {
   it('rejects when only address is set (current behavior)', async () => {
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
     const prisma = makePrismaDouble();
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: null } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: null },
+    });
     const executor = makeExecutor();
     const runner = makeRunner(prisma, executor);
     const result = await runner.execute(makeContext());
@@ -195,7 +224,12 @@ describe('BuildkitRunner.execute - pre-validation', () => {
 
   it('rejects when only repository is set (current behavior)', async () => {
     const prisma = makePrismaDouble();
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     const executor = makeExecutor();
     const runner = makeRunner(prisma, executor);
     const result = await runner.execute(makeContext());
@@ -207,7 +241,12 @@ describe('BuildkitRunner.execute - pre-validation', () => {
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'unix:///run/buildkit/buildkitd.sock';
     for (const bad of ['bad name', 'with\nnewline', 'evil;rm -rf $HOME', 'with`backtick`']) {
       const prisma = makePrismaDouble();
-      prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: bad } });
+      prisma.deployment.findUnique.mockResolvedValueOnce({
+        id: 'deploy-1',
+        projectId: 'proj-1',
+        commitSha: 'abc1234',
+        project: { registryRepository: bad },
+      });
       const executor = makeExecutor();
       const runner = makeRunner(prisma, executor);
       const result = await runner.execute(makeContext());
@@ -220,7 +259,12 @@ describe('BuildkitRunner.execute - pre-validation', () => {
   it('rejects when workDir does not exist (no executor call)', async () => {
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
     const prisma = makePrismaDouble();
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValueOnce(false); // workDir missing
     const executor = makeExecutor();
     const runner = makeRunner(prisma, executor);
@@ -236,9 +280,22 @@ describe('BuildkitRunner.execute - pre-validation', () => {
 // ─── B. Dockerfile selection & build context ──────────────────────────────
 
 describe('BuildkitRunner.execute - Dockerfile selection', () => {
-  function setupSuccessEnv(prisma: any, executor: any, opts: { dockerfileExists: boolean; launchlyExists: boolean; digest: string } = { dockerfileExists: true, launchlyExists: false, digest: `sha256:${FIXED_DIGEST}` }) {
+  function setupSuccessEnv(
+    prisma: any,
+    executor: any,
+    opts: { dockerfileExists: boolean; launchlyExists: boolean; digest: string } = {
+      dockerfileExists: true,
+      launchlyExists: false,
+      digest: `sha256:${FIXED_DIGEST}`,
+    },
+  ) {
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     // workDir, Dockerfile choice, then the selected Dockerfile is checked again.
     fsMock.existsSync
       .mockReturnValueOnce(true) // workDir
@@ -257,7 +314,11 @@ describe('BuildkitRunner.execute - Dockerfile selection', () => {
   it('uses Dockerfile when it exists', async () => {
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
-    setupSuccessEnv(prisma, executor, { dockerfileExists: true, launchlyExists: false, digest: `sha256:${FIXED_DIGEST}` });
+    setupSuccessEnv(prisma, executor, {
+      dockerfileExists: true,
+      launchlyExists: false,
+      digest: `sha256:${FIXED_DIGEST}`,
+    });
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext());
     const argv = executor.execFile.mock.calls[0][1];
@@ -268,7 +329,11 @@ describe('BuildkitRunner.execute - Dockerfile selection', () => {
   it('uses Dockerfile.launchly when only it exists', async () => {
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
-    setupSuccessEnv(prisma, executor, { dockerfileExists: false, launchlyExists: true, digest: `sha256:${FIXED_DIGEST}` });
+    setupSuccessEnv(prisma, executor, {
+      dockerfileExists: false,
+      launchlyExists: true,
+      digest: `sha256:${FIXED_DIGEST}`,
+    });
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext());
     const argv = executor.execFile.mock.calls[0][1];
@@ -279,9 +344,17 @@ describe('BuildkitRunner.execute - Dockerfile selection', () => {
   it('writes an implicit Dockerfile (mode 0600) and uses it when neither file exists', async () => {
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
-    setupSuccessEnv(prisma, executor, { dockerfileExists: false, launchlyExists: false, digest: `sha256:${FIXED_DIGEST}` });
+    setupSuccessEnv(prisma, executor, {
+      dockerfileExists: false,
+      launchlyExists: false,
+      digest: `sha256:${FIXED_DIGEST}`,
+    });
     const runner = makeRunner(prisma, executor);
-    await runner.execute(makeContext({ payload: { containerPort: 4000, installCommand: 'pnpm i', buildCommand: 'pnpm b', startCommand: 'pnpm start' } }));
+    await runner.execute(
+      makeContext({
+        payload: { containerPort: 4000, installCommand: 'pnpm i', buildCommand: 'pnpm b', startCommand: 'pnpm start' },
+      }),
+    );
     expect(fsMock.writeFileSync).toHaveBeenCalledTimes(1);
     expect(fsMock.writeFileSync.mock.calls[0][0]).toBe('/tmp/launchly-builds/deploy-1/Dockerfile.launchly');
     expect(fsMock.writeFileSync.mock.calls[0][2]).toEqual({ mode: 0o600 });
@@ -299,7 +372,11 @@ describe('BuildkitRunner.execute - Dockerfile selection', () => {
   it('implicit Dockerfile defaults install/build/start to npm ci / npm run build / npm start when payload omits them', async () => {
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
-    setupSuccessEnv(prisma, executor, { dockerfileExists: false, launchlyExists: false, digest: `sha256:${FIXED_DIGEST}` });
+    setupSuccessEnv(prisma, executor, {
+      dockerfileExists: false,
+      launchlyExists: false,
+      digest: `sha256:${FIXED_DIGEST}`,
+    });
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext({ payload: {} }));
     const dockerfile = fsMock.writeFileSync.mock.calls[0][1] as string;
@@ -311,7 +388,11 @@ describe('BuildkitRunner.execute - Dockerfile selection', () => {
   it('implicit Dockerfile port falls back to 3000 when neither containerPort nor port is provided (current behavior)', async () => {
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
-    setupSuccessEnv(prisma, executor, { dockerfileExists: false, launchlyExists: false, digest: `sha256:${FIXED_DIGEST}` });
+    setupSuccessEnv(prisma, executor, {
+      dockerfileExists: false,
+      launchlyExists: false,
+      digest: `sha256:${FIXED_DIGEST}`,
+    });
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext({ payload: {} }));
     const dockerfile = fsMock.writeFileSync.mock.calls[0][1] as string;
@@ -321,7 +402,11 @@ describe('BuildkitRunner.execute - Dockerfile selection', () => {
   it('implicit Dockerfile uses payload.port when containerPort is missing', async () => {
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
-    setupSuccessEnv(prisma, executor, { dockerfileExists: false, launchlyExists: false, digest: `sha256:${FIXED_DIGEST}` });
+    setupSuccessEnv(prisma, executor, {
+      dockerfileExists: false,
+      launchlyExists: false,
+      digest: `sha256:${FIXED_DIGEST}`,
+    });
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext({ payload: { port: 8080 } }));
     const dockerfile = fsMock.writeFileSync.mock.calls[0][1] as string;
@@ -331,7 +416,11 @@ describe('BuildkitRunner.execute - Dockerfile selection', () => {
   it('implicit Dockerfile port falls back to 3000 for a non-numeric value', async () => {
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
-    setupSuccessEnv(prisma, executor, { dockerfileExists: false, launchlyExists: false, digest: `sha256:${FIXED_DIGEST}` });
+    setupSuccessEnv(prisma, executor, {
+      dockerfileExists: false,
+      launchlyExists: false,
+      digest: `sha256:${FIXED_DIGEST}`,
+    });
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext({ payload: { containerPort: 'not-a-number' } }));
     const dockerfile = fsMock.writeFileSync.mock.calls[0][1] as string;
@@ -341,7 +430,11 @@ describe('BuildkitRunner.execute - Dockerfile selection', () => {
   it('implicit Dockerfile port falls back to 3000 for a negative value', async () => {
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
-    setupSuccessEnv(prisma, executor, { dockerfileExists: false, launchlyExists: false, digest: `sha256:${FIXED_DIGEST}` });
+    setupSuccessEnv(prisma, executor, {
+      dockerfileExists: false,
+      launchlyExists: false,
+      digest: `sha256:${FIXED_DIGEST}`,
+    });
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext({ payload: { containerPort: -1 } }));
     const dockerfile = fsMock.writeFileSync.mock.calls[0][1] as string;
@@ -351,7 +444,11 @@ describe('BuildkitRunner.execute - Dockerfile selection', () => {
   it('implicit Dockerfile port falls back to 3000 above 65535', async () => {
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
-    setupSuccessEnv(prisma, executor, { dockerfileExists: false, launchlyExists: false, digest: `sha256:${FIXED_DIGEST}` });
+    setupSuccessEnv(prisma, executor, {
+      dockerfileExists: false,
+      launchlyExists: false,
+      digest: `sha256:${FIXED_DIGEST}`,
+    });
     const runner = makeRunner(prisma, executor);
 
     await runner.execute(makeContext({ payload: { containerPort: 65536 } }));
@@ -362,14 +459,22 @@ describe('BuildkitRunner.execute - Dockerfile selection', () => {
   it('places custom shell fragments directly into RUN and CMD instructions (current behavior)', async () => {
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
-    setupSuccessEnv(prisma, executor, { dockerfileExists: false, launchlyExists: false, digest: `sha256:${FIXED_DIGEST}` });
+    setupSuccessEnv(prisma, executor, {
+      dockerfileExists: false,
+      launchlyExists: false,
+      digest: `sha256:${FIXED_DIGEST}`,
+    });
     const runner = makeRunner(prisma, executor);
 
-    await runner.execute(makeContext({ payload: {
-      installCommand: 'npm ci && echo install-marker',
-      buildCommand: 'npm run build; echo build-marker',
-      startCommand: 'sh -c "echo start-marker"',
-    } }));
+    await runner.execute(
+      makeContext({
+        payload: {
+          installCommand: 'npm ci && echo install-marker',
+          buildCommand: 'npm run build; echo build-marker',
+          startCommand: 'sh -c "echo start-marker"',
+        },
+      }),
+    );
 
     const dockerfile = fsMock.writeFileSync.mock.calls[0][1] as string;
     expect(dockerfile).toContain('RUN npm ci && echo install-marker');
@@ -383,7 +488,12 @@ describe('BuildkitRunner.execute - Dockerfile selection', () => {
 describe('BuildkitRunner.execute - commitSha safeTag', () => {
   function setupWithCommit(prisma: any, executor: any, commitSha: any) {
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha, project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha,
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValueOnce(true).mockReturnValueOnce(true).mockReturnValueOnce(true);
     fsMock.readFileSync.mockReturnValueOnce(metadataJson(`sha256:${FIXED_DIGEST}`));
     executor.execFile.mockResolvedValueOnce({ stdout: 'built', stderr: '', exitCode: 0 });
@@ -398,7 +508,7 @@ describe('BuildkitRunner.execute - commitSha safeTag', () => {
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext());
     const argv = executor.execFile.mock.calls[0][1];
-    expect(argv).toContain("type=image,name=project.example.com/team/app:abc1234-deploy-1,push=true");
+    expect(argv).toContain('type=image,name=project.example.com/team/app:abc1234-deploy-1,push=true');
   });
 
   it('12-char hex commitSha is lowercased and forms the tag', async () => {
@@ -408,7 +518,7 @@ describe('BuildkitRunner.execute - commitSha safeTag', () => {
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext());
     const argv = executor.execFile.mock.calls[0][1];
-    expect(argv).toContain("type=image,name=project.example.com/team/app:abcdef012345-deploy-1,push=true");
+    expect(argv).toContain('type=image,name=project.example.com/team/app:abcdef012345-deploy-1,push=true');
   });
 
   it('64-char hex commitSha is sliced to 12 chars and lowercased', async () => {
@@ -418,7 +528,7 @@ describe('BuildkitRunner.execute - commitSha safeTag', () => {
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext());
     const argv = executor.execFile.mock.calls[0][1];
-    expect(argv).toContain("type=image,name=project.example.com/team/app:aaaaaaaaaaaa-deploy-1,push=true");
+    expect(argv).toContain('type=image,name=project.example.com/team/app:aaaaaaaaaaaa-deploy-1,push=true');
   });
 
   it('non-hex commitSha yields the literal "unknown" tag', async () => {
@@ -428,7 +538,7 @@ describe('BuildkitRunner.execute - commitSha safeTag', () => {
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext());
     const argv = executor.execFile.mock.calls[0][1];
-    expect(argv).toContain("type=image,name=project.example.com/team/app:unknown-deploy-1,push=true");
+    expect(argv).toContain('type=image,name=project.example.com/team/app:unknown-deploy-1,push=true');
   });
 
   it('6-char hex commitSha (too short) yields "unknown" tag', async () => {
@@ -438,7 +548,7 @@ describe('BuildkitRunner.execute - commitSha safeTag', () => {
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext());
     const argv = executor.execFile.mock.calls[0][1];
-    expect(argv).toContain("type=image,name=project.example.com/team/app:unknown-deploy-1,push=true");
+    expect(argv).toContain('type=image,name=project.example.com/team/app:unknown-deploy-1,push=true');
   });
 
   it('null commitSha yields "unknown" tag', async () => {
@@ -448,7 +558,7 @@ describe('BuildkitRunner.execute - commitSha safeTag', () => {
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext());
     const argv = executor.execFile.mock.calls[0][1];
-    expect(argv).toContain("type=image,name=project.example.com/team/app:unknown-deploy-1,push=true");
+    expect(argv).toContain('type=image,name=project.example.com/team/app:unknown-deploy-1,push=true');
   });
 });
 
@@ -457,7 +567,12 @@ describe('BuildkitRunner.execute - commitSha safeTag', () => {
 describe('BuildkitRunner.execute - buildctl call, callback, metadata', () => {
   function setupFullSuccess(prisma: any, executor: any) {
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValue(true); // workDir, Dockerfile, anything
     fsMock.readFileSync.mockReturnValueOnce(metadataJson(`sha256:${FIXED_DIGEST}`));
     executor.execFile.mockResolvedValueOnce({ stdout: 'built-ok', stderr: '', exitCode: 0 });
@@ -501,7 +616,10 @@ describe('BuildkitRunner.execute - buildctl call, callback, metadata', () => {
     const ctx = makeContext();
     await runner.execute(ctx);
     expect(ctx.stageLogCallback).toHaveBeenCalledTimes(1);
-    expect(ctx.stageLogCallback).toHaveBeenCalledWith('RUNNING', 'Building and pushing immutable image project.example.com/team/app:<redacted-tag>...');
+    expect(ctx.stageLogCallback).toHaveBeenCalledWith(
+      'RUNNING',
+      'Building and pushing immutable image project.example.com/team/app:<redacted-tag>...',
+    );
   });
 
   it('stageLogCallback fires BEFORE the executor call (current ordering)', async () => {
@@ -511,10 +629,15 @@ describe('BuildkitRunner.execute - buildctl call, callback, metadata', () => {
     const runner = makeRunner(prisma, executor);
     const ctx = makeContext();
     const order: string[] = [];
-    (ctx.stageLogCallback as jest.Mock).mockImplementation(async () => { order.push('cb'); });
+    (ctx.stageLogCallback as jest.Mock).mockImplementation(async () => {
+      order.push('cb');
+    });
     // Replace setupFullSuccess's mockResolvedValueOnce with a single mockImplementation so the impl is unambiguous.
     (executor.execFile as jest.Mock).mockReset();
-    (executor.execFile as jest.Mock).mockImplementationOnce(async () => { order.push('execFile'); return { stdout: '', stderr: '', exitCode: 0 }; });
+    (executor.execFile as jest.Mock).mockImplementationOnce(async () => {
+      order.push('execFile');
+      return { stdout: '', stderr: '', exitCode: 0 };
+    });
     const result = await runner.execute(ctx);
     expect(result.success).toBe(true);
     expect(order).toEqual(['cb', 'execFile']);
@@ -523,7 +646,12 @@ describe('BuildkitRunner.execute - buildctl call, callback, metadata', () => {
   it('propagates stageLogCallback rejection and never starts buildctl', async () => {
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
     const prisma = makePrismaDouble();
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValueOnce(true).mockReturnValueOnce(true).mockReturnValueOnce(true);
     const executor = makeExecutor();
     const ctx = makeContext();
@@ -541,13 +669,24 @@ describe('BuildkitRunner.execute - buildctl call, callback, metadata', () => {
   it('buildctl non-zero exit: returns failure with executor result and error message', async () => {
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
     const prisma = makePrismaDouble();
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValue(true);
     const executor = makeExecutor();
     executor.execFile.mockResolvedValueOnce({ stdout: 'partial', stderr: 'denied', exitCode: 137 });
     const runner = makeRunner(prisma, executor);
     const result = await runner.execute(makeContext());
-    expect(result).toEqual({ success: false, stdout: 'partial', stderr: 'denied', exitCode: 137, errorMessage: 'BuildKit build or registry push failed' });
+    expect(result).toEqual({
+      success: false,
+      stdout: 'partial',
+      stderr: 'denied',
+      exitCode: 137,
+      errorMessage: 'BuildKit build or registry push failed',
+    });
     expect(prisma.artifact.upsert).not.toHaveBeenCalled();
     expect(prisma.deployment.update).not.toHaveBeenCalled();
   });
@@ -555,7 +694,12 @@ describe('BuildkitRunner.execute - buildctl call, callback, metadata', () => {
   it('redacts buildctl secrets in a non-zero result', async () => {
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
     const prisma = makePrismaDouble();
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValueOnce(true).mockReturnValueOnce(true).mockReturnValueOnce(true);
     const executor = makeExecutor();
     executor.execFile.mockResolvedValueOnce({ stdout: 'password=hunter2', stderr: 'token=plain-token', exitCode: 1 });
@@ -573,7 +717,12 @@ describe('BuildkitRunner.execute - buildctl call, callback, metadata', () => {
   it('executor throws (rejects): propagates the original rejection (current behavior: no try/catch around execFile)', async () => {
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
     const prisma = makePrismaDouble();
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValue(true);
     const executor = makeExecutor();
     (executor.execFile as jest.Mock).mockImplementationOnce(() => Promise.reject(new Error('spawn ENOENT buildctl')));
@@ -591,7 +740,12 @@ describe('BuildkitRunner.execute - metadata parsing and strict digest validation
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValueOnce(typeof metadata === 'string' ? metadata : JSON.stringify(metadata));
     executor.execFile.mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
@@ -621,9 +775,16 @@ describe('BuildkitRunner.execute - metadata parsing and strict digest validation
   it('metadata read fails: failure without artifact/deployment writes', async () => {
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
     const prisma = makePrismaDouble();
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValue(true);
-    fsMock.readFileSync.mockImplementationOnce(() => { throw new Error('ENOENT'); });
+    fsMock.readFileSync.mockImplementationOnce(() => {
+      throw new Error('ENOENT');
+    });
     const executor = makeExecutor();
     executor.execFile.mockResolvedValueOnce({ stdout: '', stderr: '', exitCode: 0 });
     const runner = makeRunner(prisma, executor);
@@ -687,7 +848,12 @@ describe('BuildkitRunner.execute - metadata parsing and strict digest validation
 describe('BuildkitRunner.execute - data writes', () => {
   function setupFullSuccess(prisma: any, executor: any) {
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'feedface', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'feedface',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValueOnce(metadataJson(`sha256:${FIXED_DIGEST}`));
     executor.execFile.mockResolvedValueOnce({ stdout: 'build-stdout', stderr: 'build-stderr', exitCode: 0 });
@@ -739,12 +905,23 @@ describe('BuildkitRunner.execute - data writes', () => {
     const executor = makeExecutor();
     const order: string[] = [];
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'feedface', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'feedface',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValueOnce(metadataJson(`sha256:${FIXED_DIGEST}`));
     executor.execFile.mockResolvedValueOnce({ stdout: 'build-stdout', stderr: 'build-stderr', exitCode: 0 });
-    (prisma.artifact.upsert as jest.Mock).mockImplementation(async () => { order.push('upsert'); return { id: 'a' }; });
-    (prisma.deployment.update as jest.Mock).mockImplementation(async () => { order.push('update'); return { id: 'd' }; });
+    (prisma.artifact.upsert as jest.Mock).mockImplementation(async () => {
+      order.push('upsert');
+      return { id: 'a' };
+    });
+    (prisma.deployment.update as jest.Mock).mockImplementation(async () => {
+      order.push('update');
+      return { id: 'd' };
+    });
     const runner = makeRunner(prisma, executor);
     await runner.execute(makeContext());
     expect(order).toEqual(['upsert', 'update']);
@@ -754,7 +931,12 @@ describe('BuildkitRunner.execute - data writes', () => {
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'feedface', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'feedface',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValueOnce(metadataJson(`sha256:${FIXED_DIGEST}`));
     executor.execFile.mockResolvedValueOnce({ stdout: 'build-stdout', stderr: 'build-stderr', exitCode: 0 });
@@ -768,12 +950,19 @@ describe('BuildkitRunner.execute - data writes', () => {
     const prisma = makePrismaDouble();
     const executor = makeExecutor();
     process.env.LAUNCHLY_BUILDKIT_ADDR = 'tcp://buildkit.example.com:1234';
-    prisma.deployment.findUnique.mockResolvedValueOnce({ id: 'deploy-1', projectId: 'proj-1', commitSha: 'feedface', project: { registryRepository: 'project.example.com/team/app' } });
+    prisma.deployment.findUnique.mockResolvedValueOnce({
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'feedface',
+      project: { registryRepository: 'project.example.com/team/app' },
+    });
     fsMock.existsSync.mockReturnValue(true);
     fsMock.readFileSync.mockReturnValueOnce(metadataJson(`sha256:${FIXED_DIGEST}`));
     executor.execFile.mockResolvedValueOnce({ stdout: 'build-stdout', stderr: 'build-stderr', exitCode: 0 });
     prisma.artifact.upsert.mockResolvedValueOnce({ id: 'a' });
-    (prisma.deployment.update as jest.Mock).mockImplementationOnce(() => Promise.reject(new Error('deployment row locked')));
+    (prisma.deployment.update as jest.Mock).mockImplementationOnce(() =>
+      Promise.reject(new Error('deployment row locked')),
+    );
     const runner = makeRunner(prisma, executor);
     await expect(runner.execute(makeContext())).rejects.toThrow('deployment row locked');
     expect(prisma.artifact.upsert).toHaveBeenCalledTimes(1);
@@ -827,7 +1016,9 @@ describe('BuildkitRunner.execute - registry authentication', () => {
       auths: { 'registry.example.com': { auth: 'dXNlcjpwYXNz' } },
     });
     prisma.deployment.findUnique.mockResolvedValueOnce({
-      id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234',
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
       project: { registryRepository: 'registry.example.com/team/app' },
     });
     fsMock.existsSync.mockReturnValue(true);
@@ -848,10 +1039,10 @@ describe('BuildkitRunner.execute - registry authentication', () => {
     const result = await makeRunner(prisma, executor).execute(makeContext());
 
     expect(result.success).toBe(true);
-    expect(fsMock.mkdirSync).toHaveBeenCalledWith(
-      '/tmp/launchly-builds/.registry-auth-deploy-1',
-      { recursive: true, mode: 0o700 },
-    );
+    expect(fsMock.mkdirSync).toHaveBeenCalledWith('/tmp/launchly-builds/.registry-auth-deploy-1', {
+      recursive: true,
+      mode: 0o700,
+    });
     expect(fsMock.writeFileSync).toHaveBeenCalledWith(
       '/tmp/launchly-builds/.registry-auth-deploy-1/config.json',
       process.env.LAUNCHLY_REGISTRY_AUTH_JSON,
@@ -862,10 +1053,10 @@ describe('BuildkitRunner.execute - registry authentication', () => {
       env: { DOCKER_CONFIG: '/tmp/launchly-builds/.registry-auth-deploy-1' },
     });
     expect(JSON.stringify(executor.execFile.mock.calls[0])).not.toContain('dXNlcjpwYXNz');
-    expect(fsMock.rmSync).toHaveBeenCalledWith(
-      '/tmp/launchly-builds/.registry-auth-deploy-1',
-      { recursive: true, force: true },
-    );
+    expect(fsMock.rmSync).toHaveBeenCalledWith('/tmp/launchly-builds/.registry-auth-deploy-1', {
+      recursive: true,
+      force: true,
+    });
   });
 
   it('removes credentials but preserves the source context when BuildKit fails', async () => {
@@ -876,14 +1067,11 @@ describe('BuildkitRunner.execute - registry authentication', () => {
     const result = await makeRunner(prisma, executor).execute(makeContext());
 
     expect(result.success).toBe(false);
-    expect(fsMock.rmSync).toHaveBeenCalledWith(
-      '/tmp/launchly-builds/.registry-auth-deploy-1',
-      { recursive: true, force: true },
-    );
-    expect(fsMock.rmSync).not.toHaveBeenCalledWith(
-      '/tmp/launchly-builds/deploy-1',
-      { recursive: true, force: true },
-    );
+    expect(fsMock.rmSync).toHaveBeenCalledWith('/tmp/launchly-builds/.registry-auth-deploy-1', {
+      recursive: true,
+      force: true,
+    });
+    expect(fsMock.rmSync).not.toHaveBeenCalledWith('/tmp/launchly-builds/deploy-1', { recursive: true, force: true });
   });
 
   it('rejects malformed JSON without invoking BuildKit or writing credentials', async () => {
@@ -891,7 +1079,9 @@ describe('BuildkitRunner.execute - registry authentication', () => {
     process.env.LAUNCHLY_REGISTRY_AUTH_JSON = '{not-json';
     const prisma = makePrismaDouble();
     prisma.deployment.findUnique.mockResolvedValueOnce({
-      id: 'deploy-1', projectId: 'proj-1', commitSha: 'abc1234',
+      id: 'deploy-1',
+      projectId: 'proj-1',
+      commitSha: 'abc1234',
       project: { registryRepository: 'registry.example.com/team/app' },
     });
     fsMock.existsSync.mockReturnValue(true);

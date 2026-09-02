@@ -56,9 +56,11 @@ export class DeploymentController {
 
     return defer(() => this.accessPolicy.requireDeployment(id, user.userId, workspaceId, 'VIEWER')).pipe(
       switchMap(() => interval(2000)),
-      switchMap(() => this.prisma.deployment.findFirst({
-        where: { id, project: { workspaceId } },
-      })),
+      switchMap(() =>
+        this.prisma.deployment.findFirst({
+          where: { id, project: { workspaceId } },
+        }),
+      ),
       takeWhile((deployment): deployment is NonNullable<typeof deployment> => {
         if (!deployment) return false;
         return !['SUCCEEDED', 'FAILED', 'CANCELED'].includes(deployment.status);

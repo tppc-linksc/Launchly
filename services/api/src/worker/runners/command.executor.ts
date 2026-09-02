@@ -32,8 +32,12 @@ export class CommandExecutor {
       });
       let stdout = '';
       let stderr = '';
-      proc.stdout.on('data', (data: Buffer) => { stdout = this.appendBounded(stdout, data); });
-      proc.stderr.on('data', (data: Buffer) => { stderr = this.appendBounded(stderr, data); });
+      proc.stdout.on('data', (data: Buffer) => {
+        stdout = this.appendBounded(stdout, data);
+      });
+      proc.stderr.on('data', (data: Buffer) => {
+        stderr = this.appendBounded(stderr, data);
+      });
       proc.on('close', (code: number | null) => resolve({ stdout, stderr, exitCode: code ?? -1 }));
       proc.on('error', reject);
     });
@@ -51,8 +55,12 @@ export class CommandExecutor {
       const proc = spawn(command, args, { cwd: options.cwd, env, timeout: timeout * 1000, shell: false });
       let stdout = '';
       let stderr = '';
-      proc.stdout.on('data', (data: Buffer) => { stdout = this.appendBounded(stdout, data); });
-      proc.stderr.on('data', (data: Buffer) => { stderr = this.appendBounded(stderr, data); });
+      proc.stdout.on('data', (data: Buffer) => {
+        stdout = this.appendBounded(stdout, data);
+      });
+      proc.stderr.on('data', (data: Buffer) => {
+        stderr = this.appendBounded(stderr, data);
+      });
       proc.on('close', (code: number | null) => resolve({ stdout, stderr, exitCode: code ?? -1 }));
       proc.on('error', reject);
     });

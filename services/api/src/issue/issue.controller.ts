@@ -12,7 +12,11 @@ export class IssueController {
   ) {}
 
   @Post()
-  async create(@Param('projectId') projectId: string, @Body() body: CreateIssueDto, @CurrentUser() user: AuthPrincipal) {
+  async create(
+    @Param('projectId') projectId: string,
+    @Body() body: CreateIssueDto,
+    @CurrentUser() user: AuthPrincipal,
+  ) {
     await this.accessPolicy.requireProject(projectId, user.userId, user.workspaceId!, 'TESTER');
     return this.issueService.createIssue(projectId, body, user.userId);
   }
@@ -26,7 +30,13 @@ export class IssueController {
     @CurrentUser() user: AuthPrincipal,
   ) {
     await this.accessPolicy.requireProject(projectId, user.userId, user.workspaceId!, 'TESTER');
-    return this.issueService.createFromFailedTest(testRunCaseId, projectId, deploymentId, testCaseTitle || null, user.userId);
+    return this.issueService.createFromFailedTest(
+      testRunCaseId,
+      projectId,
+      deploymentId,
+      testCaseTitle || null,
+      user.userId,
+    );
   }
 
   @Get()

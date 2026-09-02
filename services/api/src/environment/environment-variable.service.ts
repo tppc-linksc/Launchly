@@ -22,7 +22,7 @@ export class EnvironmentVariableService {
     const vars = await this.prisma.environmentVariable.findMany({
       where: { environmentId },
     });
-    return vars.map(v => ({
+    return vars.map((v) => ({
       id: v.id,
       environmentId: v.environmentId,
       key: v.key,

@@ -140,7 +140,14 @@ export class WorkerService implements OnModuleInit {
   }
 
   /** 把单个超时任务按 attempts 决定回到 PENDING 还是标记 FAILED。 */
-  private async recoverTimedOutTask(task: { id: string; attempts: number; maxAttempts: number; refId: string; taskType: string; leaseOwner?: string | null }) {
+  private async recoverTimedOutTask(task: {
+    id: string;
+    attempts: number;
+    maxAttempts: number;
+    refId: string;
+    taskType: string;
+    leaseOwner?: string | null;
+  }) {
     this.logger.warn(`Task ${task.id} timed out after ${this.taskTimeoutMinutes} minutes`);
     const errorMessage = `任务超时：已运行超过 ${this.taskTimeoutMinutes} 分钟`;
     const stage = mapTaskTypeToStage(task.taskType);
@@ -149,7 +156,12 @@ export class WorkerService implements OnModuleInit {
       this.logger.log(`Retrying task ${task.id} (attempt ${task.attempts + 1}/${task.maxAttempts})`);
       await rescheduleTimedOutTask(this.prisma, task.id, errorMessage, task.leaseOwner);
       if (stage) {
-        await this.writeStageLog(task.refId, stage, 'RUNNING', `Retry attempt ${task.attempts}/${task.maxAttempts}: ${errorMessage}`);
+        await this.writeStageLog(
+          task.refId,
+          stage,
+          'RUNNING',
+          `Retry attempt ${task.attempts}/${task.maxAttempts}: ${errorMessage}`,
+        );
       }
     } else {
       await finalizeTimedOutTask(this.prisma, task.id, errorMessage, task.leaseOwner);
@@ -185,7 +197,14 @@ export class WorkerService implements OnModuleInit {
   }
 
   /** 任务执行入口：解析 payload → 写 RUNNING stageLog → 调用 Runner → 写终态。 */
-  private async executeTask(task: { id: string; taskType: string; refId: string; payload: string | null; attempts: number; maxAttempts: number }) {
+  private async executeTask(task: {
+    id: string;
+    taskType: string;
+    refId: string;
+    payload: string | null;
+    attempts: number;
+    maxAttempts: number;
+  }) {
     const deploymentId = task.refId;
     const stage = mapTaskTypeToStage(task.taskType);
     if (!stage) {
@@ -252,9 +271,8 @@ export class WorkerService implements OnModuleInit {
           // Runner activates the existing immutable snapshot directory. Keep the
           // environment pointer on that real snapshot so a later rollback never
           // targets the audit-only rollback record, which has no remote directory.
-          const restoredDeploymentId = typeof payload.rollbackDeploymentId === 'string'
-            ? payload.rollbackDeploymentId
-            : deploymentId;
+          const restoredDeploymentId =
+            typeof payload.rollbackDeploymentId === 'string' ? payload.rollbackDeploymentId : deploymentId;
           await this.prisma.environment.update({
             where: { id: rollbackDeployment.environmentId },
             data: { status: 'active', currentDeploymentId: restoredDeploymentId },
@@ -276,20 +294,25 @@ export class WorkerService implements OnModuleInit {
     const timeoutMs = this.taskTimeoutMinutes * 60 * 1000;
     const renewalIntervalMs = Math.max(10_000, Math.min(60_000, Math.floor(timeoutMs / 3)));
     const timer = setInterval(() => {
-      void this.prisma.task.updateMany({
-        where: { id: taskId, status: 'RUNNING', leaseOwner: this.workerId },
-        data: { leaseExpiresAt: new Date(Date.now() + timeoutMs) },
-      }).catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : String(error);
-        this.logger.warn(`Failed to renew lease for task ${taskId}: ${message}`);
-      });
+      void this.prisma.task
+        .updateMany({
+          where: { id: taskId, status: 'RUNNING', leaseOwner: this.workerId },
+          data: { leaseExpiresAt: new Date(Date.now() + timeoutMs) },
+        })
+        .catch((error: unknown) => {
+          const message = error instanceof Error ? error.message : String(error);
+          this.logger.warn(`Failed to renew lease for task ${taskId}: ${message}`);
+        });
     }, renewalIntervalMs);
     timer.unref?.();
     return () => clearInterval(timer);
   }
 
   /** 严格解析 payload：空/null/非对象/数组 全部拒绝（KI-025）。返回 null 表示已记错误。 */
-  private async parseStrictObjectPayload(payload: string | null, task: { id: string; refId: string; taskType: string }): Promise<Record<string, any> | null> {
+  private async parseStrictObjectPayload(
+    payload: string | null,
+    task: { id: string; refId: string; taskType: string },
+  ): Promise<Record<string, any> | null> {
     if (typeof payload !== 'string' || payload.trim() === '') {
       // 兼容历史空 payload：当作空对象，但要求是 JSON 字符串或为空。
       // 为 fail closed，这里统一视为非法。
@@ -332,12 +355,22 @@ export class WorkerService implements OnModuleInit {
   }
 
   /** 普通失败：按 attempts 决定重试还是终态。 */
-  private async handleTaskFailure(task: { id: string; refId: string; taskType: string; attempts: number; maxAttempts: number }, errorMessage: string) {
+  private async handleTaskFailure(
+    task: { id: string; refId: string; taskType: string; attempts: number; maxAttempts: number },
+    errorMessage: string,
+  ) {
     if (task.attempts < task.maxAttempts) {
-      this.logger.log(`Task ${task.id} failed, retrying (attempt ${task.attempts}/${task.maxAttempts}): ${errorMessage}`);
+      this.logger.log(
+        `Task ${task.id} failed, retrying (attempt ${task.attempts}/${task.maxAttempts}): ${errorMessage}`,
+      );
       const stage = mapTaskTypeToStage(task.taskType);
       if (stage) {
-        await this.writeStageLog(task.refId, stage, 'RUNNING', `Retry attempt ${task.attempts}/${task.maxAttempts}: ${errorMessage}`);
+        await this.writeStageLog(
+          task.refId,
+          stage,
+          'RUNNING',
+          `Retry attempt ${task.attempts}/${task.maxAttempts}: ${errorMessage}`,
+        );
       }
       await this.retryTask(task.id);
     } else {
@@ -445,11 +478,22 @@ export class WorkerService implements OnModuleInit {
       data: { status: 'active', currentDeploymentId: deploymentId },
     });
     if (completed?.triggeredBy) {
-      await this.notifications?.create(completed.triggeredBy, 'DEPLOYMENT_SUCCEEDED', '部署成功', `部署 ${deploymentId} 已通过健康检查`, deploymentId);
+      await this.notifications?.create(
+        completed.triggeredBy,
+        'DEPLOYMENT_SUCCEEDED',
+        '部署成功',
+        `部署 ${deploymentId} 已通过健康检查`,
+        deploymentId,
+      );
     }
   }
 
-  private async computeAccessUrl(deployment: { id: string; accessUrl: string | null; environmentId: string; deployTargetId: string | null }): Promise<string> {
+  private async computeAccessUrl(deployment: {
+    id: string;
+    accessUrl: string | null;
+    environmentId: string;
+    deployTargetId: string | null;
+  }): Promise<string> {
     if (deployment.accessUrl) return deployment.accessUrl;
     const env = await this.prisma.environment.findUnique({ where: { id: deployment.environmentId } });
     const port = env?.externalPort || 3000;
@@ -483,12 +527,17 @@ export class WorkerService implements OnModuleInit {
     const previousId = environment?.currentDeploymentId;
     if (!previousId || previousId === deploymentId) return;
     const previous = await this.prisma.deployment.findUnique({ where: { id: previousId } });
-    if (!previous || !['SUCCEEDED', 'ROLLED_BACK'].includes(previous.status) || previous.deployTargetId !== failed.deployTargetId) return;
+    if (
+      !previous ||
+      !['SUCCEEDED', 'ROLLED_BACK'].includes(previous.status) ||
+      previous.deployTargetId !== failed.deployTargetId
+    )
+      return;
 
     const exists = await this.prisma.task.findFirst({ where: { taskType: 'ROLLBACK_DEPLOY', refId: deploymentId } });
     if (exists) return;
 
-    await this.prisma.$transaction(async tx => {
+    await this.prisma.$transaction(async (tx) => {
       await tx.deploymentStageLog.create({
         data: {
           deploymentId,
@@ -516,6 +565,10 @@ export class WorkerService implements OnModuleInit {
 
   private parsePayload(payload: string | null): Record<string, any> {
     if (!payload) return {};
-    try { return JSON.parse(payload); } catch { return {}; }
+    try {
+      return JSON.parse(payload);
+    } catch {
+      return {};
+    }
   }
 }

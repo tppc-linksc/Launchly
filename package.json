@@ -6,11 +6,24 @@
   "scripts": {
     "dev:web": "pnpm --dir apps/web dev",
     "build:web": "pnpm --dir apps/web build",
-    "test": "pnpm --dir services/api test && pnpm test:api:e2e && pnpm --dir apps/web test && pnpm --dir cli test",
+    "test": "pnpm test:policy && pnpm --dir services/api test && pnpm test:api:e2e && pnpm --dir apps/web test && pnpm --dir cli test",
     "test:api": "pnpm --dir services/api test",
     "test:api:e2e": "pnpm --dir services/api test:e2e --runInBand",
     "test:web": "pnpm --dir apps/web test",
     "test:cli": "pnpm --dir cli test",
-    "test:coverage": "pnpm --dir services/api test:coverage && pnpm --dir apps/web test:coverage && pnpm --dir cli test:coverage"
+    "test:coverage": "pnpm test:policy && pnpm --dir services/api test:coverage && pnpm --dir apps/web test:coverage && pnpm --dir cli test:coverage",
+    "test:policy": "node scripts/check-test-policy.mjs",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "quality": "pnpm test:policy && pnpm lint && pnpm format:check"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.9.1",
+    "eslint-plugin-vue": "^10.10.0",
+    "globals": "^17.11.0",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.69.0"
   }
 }

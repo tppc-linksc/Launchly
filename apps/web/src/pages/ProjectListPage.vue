@@ -1,16 +1,21 @@
 <template>
   <div>
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px">
       <div>
-        <h2 style="margin: 0;">项目</h2>
-        <p style="color: #8c8c8c; margin: 4px 0 0;">管理应用、静态站点、镜像、数据库与服务栈资源。</p>
+        <h2 style="margin: 0">项目</h2>
+        <p style="color: #8c8c8c; margin: 4px 0 0">管理应用、静态站点、镜像、数据库与服务栈资源。</p>
       </div>
       <el-button v-if="canWrite" type="primary" @click="$router.push('/resources/new')">新建资源</el-button>
     </div>
 
     <div v-loading="loading">
       <div class="project-grid">
-        <div v-for="project in projects" :key="project.id" class="project-card" @click="$router.push(`/projects/${project.id}`)">
+        <div
+          v-for="project in projects"
+          :key="project.id"
+          class="project-card"
+          @click="$router.push(`/projects/${project.id}`)"
+        >
           <div class="card-header">
             <div class="card-title">{{ project.name }}</div>
             <el-tag size="small">{{ project.projectType }}</el-tag>
@@ -28,7 +33,13 @@
           <div class="card-footer">
             <span class="card-time">{{ project.createdAt ? formatTime(project.createdAt) : '' }}</span>
             <div class="card-actions">
-              <el-button v-if="canDeploy" size="small" type="primary" @click.stop="$router.push(`/projects/${project.id}`)">部署</el-button>
+              <el-button
+                v-if="canDeploy"
+                size="small"
+                type="primary"
+                @click.stop="$router.push(`/projects/${project.id}`)"
+                >部署</el-button
+              >
               <el-button size="small" @click.stop="$router.push(`/projects/${project.id}`)">详情</el-button>
             </div>
           </div>
@@ -43,46 +54,51 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { fetchProjects, fetchDeployments } from '../api/client'
-import { deployStatusMap, formatTime } from '../utils/display'
-import { usePermission } from '../composables/usePermission'
+import { ref, computed, onMounted } from 'vue';
+import { ElMessage } from 'element-plus';
+import { fetchProjects, fetchDeployments } from '../api/client';
+import { deployStatusMap, formatTime } from '../utils/display';
+import { usePermission } from '../composables/usePermission';
 
-const { canWrite, canDeploy } = usePermission()
+const { canWrite, canDeploy } = usePermission();
 
-const projects = ref<any[]>([])
-const deployments = ref<any[]>([])
-const loading = ref(false)
+const projects = ref<any[]>([]);
+const deployments = ref<any[]>([]);
+const loading = ref(false);
 
 const lastDeployMap = computed(() => {
-  const map: Record<string, any> = {}
+  const map: Record<string, any> = {};
   for (const d of deployments.value) {
-    if (!map[d.projectId]) map[d.projectId] = d
+    if (!map[d.projectId]) map[d.projectId] = d;
   }
-  return map
-})
+  return map;
+});
 
 function deployTagType(status: string) {
   const map: Record<string, string> = {
-    PENDING: 'info', RUNNING: 'primary', SUCCEEDED: 'success',
-    FAILED: 'danger', CANCELED: 'warning',
-  }
-  return map[status] || 'info'
+    PENDING: 'info',
+    RUNNING: 'primary',
+    SUCCEEDED: 'success',
+    FAILED: 'danger',
+    CANCELED: 'warning',
+  };
+  return map[status] || 'info';
 }
 
 onMounted(async () => {
-  loading.value = true
+  loading.value = true;
   try {
     const [pRes, dRes] = await Promise.all([
       fetchProjects().catch(() => ({ data: [] })),
       fetchDeployments().catch(() => ({ data: [] })),
-    ])
-    projects.value = pRes.data || []
-    deployments.value = dRes.data || []
-  } catch (e) { ElMessage.error('操作失败，请稍后重试') }
-  loading.value = false
-})
+    ]);
+    projects.value = pRes.data || [];
+    deployments.value = dRes.data || [];
+  } catch (e) {
+    ElMessage.error('操作失败，请稍后重试');
+  }
+  loading.value = false;
+});
 </script>
 
 <style scoped>
@@ -97,7 +113,9 @@ onMounted(async () => {
   border-radius: 12px;
   padding: 20px;
   cursor: pointer;
-  transition: box-shadow 0.15s, border-color 0.15s;
+  transition:
+    box-shadow 0.15s,
+    border-color 0.15s;
 }
 .project-card:hover {
   border-color: #0d9488;

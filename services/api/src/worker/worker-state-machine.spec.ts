@@ -93,14 +93,14 @@ describe('worker-state-machine', () => {
   // ============================================================
   describe('B. mapTaskTypeToStage', () => {
     it.each([
-      ['REPO_CLONE',           'CLONE'],
-      ['PROJECT_IMAGE_PREPARE','BUILD'],
-      ['TEMPLATE_SOURCE',      'CLONE'],
-      ['PROJECT_BUILD',        'BUILD'],
-      ['PROJECT_DEPLOY',       'DEPLOY'],
-      ['PROJECT_BOOTSTRAP',    'BOOTSTRAP'],
-      ['HEALTH_CHECK',         'HEALTH_CHECK'],
-      ['ROLLBACK_DEPLOY',      'ROLLBACK'],
+      ['REPO_CLONE', 'CLONE'],
+      ['PROJECT_IMAGE_PREPARE', 'BUILD'],
+      ['TEMPLATE_SOURCE', 'CLONE'],
+      ['PROJECT_BUILD', 'BUILD'],
+      ['PROJECT_DEPLOY', 'DEPLOY'],
+      ['PROJECT_BOOTSTRAP', 'BOOTSTRAP'],
+      ['HEALTH_CHECK', 'HEALTH_CHECK'],
+      ['ROLLBACK_DEPLOY', 'ROLLBACK'],
     ])('mapTaskTypeToStage(%s) === %s', (taskType, expected) => {
       expect(mapTaskTypeToStage(taskType)).toBe(expected);
     });

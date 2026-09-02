@@ -21,7 +21,16 @@ function buildFactory() {
     ociImageRunner,
     templateSourceRunner,
   );
-  return { factory, gitRunner, shellRunner, dockerRunner, remoteSshRunner, buildkitRunner, ociImageRunner, templateSourceRunner };
+  return {
+    factory,
+    gitRunner,
+    shellRunner,
+    dockerRunner,
+    remoteSshRunner,
+    buildkitRunner,
+    ociImageRunner,
+    templateSourceRunner,
+  };
 }
 
 const SAMPLE_RESULT: RunnerResult = {
@@ -44,7 +53,16 @@ function makeContext(over: Partial<RunnerContext> = {}): RunnerContext {
 
 describe('RunnerFactory.execute - taskType routing matrix', () => {
   it('routes REPO_CLONE to GitRunner exactly once and skips every other runner', async () => {
-    const { factory, gitRunner, shellRunner, dockerRunner, remoteSshRunner, buildkitRunner, ociImageRunner, templateSourceRunner } = buildFactory();
+    const {
+      factory,
+      gitRunner,
+      shellRunner,
+      dockerRunner,
+      remoteSshRunner,
+      buildkitRunner,
+      ociImageRunner,
+      templateSourceRunner,
+    } = buildFactory();
     gitRunner.execute.mockResolvedValueOnce(SAMPLE_RESULT);
     const ctx = makeContext({ taskType: 'REPO_CLONE' });
 
@@ -62,7 +80,16 @@ describe('RunnerFactory.execute - taskType routing matrix', () => {
   });
 
   it('routes PROJECT_BUILD to BuildkitRunner exactly once', async () => {
-    const { factory, buildkitRunner, gitRunner, shellRunner, dockerRunner, remoteSshRunner, ociImageRunner, templateSourceRunner } = buildFactory();
+    const {
+      factory,
+      buildkitRunner,
+      gitRunner,
+      shellRunner,
+      dockerRunner,
+      remoteSshRunner,
+      ociImageRunner,
+      templateSourceRunner,
+    } = buildFactory();
     buildkitRunner.execute.mockResolvedValueOnce(SAMPLE_RESULT);
     const ctx = makeContext({ taskType: 'PROJECT_BUILD' });
 
@@ -80,7 +107,16 @@ describe('RunnerFactory.execute - taskType routing matrix', () => {
   });
 
   it('routes PROJECT_IMAGE_PREPARE to OciImageRunner exactly once', async () => {
-    const { factory, ociImageRunner, gitRunner, shellRunner, dockerRunner, remoteSshRunner, buildkitRunner, templateSourceRunner } = buildFactory();
+    const {
+      factory,
+      ociImageRunner,
+      gitRunner,
+      shellRunner,
+      dockerRunner,
+      remoteSshRunner,
+      buildkitRunner,
+      templateSourceRunner,
+    } = buildFactory();
     ociImageRunner.execute.mockResolvedValueOnce(SAMPLE_RESULT);
     const ctx = makeContext({ taskType: 'PROJECT_IMAGE_PREPARE' });
 
@@ -98,7 +134,16 @@ describe('RunnerFactory.execute - taskType routing matrix', () => {
   });
 
   it('routes TEMPLATE_SOURCE to TemplateSourceRunner exactly once', async () => {
-    const { factory, templateSourceRunner, gitRunner, shellRunner, dockerRunner, remoteSshRunner, buildkitRunner, ociImageRunner } = buildFactory();
+    const {
+      factory,
+      templateSourceRunner,
+      gitRunner,
+      shellRunner,
+      dockerRunner,
+      remoteSshRunner,
+      buildkitRunner,
+      ociImageRunner,
+    } = buildFactory();
     templateSourceRunner.execute.mockResolvedValueOnce(SAMPLE_RESULT);
     const ctx = makeContext({ taskType: 'TEMPLATE_SOURCE' });
 
@@ -116,7 +161,16 @@ describe('RunnerFactory.execute - taskType routing matrix', () => {
   });
 
   it('routes PROJECT_DEPLOY with deployTargetId to RemoteSshRunner exactly once', async () => {
-    const { factory, remoteSshRunner, gitRunner, shellRunner, dockerRunner, buildkitRunner, ociImageRunner, templateSourceRunner } = buildFactory();
+    const {
+      factory,
+      remoteSshRunner,
+      gitRunner,
+      shellRunner,
+      dockerRunner,
+      buildkitRunner,
+      ociImageRunner,
+      templateSourceRunner,
+    } = buildFactory();
     remoteSshRunner.execute.mockResolvedValueOnce(SAMPLE_RESULT);
     const ctx = makeContext({ taskType: 'PROJECT_DEPLOY', payload: { deployTargetId: 'target-1' } });
 
@@ -134,7 +188,16 @@ describe('RunnerFactory.execute - taskType routing matrix', () => {
   });
 
   it('routes PROJECT_BOOTSTRAP with deployTargetId to RemoteSshRunner exactly once', async () => {
-    const { factory, remoteSshRunner, gitRunner, shellRunner, dockerRunner, buildkitRunner, ociImageRunner, templateSourceRunner } = buildFactory();
+    const {
+      factory,
+      remoteSshRunner,
+      gitRunner,
+      shellRunner,
+      dockerRunner,
+      buildkitRunner,
+      ociImageRunner,
+      templateSourceRunner,
+    } = buildFactory();
     remoteSshRunner.execute.mockResolvedValueOnce(SAMPLE_RESULT);
     const ctx = makeContext({ taskType: 'PROJECT_BOOTSTRAP', payload: { deployTargetId: 'target-1' } });
 
@@ -152,7 +215,16 @@ describe('RunnerFactory.execute - taskType routing matrix', () => {
   });
 
   it('routes ROLLBACK_DEPLOY to RemoteSshRunner exactly once (no deployTargetId check)', async () => {
-    const { factory, remoteSshRunner, gitRunner, shellRunner, dockerRunner, buildkitRunner, ociImageRunner, templateSourceRunner } = buildFactory();
+    const {
+      factory,
+      remoteSshRunner,
+      gitRunner,
+      shellRunner,
+      dockerRunner,
+      buildkitRunner,
+      ociImageRunner,
+      templateSourceRunner,
+    } = buildFactory();
     remoteSshRunner.execute.mockResolvedValueOnce(SAMPLE_RESULT);
     const ctx = makeContext({ taskType: 'ROLLBACK_DEPLOY', payload: {} });
 
@@ -170,7 +242,16 @@ describe('RunnerFactory.execute - taskType routing matrix', () => {
   });
 
   it('routes HEALTH_CHECK to ShellRunner exactly once', async () => {
-    const { factory, shellRunner, gitRunner, dockerRunner, remoteSshRunner, buildkitRunner, ociImageRunner, templateSourceRunner } = buildFactory();
+    const {
+      factory,
+      shellRunner,
+      gitRunner,
+      dockerRunner,
+      remoteSshRunner,
+      buildkitRunner,
+      ociImageRunner,
+      templateSourceRunner,
+    } = buildFactory();
     shellRunner.execute.mockResolvedValueOnce(SAMPLE_RESULT);
     const ctx = makeContext({ taskType: 'HEALTH_CHECK' });
 
@@ -190,7 +271,16 @@ describe('RunnerFactory.execute - taskType routing matrix', () => {
 
 describe('RunnerFactory.execute - no-route failure paths', () => {
   it('PROJECT_DEPLOY without deployTargetId: no runner called, returns complete unknown-task failure', async () => {
-    const { factory, gitRunner, shellRunner, dockerRunner, remoteSshRunner, buildkitRunner, ociImageRunner, templateSourceRunner } = buildFactory();
+    const {
+      factory,
+      gitRunner,
+      shellRunner,
+      dockerRunner,
+      remoteSshRunner,
+      buildkitRunner,
+      ociImageRunner,
+      templateSourceRunner,
+    } = buildFactory();
     const ctx = makeContext({ taskType: 'PROJECT_DEPLOY', payload: {} });
 
     const result = await factory.execute('PROJECT_DEPLOY', ctx);
@@ -212,7 +302,16 @@ describe('RunnerFactory.execute - no-route failure paths', () => {
   });
 
   it('PROJECT_DEPLOY with empty-string deployTargetId: no runner called, returns complete failure (current behavior)', async () => {
-    const { factory, gitRunner, shellRunner, dockerRunner, remoteSshRunner, buildkitRunner, ociImageRunner, templateSourceRunner } = buildFactory();
+    const {
+      factory,
+      gitRunner,
+      shellRunner,
+      dockerRunner,
+      remoteSshRunner,
+      buildkitRunner,
+      ociImageRunner,
+      templateSourceRunner,
+    } = buildFactory();
     const ctx = makeContext({ taskType: 'PROJECT_DEPLOY', payload: { deployTargetId: '' } });
 
     const result = await factory.execute('PROJECT_DEPLOY', ctx);
@@ -257,7 +356,16 @@ describe('RunnerFactory.execute - no-route failure paths', () => {
   });
 
   it('completely unknown taskType: no runner called, errorMessage contains the exact taskType', async () => {
-    const { factory, gitRunner, shellRunner, dockerRunner, remoteSshRunner, buildkitRunner, ociImageRunner, templateSourceRunner } = buildFactory();
+    const {
+      factory,
+      gitRunner,
+      shellRunner,
+      dockerRunner,
+      remoteSshRunner,
+      buildkitRunner,
+      ociImageRunner,
+      templateSourceRunner,
+    } = buildFactory();
     const ctx = makeContext({ taskType: 'TOTALLY_MADE_UP_TYPE' });
 
     const result = await factory.execute('TOTALLY_MADE_UP_TYPE', ctx);
@@ -279,7 +387,16 @@ describe('RunnerFactory.execute - no-route failure paths', () => {
   });
 
   it('PROJECT_DEPLOY with a null payload throws before routing (current behavior)', async () => {
-    const { factory, gitRunner, shellRunner, dockerRunner, remoteSshRunner, buildkitRunner, ociImageRunner, templateSourceRunner } = buildFactory();
+    const {
+      factory,
+      gitRunner,
+      shellRunner,
+      dockerRunner,
+      remoteSshRunner,
+      buildkitRunner,
+      ociImageRunner,
+      templateSourceRunner,
+    } = buildFactory();
     const ctx = makeContext({ taskType: 'PROJECT_DEPLOY', payload: null as any });
 
     await expect(factory.execute('PROJECT_DEPLOY', ctx)).rejects.toBeInstanceOf(TypeError);
@@ -296,7 +413,16 @@ describe('RunnerFactory.execute - no-route failure paths', () => {
 
 describe('RunnerFactory - DockerRunner is never routed (current isolation policy)', () => {
   it('every routed taskType except PROJECT_IMAGE_PREPARE does NOT touch DockerRunner', async () => {
-    const { factory, dockerRunner, gitRunner, shellRunner, remoteSshRunner, buildkitRunner, ociImageRunner, templateSourceRunner } = buildFactory();
+    const {
+      factory,
+      dockerRunner,
+      gitRunner,
+      shellRunner,
+      remoteSshRunner,
+      buildkitRunner,
+      ociImageRunner,
+      templateSourceRunner,
+    } = buildFactory();
     gitRunner.execute.mockResolvedValue(SAMPLE_RESULT);
     shellRunner.execute.mockResolvedValue(SAMPLE_RESULT);
     remoteSshRunner.execute.mockResolvedValue(SAMPLE_RESULT);

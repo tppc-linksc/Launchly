@@ -132,9 +132,7 @@ beforeEach(() => {
   capturedExitCodes = [];
 
   consoleSpy = vi.spyOn(console, 'log').mockImplementation((...args: any[]) => {
-    capturedOutput.push(
-      args.map((a) => (typeof a === 'string' ? a : String(a))).join(' ') + '\n',
-    );
+    capturedOutput.push(args.map((a) => (typeof a === 'string' ? a : String(a))).join(' ') + '\n');
     return undefined;
   });
   stdoutWriteSpy = vi.spyOn(process.stdout, 'write').mockImplementation((chunk: any) => {
@@ -194,8 +192,7 @@ afterEach(() => {
   }
   if (exitCodesSnapshot.length !== 0) {
     throw new Error(
-      `Test ended with ${exitCodesSnapshot.length} unexpected process.exit call(s): ` +
-        exitCodesSnapshot.join(', '),
+      `Test ended with ${exitCodesSnapshot.length} unexpected process.exit call(s): ` + exitCodesSnapshot.join(', '),
     );
   }
 });
@@ -393,7 +390,9 @@ describe('CLI doctor - scenario 3: diagnostics unavailable', () => {
       throw: new Error('not in use'),
     });
 
-    statfsSyncMock.mockImplementation(() => { throw new Error('statfs unavailable'); });
+    statfsSyncMock.mockImplementation(() => {
+      throw new Error('statfs unavailable');
+    });
 
     await runDoctor();
 

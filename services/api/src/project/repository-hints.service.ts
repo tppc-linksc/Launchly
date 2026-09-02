@@ -63,7 +63,7 @@ export class RepositoryHintsService {
       const build = buildScript ? this.runScript(pm, 'build') : null;
       const start = this.startCommand(pm);
       const test = testScript ? this.runScript(pm, 'test') : null;
-      let port = this.parsePortFromStart(startScript) ?? 3000;
+      const port = this.parsePortFromStart(startScript) ?? 3000;
 
       let source = 'package.json';
       const readmeLine = await this.readmeInstallLine(repositoryUrl, refEnc);
@@ -72,7 +72,15 @@ export class RepositoryHintsService {
         source = 'package.json+readme';
       }
 
-      return { installCommand: install, buildCommand: build, startCommand: start, testCommand: test, defaultPort: port, healthCheckPath: null, source };
+      return {
+        installCommand: install,
+        buildCommand: build,
+        startCommand: start,
+        testCommand: test,
+        defaultPort: port,
+        healthCheckPath: null,
+        source,
+      };
     } catch {
       return null;
     }
@@ -147,25 +155,34 @@ export class RepositoryHintsService {
 
   private installCommand(pm: PackageManager): string {
     switch (pm) {
-      case 'PNPM': return 'corepack enable && pnpm install --frozen-lockfile';
-      case 'YARN': return 'corepack enable && yarn install --immutable';
-      case 'NPM': return 'npm ci --omit=dev || npm install --omit=dev';
+      case 'PNPM':
+        return 'corepack enable && pnpm install --frozen-lockfile';
+      case 'YARN':
+        return 'corepack enable && yarn install --immutable';
+      case 'NPM':
+        return 'npm ci --omit=dev || npm install --omit=dev';
     }
   }
 
   private runScript(pm: PackageManager, script: string): string {
     switch (pm) {
-      case 'PNPM': return `pnpm run ${script}`;
-      case 'YARN': return `yarn ${script}`;
-      case 'NPM': return `npm run ${script}`;
+      case 'PNPM':
+        return `pnpm run ${script}`;
+      case 'YARN':
+        return `yarn ${script}`;
+      case 'NPM':
+        return `npm run ${script}`;
     }
   }
 
   private startCommand(pm: PackageManager): string {
     switch (pm) {
-      case 'PNPM': return 'pnpm start';
-      case 'YARN': return 'yarn start';
-      case 'NPM': return 'npm start';
+      case 'PNPM':
+        return 'pnpm start';
+      case 'YARN':
+        return 'yarn start';
+      case 'NPM':
+        return 'npm start';
     }
   }
 

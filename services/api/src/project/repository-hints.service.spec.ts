@@ -62,15 +62,15 @@ describe('RepositoryHintsService', () => {
   describe('A. repository URL → raw URL building', () => {
     it('GitHub HTTPS URL → raw.githubusercontent.com/.../package.json', async () => {
       fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' }));
-      fetchMock.mockResolvedValueOnce(headResponse(false, 404));   // pnpm HEAD
-      fetchMock.mockResolvedValueOnce(emptyGetResponse());          // pnpm GET fallback (empty)
-      fetchMock.mockResolvedValueOnce(headResponse(false, 404));   // yarn HEAD
-      fetchMock.mockResolvedValueOnce(emptyGetResponse());          // yarn GET fallback (empty)
-      fetchMock.mockResolvedValueOnce(notFoundResponse());          // README
+      fetchMock.mockResolvedValueOnce(headResponse(false, 404)); // pnpm HEAD
+      fetchMock.mockResolvedValueOnce(emptyGetResponse()); // pnpm GET fallback (empty)
+      fetchMock.mockResolvedValueOnce(headResponse(false, 404)); // yarn HEAD
+      fetchMock.mockResolvedValueOnce(emptyGetResponse()); // yarn GET fallback (empty)
+      fetchMock.mockResolvedValueOnce(notFoundResponse()); // README
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
 
-      const urls = fetchMock.mock.calls.map(c => String(c[0]));
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
       expect(result).not.toBeNull();
       expect(urls[0]).toBe('https://raw.githubusercontent.com/acme/app/main/package.json');
       expect(urls).toContain('https://raw.githubusercontent.com/acme/app/main/README.md');
@@ -91,7 +91,7 @@ describe('RepositoryHintsService', () => {
 
       const result = await service.infer('git@github.com:acme/app.git', 'main');
 
-      const urls = fetchMock.mock.calls.map(c => String(c[0]));
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
       expect(result).not.toBeNull();
       expect(urls[0]).toBe('https://raw.githubusercontent.com/acme/a/main/package.json');
       expect(urls).toContain('https://raw.githubusercontent.com/acme/a/main/README.md');
@@ -111,7 +111,7 @@ describe('RepositoryHintsService', () => {
 
       const result = await service.infer('git@github.com:acme/app', 'main');
 
-      const urls = fetchMock.mock.calls.map(c => String(c[0]));
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
       expect(result).not.toBeNull();
       expect(urls[0]).toBe('https://raw.githubusercontent.com/acme/a/main/package.json');
       expect(urls).toContain('https://raw.githubusercontent.com/acme/a/main/README.md');
@@ -127,7 +127,7 @@ describe('RepositoryHintsService', () => {
 
       const result = await service.infer('https://gitlab.com/acme/app.git', 'main');
 
-      const urls = fetchMock.mock.calls.map(c => String(c[0]));
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
       expect(result).not.toBeNull();
       expect(urls[0]).toBe('https://gitlab.com/acme/app/-/raw/main/package.json');
       expect(urls).toContain('https://gitlab.com/acme/app/-/raw/main/README.md');
@@ -143,7 +143,7 @@ describe('RepositoryHintsService', () => {
 
       const result = await service.infer('https://gitee.com/acme/app.git', 'main');
 
-      const urls = fetchMock.mock.calls.map(c => String(c[0]));
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
       expect(result).not.toBeNull();
       expect(urls[0]).toBe('https://gitee.com/acme/app/raw/main/package.json');
       expect(urls).toContain('https://gitee.com/acme/app/raw/main/README.md');
@@ -159,7 +159,7 @@ describe('RepositoryHintsService', () => {
 
       await service.infer('https://github.com/acme/app.git', 'feature/foo');
 
-      const urls = fetchMock.mock.calls.map(c => String(c[0]));
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
       expect(urls[0]).toBe('https://raw.githubusercontent.com/acme/app/feature%2Ffoo/package.json');
     });
 
@@ -184,11 +184,13 @@ describe('RepositoryHintsService', () => {
 
   describe('B. package manager detection', () => {
     it('uses packageManager field "pnpm@..." to pick PNPM', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({
-        packageManager: 'pnpm@8.0.0',
-        scripts: { build: 'vite build', start: 'vite preview', test: 'vitest run' },
-      }));
-      fetchMock.mockResolvedValueOnce(notFoundResponse());   // README
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({
+          packageManager: 'pnpm@8.0.0',
+          scripts: { build: 'vite build', start: 'vite preview', test: 'vitest run' },
+        }),
+      );
+      fetchMock.mockResolvedValueOnce(notFoundResponse()); // README
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
 
@@ -199,10 +201,12 @@ describe('RepositoryHintsService', () => {
     });
 
     it('uses packageManager field "yarn@..." to pick YARN', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({
-        packageManager: 'yarn@4.0.0',
-        scripts: { build: 'vite build', start: 'vite preview', test: 'vitest run' },
-      }));
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({
+          packageManager: 'yarn@4.0.0',
+          scripts: { build: 'vite build', start: 'vite preview', test: 'vitest run' },
+        }),
+      );
       fetchMock.mockResolvedValueOnce(notFoundResponse());
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
@@ -214,12 +218,12 @@ describe('RepositoryHintsService', () => {
     });
 
     it('falls back to NPM when neither packageManager nor lockfiles are found', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' }));   // package.json
-      fetchMock.mockResolvedValueOnce(headResponse(false, 404));         // pnpm HEAD
-      fetchMock.mockResolvedValueOnce(emptyGetResponse());                // pnpm GET fallback (empty)
-      fetchMock.mockResolvedValueOnce(headResponse(false, 404));         // yarn HEAD
-      fetchMock.mockResolvedValueOnce(emptyGetResponse());                // yarn GET fallback (empty)
-      fetchMock.mockResolvedValueOnce(notFoundResponse());                // README
+      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' })); // package.json
+      fetchMock.mockResolvedValueOnce(headResponse(false, 404)); // pnpm HEAD
+      fetchMock.mockResolvedValueOnce(emptyGetResponse()); // pnpm GET fallback (empty)
+      fetchMock.mockResolvedValueOnce(headResponse(false, 404)); // yarn HEAD
+      fetchMock.mockResolvedValueOnce(emptyGetResponse()); // yarn GET fallback (empty)
+      fetchMock.mockResolvedValueOnce(notFoundResponse()); // README
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
 
@@ -228,23 +232,23 @@ describe('RepositoryHintsService', () => {
     });
 
     it('uses pnpm-lock.yaml HEAD success to pick PNPM (no fallback GET, no yarn HEAD)', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' }));   // package.json
-      fetchMock.mockResolvedValueOnce(headResponse(true, 200));          // pnpm HEAD 200
-      fetchMock.mockResolvedValueOnce(notFoundResponse());                // README
+      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' })); // package.json
+      fetchMock.mockResolvedValueOnce(headResponse(true, 200)); // pnpm HEAD 200
+      fetchMock.mockResolvedValueOnce(notFoundResponse()); // README
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
 
       expect(result!.installCommand).toBe('corepack enable && pnpm install --frozen-lockfile');
-      const urls = fetchMock.mock.calls.map(c => String(c[0]));
-      expect(urls.some(u => u.endsWith('yarn.lock'))).toBe(false);
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.endsWith('yarn.lock'))).toBe(false);
     });
 
     it('uses yarn.lock HEAD success to pick YARN when pnpm-lock.yaml is missing', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' }));   // package.json
-      fetchMock.mockResolvedValueOnce(headResponse(false, 404));         // pnpm HEAD
-      fetchMock.mockResolvedValueOnce(emptyGetResponse());                // pnpm GET fallback (empty)
-      fetchMock.mockResolvedValueOnce(headResponse(true, 200));          // yarn HEAD 200
-      fetchMock.mockResolvedValueOnce(notFoundResponse());                // README
+      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' })); // package.json
+      fetchMock.mockResolvedValueOnce(headResponse(false, 404)); // pnpm HEAD
+      fetchMock.mockResolvedValueOnce(emptyGetResponse()); // pnpm GET fallback (empty)
+      fetchMock.mockResolvedValueOnce(headResponse(true, 200)); // yarn HEAD 200
+      fetchMock.mockResolvedValueOnce(notFoundResponse()); // README
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
 
@@ -252,21 +256,21 @@ describe('RepositoryHintsService', () => {
     });
 
     it('prefers PNPM over YARN', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' }));   // package.json
-      fetchMock.mockResolvedValueOnce(headResponse(true, 200));          // pnpm HEAD 200
-      fetchMock.mockResolvedValueOnce(notFoundResponse());                // README
+      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' })); // package.json
+      fetchMock.mockResolvedValueOnce(headResponse(true, 200)); // pnpm HEAD 200
+      fetchMock.mockResolvedValueOnce(notFoundResponse()); // README
 
       await service.infer('https://github.com/acme/app.git', 'main');
 
-      const urls = fetchMock.mock.calls.map(c => String(c[0]));
-      expect(urls.some(u => u.endsWith('yarn.lock'))).toBe(false);
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
+      expect(urls.some((u) => u.endsWith('yarn.lock'))).toBe(false);
     });
 
     it('falls back to GET when HEAD returns 405', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' }));   // package.json
-      fetchMock.mockResolvedValueOnce(headResponse(false, 405));         // pnpm HEAD 405
+      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' })); // package.json
+      fetchMock.mockResolvedValueOnce(headResponse(false, 405)); // pnpm HEAD 405
       fetchMock.mockResolvedValueOnce(jsonResponse('lockfile-content')); // pnpm GET fallback
-      fetchMock.mockResolvedValueOnce(notFoundResponse());                // README
+      fetchMock.mockResolvedValueOnce(notFoundResponse()); // README
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
 
@@ -274,10 +278,10 @@ describe('RepositoryHintsService', () => {
     });
 
     it('falls back to GET when HEAD returns 404', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' }));   // package.json
-      fetchMock.mockResolvedValueOnce(headResponse(false, 404));         // pnpm HEAD 404
+      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' })); // package.json
+      fetchMock.mockResolvedValueOnce(headResponse(false, 404)); // pnpm HEAD 404
       fetchMock.mockResolvedValueOnce(jsonResponse('lockfile-content')); // pnpm GET fallback
-      fetchMock.mockResolvedValueOnce(notFoundResponse());                // README
+      fetchMock.mockResolvedValueOnce(notFoundResponse()); // README
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
 
@@ -285,10 +289,10 @@ describe('RepositoryHintsService', () => {
     });
 
     it('falls back to GET when HEAD itself throws (timeout / network error)', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' }));   // package.json
-      fetchMock.mockRejectedValueOnce(new Error('aborted'));              // pnpm HEAD throws
+      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' })); // package.json
+      fetchMock.mockRejectedValueOnce(new Error('aborted')); // pnpm HEAD throws
       fetchMock.mockResolvedValueOnce(jsonResponse('lockfile-content')); // pnpm GET fallback
-      fetchMock.mockResolvedValueOnce(notFoundResponse());                // README
+      fetchMock.mockResolvedValueOnce(notFoundResponse()); // README
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
 
@@ -296,12 +300,12 @@ describe('RepositoryHintsService', () => {
     });
 
     it('empty / whitespace fallback body is treated as resource-missing', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' }));   // package.json
-      fetchMock.mockResolvedValueOnce(headResponse(false, 405));         // pnpm HEAD
-      fetchMock.mockResolvedValueOnce(jsonResponse('   '));              // pnpm GET fallback (whitespace)
-      fetchMock.mockResolvedValueOnce(headResponse(false, 404));         // yarn HEAD
-      fetchMock.mockResolvedValueOnce(emptyGetResponse());                // yarn GET fallback (empty)
-      fetchMock.mockResolvedValueOnce(notFoundResponse());                // README
+      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' })); // package.json
+      fetchMock.mockResolvedValueOnce(headResponse(false, 405)); // pnpm HEAD
+      fetchMock.mockResolvedValueOnce(jsonResponse('   ')); // pnpm GET fallback (whitespace)
+      fetchMock.mockResolvedValueOnce(headResponse(false, 404)); // yarn HEAD
+      fetchMock.mockResolvedValueOnce(emptyGetResponse()); // yarn GET fallback (empty)
+      fetchMock.mockResolvedValueOnce(notFoundResponse()); // README
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
 
@@ -309,25 +313,27 @@ describe('RepositoryHintsService', () => {
     });
 
     it('does not mistake other non-2xx HEAD statuses (e.g. 500) for existing (no fallback GET for 500)', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' }));   // package.json
-      fetchMock.mockResolvedValueOnce(headResponse(false, 500));         // pnpm HEAD 500
-      fetchMock.mockResolvedValueOnce(headResponse(false, 500));         // yarn HEAD 500
-      fetchMock.mockResolvedValueOnce(notFoundResponse());                // README
+      fetchMock.mockResolvedValueOnce(jsonResponse({ name: 'app' })); // package.json
+      fetchMock.mockResolvedValueOnce(headResponse(false, 500)); // pnpm HEAD 500
+      fetchMock.mockResolvedValueOnce(headResponse(false, 500)); // yarn HEAD 500
+      fetchMock.mockResolvedValueOnce(notFoundResponse()); // README
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
 
       expect(result!.installCommand).toBe('npm ci --omit=dev || npm install --omit=dev');
-      const urls = fetchMock.mock.calls.map(c => String(c[0]));
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
       // No fallback GET for 500 — only the two HEADs and the README
-      expect(urls.filter(u => u.includes('pnpm-lock') || u.includes('yarn.lock'))).toHaveLength(2);
+      expect(urls.filter((u) => u.includes('pnpm-lock') || u.includes('yarn.lock'))).toHaveLength(2);
     });
   });
 
   describe('C. scripts and ports', () => {
     it('returns build/test commands when scripts are present', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({
-        scripts: { build: 'vite build', start: 'vite preview --port 4173', test: 'vitest run' },
-      }));
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({
+          scripts: { build: 'vite build', start: 'vite preview --port 4173', test: 'vitest run' },
+        }),
+      );
       fetchMock.mockResolvedValueOnce(headResponse(false, 404));
       fetchMock.mockResolvedValueOnce(emptyGetResponse());
       fetchMock.mockResolvedValueOnce(headResponse(false, 404));
@@ -385,10 +391,10 @@ describe('RepositoryHintsService', () => {
     });
 
     it.each([
-      ['--port 4173',  4173],
-      ['-p 8080',      8080],
-      ['PORT=5000',    5000],
-      ['PORT = 5000',  5000],
+      ['--port 4173', 4173],
+      ['-p 8080', 8080],
+      ['PORT=5000', 5000],
+      ['PORT = 5000', 5000],
     ])('parses port from start script: %s', async (startScript, expectedPort) => {
       fetchMock.mockResolvedValueOnce(jsonResponse({ scripts: { start: `node server.js ${startScript}` } }));
       fetchMock.mockResolvedValueOnce(headResponse(false, 404));
@@ -530,7 +536,12 @@ describe('RepositoryHintsService', () => {
 
   describe('E. network and content failures', () => {
     it('package.json GET returning non-2xx → null', async () => {
-      fetchMock.mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Server Error', text: () => Promise.resolve('') } as any);
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Server Error',
+        text: () => Promise.resolve(''),
+      } as any);
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
 
@@ -576,7 +587,12 @@ describe('RepositoryHintsService', () => {
       fetchMock.mockResolvedValueOnce(emptyGetResponse());
       fetchMock.mockResolvedValueOnce(headResponse(false, 404));
       fetchMock.mockResolvedValueOnce(emptyGetResponse());
-      fetchMock.mockResolvedValueOnce({ ok: false, status: 500, statusText: 'Server Error', text: () => Promise.resolve('') } as any);
+      fetchMock.mockResolvedValueOnce({
+        ok: false,
+        status: 500,
+        statusText: 'Server Error',
+        text: () => Promise.resolve(''),
+      } as any);
 
       const result = await service.infer('https://github.com/acme/app.git', 'main');
 
@@ -631,9 +647,11 @@ describe('RepositoryHintsService', () => {
     });
 
     it('keeps already-set (non-null, non-undefined, non-empty) fields untouched', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({
-        scripts: { build: 'vite build', start: 'node server.js --port 4173', test: 'vitest run' },
-      }));
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({
+          scripts: { build: 'vite build', start: 'node server.js --port 4173', test: 'vitest run' },
+        }),
+      );
       fetchMock.mockResolvedValueOnce(headResponse(false, 404));
       fetchMock.mockResolvedValueOnce(emptyGetResponse());
       fetchMock.mockResolvedValueOnce(headResponse(false, 404));
@@ -662,9 +680,11 @@ describe('RepositoryHintsService', () => {
     });
 
     it('fills null / undefined / empty fields with inferred values', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({
-        scripts: { build: 'vite build', start: 'node server.js --port 4173', test: 'vitest run' },
-      }));
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({
+          scripts: { build: 'vite build', start: 'node server.js --port 4173', test: 'vitest run' },
+        }),
+      );
       fetchMock.mockResolvedValueOnce(headResponse(false, 404));
       fetchMock.mockResolvedValueOnce(emptyGetResponse());
       fetchMock.mockResolvedValueOnce(headResponse(false, 404));
@@ -702,7 +722,7 @@ describe('RepositoryHintsService', () => {
 
       await service.fillBlanksFromRepository({ repositoryUrl: 'https://github.com/acme/app.git' } as any);
 
-      const urls = fetchMock.mock.calls.map(c => String(c[0]));
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
       expect(urls[0]).toBe('https://raw.githubusercontent.com/acme/app/main/package.json');
     });
 
@@ -719,14 +739,16 @@ describe('RepositoryHintsService', () => {
         defaultBranch: 'main',
       } as any);
 
-      const urls = fetchMock.mock.calls.map(c => String(c[0]));
+      const urls = fetchMock.mock.calls.map((c) => String(c[0]));
       expect(urls[0]).toBe('https://raw.githubusercontent.com/acme/app/main/package.json');
     });
 
     it('final project object after fillBlanksFromRepository has the inferred values', async () => {
-      fetchMock.mockResolvedValueOnce(jsonResponse({
-        scripts: { build: 'vite build', start: 'node server.js --port 4173', test: 'vitest run' },
-      }));
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse({
+          scripts: { build: 'vite build', start: 'node server.js --port 4173', test: 'vitest run' },
+        }),
+      );
       fetchMock.mockResolvedValueOnce(headResponse(false, 404));
       fetchMock.mockResolvedValueOnce(emptyGetResponse());
       fetchMock.mockResolvedValueOnce(headResponse(false, 404));

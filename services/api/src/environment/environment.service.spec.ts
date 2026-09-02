@@ -21,7 +21,10 @@ describe('EnvironmentService', () => {
 
   describe('listByProject', () => {
     it('queries Prisma with the exact projectId and orderBy type asc', async () => {
-      const rows = [{ id: 'e1', type: 'PROD' }, { id: 'e2', type: 'STAGING' }];
+      const rows = [
+        { id: 'e1', type: 'PROD' },
+        { id: 'e2', type: 'STAGING' },
+      ];
       prisma.environment.findMany.mockResolvedValue(rows);
 
       const result = await service.listByProject(projectId);
@@ -199,8 +202,9 @@ describe('EnvironmentService', () => {
     it('throws ForbiddenException when the same domain already exists in the workspace', async () => {
       prisma.environment.findFirst.mockResolvedValue({ id: 'env-other' });
 
-      await expect(service.update(envId, { domain: 'taken.example.com' }, workspaceId))
-        .rejects.toThrow(ForbiddenException);
+      await expect(service.update(envId, { domain: 'taken.example.com' }, workspaceId)).rejects.toThrow(
+        ForbiddenException,
+      );
       expect(prisma.environment.update).not.toHaveBeenCalled();
     });
 
@@ -210,8 +214,7 @@ describe('EnvironmentService', () => {
       ['single label without dot', 'localhost'],
       ['illegal character', 'app_example.com'],
     ])('rejects an invalid domain (%s) and does not call update', async (_label, bad) => {
-      await expect(service.update(envId, { domain: bad }, workspaceId))
-        .rejects.toThrow(ForbiddenException);
+      await expect(service.update(envId, { domain: bad }, workspaceId)).rejects.toThrow(ForbiddenException);
       expect(prisma.environment.update).not.toHaveBeenCalled();
     });
   });

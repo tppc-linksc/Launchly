@@ -17,7 +17,8 @@ import { canonicalSshHostKey, parseSshHostKey } from '../common/security/ssh-hos
 const DEFAULT_WORK_ROOT = '/var/lib/launchly';
 const SAFE_WORK_ROOT = /^\/(?:[A-Za-z0-9][A-Za-z0-9._-]*)(?:\/[A-Za-z0-9][A-Za-z0-9._-]*)*$/;
 /** host：字母数字 + . + -，或 IPv6 字面量。 */
-const SAFE_HOST = /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*|\[(?:[0-9a-fA-F:]+\])|(?:\d{1,3}\.){3}\d{1,3})$/;
+const SAFE_HOST =
+  /^(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*|\[(?:[0-9a-fA-F:]+\])|(?:\d{1,3}\.){3}\d{1,3})$/;
 /** SSH 用户：必须以字母或下划线开头，长度 1-32。 */
 const SAFE_USER = /^[a-z_][a-z0-9_-]{0,31}$/;
 /** name：字母/数字/点/下划线/连字符/空格，1-255。 */
@@ -85,7 +86,7 @@ export class DeployTargetService {
       where: { projectId },
       orderBy: { createdAt: 'desc' },
     });
-    return targets.map(t => viewOf(t));
+    return targets.map((t) => viewOf(t));
   }
 
   async listAll(workspaceId: string) {
@@ -94,10 +95,23 @@ export class DeployTargetService {
       include: { project: { select: { name: true } } },
       orderBy: { createdAt: 'desc' },
     });
-    return targets.map(t => ({ ...viewOf(t), projectName: (t as any).project?.name }));
+    return targets.map((t) => ({ ...viewOf(t), projectName: (t as any).project?.name }));
   }
 
-  async create(projectId: string, data: { name: string; host: string; port?: number; username: string; authMethod?: string; credential?: string; hostKey?: string; workRoot?: string; type?: string }) {
+  async create(
+    projectId: string,
+    data: {
+      name: string;
+      host: string;
+      port?: number;
+      username: string;
+      authMethod?: string;
+      credential?: string;
+      hostKey?: string;
+      workRoot?: string;
+      type?: string;
+    },
+  ) {
     this.assertSafeTargetInput(data);
     // 工作目录必须在加密前校验：避免在无效输入上执行昂贵的 secrets.encrypt 调用。
     const workRoot = this.normalizeWorkRoot(data.workRoot);
@@ -129,7 +143,19 @@ export class DeployTargetService {
    * 部分更新：必须把"现有 + 改动"合并后再做一次完整校验，
    * 保证哪怕只改一个字段，结果行也满足 KEY/非 root/合法 Host/合法 workRoot。
    */
-  async update(id: string, data: Partial<{ name: string; host: string; port: number; username: string; authMethod: string; credential: string; hostKey: string; workRoot: string }>) {
+  async update(
+    id: string,
+    data: Partial<{
+      name: string;
+      host: string;
+      port: number;
+      username: string;
+      authMethod: string;
+      credential: string;
+      hostKey: string;
+      workRoot: string;
+    }>,
+  ) {
     const existing = await this.prisma.deployTarget.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('部署目标不存在');
 
@@ -190,10 +216,22 @@ export class DeployTargetService {
 
     let settled = false;
     const client = new Client();
-    const safeEnd = () => { try { client.end(); } catch { /* already ended */ } };
+    const safeEnd = () => {
+      try {
+        client.end();
+      } catch {
+        /* already ended */
+      }
+    };
 
     try {
-      const runtime = await new Promise<{ dockerVersion: string; composeVersion: string; architecture: string; freeKb: string; httpPort: string }>((resolve, reject) => {
+      const runtime = await new Promise<{
+        dockerVersion: string;
+        composeVersion: string;
+        architecture: string;
+        freeKb: string;
+        httpPort: string;
+      }>((resolve, reject) => {
         const settle = (fn: () => void) => {
           if (settled) return;
           settled = true;
@@ -207,11 +245,18 @@ export class DeployTargetService {
             const root = this.normalizeWorkRoot(target.workRoot);
             const command = `set -eu; command -v docker >/dev/null; docker version --format '{{.Server.Version}}'; docker compose version --short; docker info --format '{{.Architecture}}'; mkdir -p '${root}'; chmod 700 '${root}'; test -w '${root}'; df -Pk '${root}' | awk 'NR == 2 { print $4 }'; if command -v ss >/dev/null 2>&1; then if ss -ltn | grep -Eq '[:.]80([[:space:]]|$)'; then echo OCCUPIED; else echo AVAILABLE; fi; else echo UNKNOWN; fi`;
             client.exec(command, (execError, stream) => {
-              if (execError) { settle(() => reject(execError)); return; }
+              if (execError) {
+                settle(() => reject(execError));
+                return;
+              }
               let stdout = '';
               let stderr = '';
-              stream.on('data', (chunk: Buffer) => { stdout += chunk.toString(); });
-              stream.stderr.on('data', (chunk: Buffer) => { stderr += chunk.toString(); });
+              stream.on('data', (chunk: Buffer) => {
+                stdout += chunk.toString();
+              });
+              stream.stderr.on('data', (chunk: Buffer) => {
+                stderr += chunk.toString();
+              });
               stream.on('close', (code: number | null) => {
                 if (code !== 0) {
                   settle(() => reject(new Error(stderr.trim() || 'Docker / Docker Compose / 工作目录检查失败')));
@@ -232,7 +277,9 @@ export class DeployTargetService {
           }
         });
         client.on('error', (err: Error) => settle(() => reject(err)));
-        client.on('close', () => { if (!settled) settle(() => reject(new Error('SSH 连接在完成预检前已关闭'))); });
+        client.on('close', () => {
+          if (!settled) settle(() => reject(new Error('SSH 连接在完成预检前已关闭')));
+        });
         client.connect({
           host: target.host,
           port: target.port,
@@ -243,12 +290,16 @@ export class DeployTargetService {
         });
       });
 
-      await this.prisma.deployTarget.update({ where: { id }, data: { status: 'VERIFIED', lastVerifiedAt: new Date() } });
-      const portNote = runtime.httpPort === 'OCCUPIED'
-        ? '；80 端口已占用，当前不能自动启用域名 Nginx 路由'
-        : runtime.httpPort === 'AVAILABLE'
-          ? '；80 端口可用于自动域名 Nginx 路由'
-          : '；未检测到 ss，80 端口状态需在 NAS 上手动确认';
+      await this.prisma.deployTarget.update({
+        where: { id },
+        data: { status: 'VERIFIED', lastVerifiedAt: new Date() },
+      });
+      const portNote =
+        runtime.httpPort === 'OCCUPIED'
+          ? '；80 端口已占用，当前不能自动启用域名 Nginx 路由'
+          : runtime.httpPort === 'AVAILABLE'
+            ? '；80 端口可用于自动域名 Nginx 路由'
+            : '；未检测到 ss，80 端口状态需在 NAS 上手动确认';
       return {
         success: true,
         message: `验证通过：Docker ${runtime.dockerVersion}，Compose ${runtime.composeVersion}，${runtime.architecture}，工作目录可写（可用 ${this.formatFreeSpace(runtime.freeKb)}）${portNote}`,

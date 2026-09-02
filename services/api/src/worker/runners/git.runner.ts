@@ -47,7 +47,11 @@ export class GitRunner {
       return this.failure(e?.message || 'Invalid identifier');
     }
 
-    if (!isSafeGitRepositoryUrl(repoUrl) || !isSafeGitReference(branch) || (commitSha && !/^[a-f0-9]{7,64}$/i.test(commitSha))) {
+    if (
+      !isSafeGitRepositoryUrl(repoUrl) ||
+      !isSafeGitReference(branch) ||
+      (commitSha && !/^[a-f0-9]{7,64}$/i.test(commitSha))
+    ) {
       return this.failure('仓库 URL / branch / commit 非法');
     }
 
@@ -68,16 +72,32 @@ export class GitRunner {
 
       if (commitSha) {
         // KI-033: fetch + detached checkout 任一步失败必须 fail closed。
-        const fetch = await this.executor.execFile('git', ['fetch', '--depth', '1', 'origin', String(commitSha)], { cwd: workDir, timeout: 120, env: clone.env });
+        const fetch = await this.executor.execFile('git', ['fetch', '--depth', '1', 'origin', String(commitSha)], {
+          cwd: workDir,
+          timeout: 120,
+          env: clone.env,
+        });
         if (fetch.exitCode !== 0) {
-          return this.failure(`指定 commit ${commitSha} 拉取失败：${CommandExecutor.sanitize(fetch.stderr) || '未知错误'}`);
+          return this.failure(
+            `指定 commit ${commitSha} 拉取失败：${CommandExecutor.sanitize(fetch.stderr) || '未知错误'}`,
+          );
         }
-        const checkout = await this.executor.execFile('git', ['checkout', '--detach', 'FETCH_HEAD'], { cwd: workDir, timeout: 120, env: clone.env });
+        const checkout = await this.executor.execFile('git', ['checkout', '--detach', 'FETCH_HEAD'], {
+          cwd: workDir,
+          timeout: 120,
+          env: clone.env,
+        });
         if (checkout.exitCode !== 0) {
-          return this.failure(`指定 commit ${commitSha} 检出失败：${CommandExecutor.sanitize(checkout.stderr) || '未知错误'}`);
+          return this.failure(
+            `指定 commit ${commitSha} 检出失败：${CommandExecutor.sanitize(checkout.stderr) || '未知错误'}`,
+          );
         }
         // 再次核对实际 HEAD 与请求一致；不一致时拒绝。
-        const head = await this.executor.execFile('git', ['rev-parse', 'HEAD'], { cwd: workDir, timeout: 30, env: clone.env });
+        const head = await this.executor.execFile('git', ['rev-parse', 'HEAD'], {
+          cwd: workDir,
+          timeout: 30,
+          env: clone.env,
+        });
         if (head.exitCode !== 0 || head.stdout.trim() !== String(commitSha)) {
           return this.failure(`实际 HEAD 与请求 commit 不一致：请求=${commitSha} 实际=${head.stdout.trim()}`);
         }
@@ -102,12 +122,23 @@ export class GitRunner {
       if (knownHostsPath) this.safeUnlink(knownHostsPath);
       // Only a complete, credential-free source tree may survive for BuildKit.
       if (!sourceReady) {
-        try { fs.rmSync(workDir, { recursive: true, force: true }); } catch { /* best effort */ }
+        try {
+          fs.rmSync(workDir, { recursive: true, force: true });
+        } catch {
+          /* best effort */
+        }
       }
     }
   }
 
-  private async clone(sourceType: string, repositoryUrl: string, branch: string, projectId: string, workDir: string, deploymentId: string) {
+  private async clone(
+    sourceType: string,
+    repositoryUrl: string,
+    branch: string,
+    projectId: string,
+    workDir: string,
+    deploymentId: string,
+  ) {
     let url = repositoryUrl;
     let env: Record<string, string> | undefined;
     let privateKeyPath: string | undefined;
@@ -142,7 +173,11 @@ export class GitRunner {
         throw new Error(`不支持的 Git 源类型: ${sourceType}`);
       }
       return {
-        result: await this.executor.execFile('git', ['clone', '--depth', '1', '--branch', branch, '--', url, '.'], { cwd: workDir, timeout: 300, env }),
+        result: await this.executor.execFile('git', ['clone', '--depth', '1', '--branch', branch, '--', url, '.'], {
+          cwd: workDir,
+          timeout: 300,
+          env,
+        }),
         env,
         privateKeyPath,
         knownHostsPath,
@@ -170,10 +205,18 @@ export class GitRunner {
     try {
       const url = new URL(repositoryUrl);
       return url.protocol === 'ssh:' ? url.hostname : null;
-    } catch { return null; }
+    } catch {
+      return null;
+    }
   }
 
-  private safeUnlink(file: string) { try { fs.unlinkSync(file); } catch { /* 清理失败忽略 */ } }
+  private safeUnlink(file: string) {
+    try {
+      fs.unlinkSync(file);
+    } catch {
+      /* 清理失败忽略 */
+    }
+  }
   private failure(message: string): RunnerResult {
     const sanitized = CommandExecutor.sanitize(message);
     return { success: false, stdout: '', stderr: sanitized, exitCode: -1, errorMessage: sanitized };

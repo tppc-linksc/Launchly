@@ -1,7 +1,7 @@
-import { execFileSync } from 'child_process'
-import { getDataDir } from '../config.js'
-import { absoluteDataDir } from '../paths.js'
-import { composeBaseArgs } from '../compose.js'
+import { execFileSync } from 'child_process';
+import { getDataDir } from '../config.js';
+import { absoluteDataDir } from '../paths.js';
+import { composeBaseArgs } from '../compose.js';
 
 // ── exec / shell ──────────────────────────────────────────────────────────
 // 在指定服务容器内运行一次性命令，或启动交互式 shell。
@@ -13,12 +13,12 @@ const ALLOWED_SERVICES = [
   'launchly-api',
   'launchly-worker',
   'launchly-buildkit',
-] as const
+] as const;
 
-type AllowedService = (typeof ALLOWED_SERVICES)[number]
+type AllowedService = (typeof ALLOWED_SERVICES)[number];
 
 function isAllowedService(value: string): value is AllowedService {
-  return (ALLOWED_SERVICES as readonly string[]).includes(value)
+  return (ALLOWED_SERVICES as readonly string[]).includes(value);
 }
 
 /**
@@ -26,21 +26,15 @@ function isAllowedService(value: string): value is AllowedService {
  */
 export function cmdExec(service: string, userArgs: string[]): void {
   if (!isAllowedService(service)) {
-    console.error(
-      `错误：未知服务 ${JSON.stringify(service)}。允许的服务：${ALLOWED_SERVICES.join(', ')}`,
-    )
-    process.exit(1)
+    console.error(`错误：未知服务 ${JSON.stringify(service)}。允许的服务：${ALLOWED_SERVICES.join(', ')}`);
+    process.exit(1);
   }
   if (!Array.isArray(userArgs) || userArgs.length === 0) {
-    console.error('用法：launchly exec <service> <command...>')
-    process.exit(1)
+    console.error('用法：launchly exec <service> <command...>');
+    process.exit(1);
   }
-  const dataDir = absoluteDataDir(getDataDir())
-  execFileSync(
-    'docker',
-    [...composeBaseArgs(dataDir), 'exec', '-T', service, ...userArgs],
-    { stdio: 'inherit' },
-  )
+  const dataDir = absoluteDataDir(getDataDir());
+  execFileSync('docker', [...composeBaseArgs(dataDir), 'exec', '-T', service, ...userArgs], { stdio: 'inherit' });
 }
 
 /**
@@ -48,15 +42,9 @@ export function cmdExec(service: string, userArgs: string[]): void {
  */
 export function cmdShell(service: string): void {
   if (!isAllowedService(service)) {
-    console.error(
-      `错误：未知服务 ${JSON.stringify(service)}。允许的服务：${ALLOWED_SERVICES.join(', ')}`,
-    )
-    process.exit(1)
+    console.error(`错误：未知服务 ${JSON.stringify(service)}。允许的服务：${ALLOWED_SERVICES.join(', ')}`);
+    process.exit(1);
   }
-  const dataDir = absoluteDataDir(getDataDir())
-  execFileSync(
-    'docker',
-    [...composeBaseArgs(dataDir), 'exec', service, '/bin/sh'],
-    { stdio: 'inherit' },
-  )
+  const dataDir = absoluteDataDir(getDataDir());
+  execFileSync('docker', [...composeBaseArgs(dataDir), 'exec', service, '/bin/sh'], { stdio: 'inherit' });
 }

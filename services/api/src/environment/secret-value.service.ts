@@ -16,8 +16,11 @@ export class SecretValueService {
     if (process.env.NODE_ENV === 'production' && current === process.env.LAUNCHLY_JWT_SECRET) {
       throw new Error('LAUNCHLY_ENCRYPTION_KEY must not reuse LAUNCHLY_JWT_SECRET in production');
     }
-    const rawKeys = [current || 'launchly-development-encryption-key-not-for-production', ...(process.env.LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS || '').split(',').filter(Boolean)];
-    this.keys = rawKeys.map(raw => ({
+    const rawKeys = [
+      current || 'launchly-development-encryption-key-not-for-production',
+      ...(process.env.LAUNCHLY_ENCRYPTION_PREVIOUS_KEYS || '').split(',').filter(Boolean),
+    ];
+    this.keys = rawKeys.map((raw) => ({
       legacyId: crypto.createHash('sha256').update(raw).digest('hex').slice(0, 12),
       legacyValue: crypto.createHash('sha256').update(raw).digest(),
       value: crypto.scryptSync(raw, 'launchly-secret-value:v3', 32, { N: 32768, r: 8, p: 1, maxmem: 64 * 1024 * 1024 }),
@@ -39,18 +42,26 @@ export class SecretValueService {
     const [version, keyId, encoded] = encryptedValue.split(':', 3);
     if (version === 'v3' && keyId) {
       for (const key of this.keys) {
-        try { return this.decryptWithKey(keyId, key.value); } catch { /* try rotated key */ }
+        try {
+          return this.decryptWithKey(keyId, key.value);
+        } catch {
+          /* try rotated key */
+        }
       }
       throw new Error('Unable to decrypt value with configured encryption keys');
     }
     if (version === 'v2' && keyId && encoded) {
-      const key = this.keys.find(candidate => candidate.legacyId === keyId);
+      const key = this.keys.find((candidate) => candidate.legacyId === keyId);
       if (!key) throw new Error('Encrypted value requires an unavailable encryption key');
       return this.decryptWithKey(encoded, key.legacyValue);
     }
     if (version === 'v1' && keyId) {
       for (const key of this.keys) {
-        try { return this.decryptWithKey(keyId, key.legacyValue); } catch { /* try rotated key */ }
+        try {
+          return this.decryptWithKey(keyId, key.legacyValue);
+        } catch {
+          /* try rotated key */
+        }
       }
       throw new Error('Unable to decrypt legacy value with configured encryption keys');
     }

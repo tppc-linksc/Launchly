@@ -23,8 +23,7 @@ describe('secret-redactor.redact', () => {
   });
 
   it('redacts overlapping registered values longest-first', () => {
-    expect(redact('token-extended token', ['token', 'token-extended']))
-      .toBe('[REDACTED] [REDACTED]');
+    expect(redact('token-extended token', ['token', 'token-extended'])).toBe('[REDACTED] [REDACTED]');
   });
 
   // ============================================================
@@ -40,7 +39,22 @@ describe('secret-redactor.redact', () => {
     });
 
     it('JSON 中所有 SENSITIVE_KEYS 命名的 value 都被脱敏', () => {
-      const keys = ['password','passwd','token','access_token','refresh_token','secret','api_key','apikey','private_key','privatekey','credential','credentials','auth','authorization'];
+      const keys = [
+        'password',
+        'passwd',
+        'token',
+        'access_token',
+        'refresh_token',
+        'secret',
+        'api_key',
+        'apikey',
+        'private_key',
+        'privatekey',
+        'credential',
+        'credentials',
+        'auth',
+        'authorization',
+      ];
       for (const k of keys) {
         const input = JSON.stringify({ [k]: 'leaked-value-123' });
         const out = redact(input);
@@ -50,12 +64,7 @@ describe('secret-redactor.redact', () => {
     });
 
     it('字段名大小写不敏感：Password / TOKEN / Secret 都能识别', () => {
-      const samples = [
-        '{\"Password\":\"a\"}',
-        '{\"TOKEN\":\"b\"}',
-        '{\"Secret\":\"c\"}',
-        '{\"AUTHORIZATION\":\"d\"}',
-      ];
+      const samples = ['{\"Password\":\"a\"}', '{\"TOKEN\":\"b\"}', '{\"Secret\":\"c\"}', '{\"AUTHORIZATION\":\"d\"}'];
       for (const s of samples) {
         const out = redact(s);
         // 注意：闭合引号保留，所以 value 字符应不再出现。
@@ -218,7 +227,11 @@ describe('secret-redactor.redact', () => {
   // ============================================================
   describe('F. PEM 私钥块', () => {
     it('标准 PRIVATE KEY 块整段被脱敏', () => {
-      const pem = ['-----BEGIN PRIVATE KEY-----', 'MIIBVgIBADANBgkqhkiG9w0BAQEFAASCAUAwggE8AgEAAkEAuKR=', '-----END PRIVATE KEY-----'].join('\n');
+      const pem = [
+        '-----BEGIN PRIVATE KEY-----',
+        'MIIBVgIBADANBgkqhkiG9w0BAQEFAASCAUAwggE8AgEAAkEAuKR=',
+        '-----END PRIVATE KEY-----',
+      ].join('\n');
       const out = redact(`key file:\n${pem}`);
       expect(out).not.toContain('MIIBVgIBADANBgkq');
       expect(out).not.toContain('-----BEGIN PRIVATE KEY-----');
@@ -301,9 +314,9 @@ describe('secret-redactor.containsSensitiveKey', () => {
     expect(containsSensitiveKey('my Password here')).toBe(true);
   });
 
-    it.each(['token','secret','credential','authorization','auth','apikey','api_key'])('包含 %s → true', (key) => {
-      expect(containsSensitiveKey('with ' + key + ' here')).toBe(true);
-    });
+  it.each(['token', 'secret', 'credential', 'authorization', 'auth', 'apikey', 'api_key'])('包含 %s → true', (key) => {
+    expect(containsSensitiveKey('with ' + key + ' here')).toBe(true);
+  });
 
   it('不包含任何敏感字段名 → false', () => {
     expect(containsSensitiveKey('hello world')).toBe(false);

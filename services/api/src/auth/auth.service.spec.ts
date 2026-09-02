@@ -51,12 +51,25 @@ describe('AuthService', () => {
       expect(result.refreshToken).toBe('mock-token');
       expect(result.user).toEqual({ id: 'u1', account: 'admin', displayName: 'Admin', role: 'OWNER' });
       expect(result.workspace).toEqual({ id: 'w1', name: 'My Workspace' });
-      expect(jwtService.sign).toHaveBeenNthCalledWith(1, expect.objectContaining({
-        uid: 'u1', wid: 'w1', role: 'OWNER', typ: 'access',
-      }), { audience: 'launchly:api' });
-      expect(jwtService.sign).toHaveBeenNthCalledWith(2, expect.objectContaining({
-        uid: 'u1', typ: 'refresh', jti: expect.any(String),
-      }), { audience: 'launchly:refresh', expiresIn: '30d' });
+      expect(jwtService.sign).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({
+          uid: 'u1',
+          wid: 'w1',
+          role: 'OWNER',
+          typ: 'access',
+        }),
+        { audience: 'launchly:api' },
+      );
+      expect(jwtService.sign).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({
+          uid: 'u1',
+          typ: 'refresh',
+          jti: expect.any(String),
+        }),
+        { audience: 'launchly:refresh', expiresIn: '30d' },
+      );
       expect(jwtService.sign.mock.calls[0][0]).not.toHaveProperty('aud');
       expect(jwtService.sign.mock.calls[1][0]).not.toHaveProperty('aud');
     });
@@ -138,7 +151,9 @@ describe('AuthService', () => {
     });
 
     it('is idempotent for an invalid or expired token', async () => {
-      jwtService.verify.mockImplementation(() => { throw new Error('expired'); });
+      jwtService.verify.mockImplementation(() => {
+        throw new Error('expired');
+      });
       await expect(service.logout('expired-token')).resolves.toEqual({ success: true });
       expect(prisma.revokedRefreshToken.upsert).not.toHaveBeenCalled();
     });
@@ -173,7 +188,10 @@ describe('AuthService', () => {
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
 
       const txMock = {
-        user: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({ id: 'u1', account: 'admin', displayName: 'Admin' }) },
+        user: {
+          count: jest.fn().mockResolvedValue(0),
+          create: jest.fn().mockResolvedValue({ id: 'u1', account: 'admin', displayName: 'Admin' }),
+        },
         workspace: { create: jest.fn().mockResolvedValue({ id: 'w1', name: 'Org' }) },
         workspaceMember: { create: jest.fn().mockResolvedValue({}) },
       };
@@ -192,7 +210,9 @@ describe('AuthService', () => {
     });
 
     it('should throw BadRequestException when users already exist', async () => {
-      prisma.$transaction.mockImplementation(async (fn: any) => fn({ user: { count: jest.fn().mockResolvedValue(1) } }));
+      prisma.$transaction.mockImplementation(async (fn: any) =>
+        fn({ user: { count: jest.fn().mockResolvedValue(1) } }),
+      );
 
       await expect(service.createOwner('admin', 'pass', 'Admin', 'Org')).rejects.toThrow(BadRequestException);
       expect(prisma.$transaction).toHaveBeenCalled();
@@ -202,7 +222,10 @@ describe('AuthService', () => {
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
 
       const txMock = {
-        user: { count: jest.fn().mockResolvedValue(0), create: jest.fn().mockResolvedValue({ id: 'u1', account: 'admin', displayName: 'admin' }) },
+        user: {
+          count: jest.fn().mockResolvedValue(0),
+          create: jest.fn().mockResolvedValue({ id: 'u1', account: 'admin', displayName: 'admin' }),
+        },
         workspace: { create: jest.fn().mockResolvedValue({ id: 'w1', name: 'Org' }) },
         workspaceMember: { create: jest.fn().mockResolvedValue({}) },
       };
@@ -215,7 +238,7 @@ describe('AuthService', () => {
       );
     });
 
-    it.each(['P2002', 'P2034'])('maps concurrent initialization error %s to BadRequest', async code => {
+    it.each(['P2002', 'P2034'])('maps concurrent initialization error %s to BadRequest', async (code) => {
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
       prisma.$transaction.mockRejectedValue(Object.assign(new Error('transaction conflict'), { code }));
 

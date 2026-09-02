@@ -1,27 +1,32 @@
-import * as fs from 'fs'
-import * as path from 'path'
-import * as os from 'os'
-import * as crypto from 'crypto'
+import * as fs from 'fs';
+import * as path from 'path';
+import * as os from 'os';
+import * as crypto from 'crypto';
 
 // 为保持向下兼容，从独立模块 re-export；后续命令实现统一从 './parse-port.js'
 // 直接引入 parsePort，但历史代码继续 import 自 config 仍可工作。
-export { isValidPort, parsePort } from './parse-port.js'
+export { isValidPort, parsePort } from './parse-port.js';
 
-export const DATA_DIR_ENV = 'LAUNCHLY_DATA_DIR'
-export const DEFAULT_DATA_DIR = '.launchly'
-export const COMPOSE_FILE = 'docker-compose.yml'
-export const ENV_FILE = '.env'
+export const DATA_DIR_ENV = 'LAUNCHLY_DATA_DIR';
+export const DEFAULT_DATA_DIR = '.launchly';
+export const COMPOSE_FILE = 'docker-compose.yml';
+export const ENV_FILE = '.env';
 
 export function getDataDir(): string {
-  return process.env[DATA_DIR_ENV] || path.join(os.homedir(), DEFAULT_DATA_DIR)
+  return process.env[DATA_DIR_ENV] || path.join(os.homedir(), DEFAULT_DATA_DIR);
 }
 
 export function fileExists(p: string): boolean {
-  try { fs.statSync(p); return true } catch { return false }
+  try {
+    fs.statSync(p);
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 export function randomString(n: number): string {
-  return crypto.randomBytes(n).toString('base64url').slice(0, n)
+  return crypto.randomBytes(n).toString('base64url').slice(0, n);
 }
 
 export function generateEnv(port: string = '8080'): string {
@@ -36,7 +41,7 @@ export function generateEnv(port: string = '8080'): string {
     '# Set COMPOSE_PROFILES=builder on a 2 vCPU / 4 GB+ server to enable local source builds.',
     'COMPOSE_PROFILES=',
     '',
-  ].join('\n')
+  ].join('\n');
 }
 
 export function composeTemplate(): string {
@@ -160,5 +165,5 @@ volumes:
   launchly-postgres-data:
   launchly-data:
   launchly-worker-data:
-`
+`;
 }

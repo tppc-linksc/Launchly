@@ -28,9 +28,7 @@ describe('AuditLogController', () => {
     const _prisma: MockPrismaService = createPrismaMock();
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuditLogController],
-      providers: [
-        { provide: AuditService, useValue: auditService },
-      ],
+      providers: [{ provide: AuditService, useValue: auditService }],
     }).compile();
 
     controller = module.get<AuditLogController>(AuditLogController);
@@ -52,11 +50,7 @@ describe('AuditLogController', () => {
       const rows = [{ id: 'log-1' }, { id: 'log-2' }];
       auditService.list.mockResolvedValue(rows);
 
-      const result = await controller.list(
-        { userId: 'u1', workspaceId: 'ws-1' },
-        undefined,
-        undefined,
-      );
+      const result = await controller.list({ userId: 'u1', workspaceId: 'ws-1' }, undefined, undefined);
 
       expect(auditService.list).toHaveBeenCalledWith('ws-1', 50, 0);
       expect(result).toBe(rows);
@@ -65,11 +59,7 @@ describe('AuditLogController', () => {
     it('limit/offset 为合法数字字符串时按 parseInt 结果传递', async () => {
       auditService.list.mockResolvedValue([]);
 
-      await controller.list(
-        { userId: 'u1', workspaceId: 'ws-9' },
-        '25',
-        '100',
-      );
+      await controller.list({ userId: 'u1', workspaceId: 'ws-9' }, '25', '100');
 
       expect(auditService.list).toHaveBeenCalledWith('ws-9', 25, 100);
     });
@@ -77,11 +67,7 @@ describe('AuditLogController', () => {
     it('limit/offset 为空字符串时按未传处理（默认值生效）', async () => {
       auditService.list.mockResolvedValue([]);
 
-      await controller.list(
-        { userId: 'u1', workspaceId: 'ws-1' },
-        '',
-        '',
-      );
+      await controller.list({ userId: 'u1', workspaceId: 'ws-1' }, '', '');
 
       expect(auditService.list).toHaveBeenCalledWith('ws-1', 50, 0);
     });
@@ -89,11 +75,9 @@ describe('AuditLogController', () => {
     it('拒绝非数字 limit/offset，而不是把 NaN 传给 Prisma', async () => {
       auditService.list.mockResolvedValue([]);
 
-      await expect(controller.list(
-        { userId: 'u1', workspaceId: 'ws-1' },
-        'abc',
-        'xyz',
-      )).rejects.toBeInstanceOf(BadRequestException);
+      await expect(controller.list({ userId: 'u1', workspaceId: 'ws-1' }, 'abc', 'xyz')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
 
       expect(auditService.list).not.toHaveBeenCalled();
     });
@@ -101,7 +85,9 @@ describe('AuditLogController', () => {
     it('拒绝缺失的 workspaceId，避免 Prisma 省略租户过滤条件', async () => {
       auditService.list.mockResolvedValue([]);
 
-      await expect(controller.list({ userId: 'u1', workspaceId: '' }, '10', '0')).rejects.toBeInstanceOf(BadRequestException);
+      await expect(controller.list({ userId: 'u1', workspaceId: '' }, '10', '0')).rejects.toBeInstanceOf(
+        BadRequestException,
+      );
 
       expect(auditService.list).not.toHaveBeenCalled();
     });
@@ -122,10 +108,7 @@ describe('AuditLogController', () => {
       await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
 
       expect(res.setHeader).toHaveBeenCalledWith('Content-Type', 'text/csv; charset=utf-8');
-      expect(res.setHeader).toHaveBeenCalledWith(
-        'Content-Disposition',
-        'attachment; filename=audit-logs.csv',
-      );
+      expect(res.setHeader).toHaveBeenCalledWith('Content-Disposition', 'attachment; filename=audit-logs.csv');
     });
 
     it('调用 auditService.listForExport 并把 workspaceId 透传', async () => {
@@ -205,21 +188,24 @@ describe('AuditLogController', () => {
       expect(body).toContain('"{""a"":""x,y,z"",""b"":""ok""}"');
     });
 
-    it.each(['=1+1', '+SUM(A1:A2)', '-2+3', '@cmd'])(
-      'neutralises spreadsheet formula prefix %s',
-      async detail => {
-        auditService.listForExport.mockResolvedValue([{
+    it.each(['=1+1', '+SUM(A1:A2)', '-2+3', '@cmd'])('neutralises spreadsheet formula prefix %s', async (detail) => {
+      auditService.listForExport.mockResolvedValue([
+        {
           createdAt: new Date('2026-08-18T00:00:00.000Z'),
-          userId: 'u1', action: 'X', targetType: 'T', targetId: 'id', detail,
-        }]);
-        const res: any = { setHeader: jest.fn(), send: jest.fn() };
+          userId: 'u1',
+          action: 'X',
+          targetType: 'T',
+          targetId: 'id',
+          detail,
+        },
+      ]);
+      const res: any = { setHeader: jest.fn(), send: jest.fn() };
 
-        await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
+      await controller.export({ userId: 'u1', workspaceId: 'ws-1' }, res);
 
-        const body = res.send.mock.calls[0][0] as string;
-        expect(body).toContain(`,'${detail}`);
-      },
-    );
+      const body = res.send.mock.calls[0][0] as string;
+      expect(body).toContain(`,'${detail}`);
+    });
 
     it('无日志时只输出表头（不含数据行）', async () => {
       auditService.listForExport.mockResolvedValue([]);
@@ -236,7 +222,11 @@ describe('AuditLogController', () => {
     it('超过 10000 条时截断导出并设置显式响应头', async () => {
       const row = {
         createdAt: new Date('2026-08-18T00:00:00.000Z'),
-        userId: 'u1', action: 'X', targetType: 'T', targetId: 'id', detail: null,
+        userId: 'u1',
+        action: 'X',
+        targetType: 'T',
+        targetId: 'id',
+        detail: null,
       };
       auditService.listForExport.mockResolvedValue(Array.from({ length: 10001 }, () => row));
       const res: any = { setHeader: jest.fn(), send: jest.fn() };

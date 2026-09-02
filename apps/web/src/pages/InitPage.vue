@@ -1,6 +1,6 @@
 <template>
   <div class="init-page">
-    <el-card header="初始化 Launchly" style="max-width: 480px; margin: 80px auto;">
+    <el-card header="初始化 Launchly" style="max-width: 480px; margin: 80px auto">
       <el-form :model="form" label-position="top" @submit.prevent="onSubmit">
         <el-form-item label="账号" required>
           <el-input v-model="form.account" placeholder="邮箱地址" />
@@ -15,7 +15,9 @@
           <el-input v-model="form.workspaceName" placeholder="例如：My Team" />
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" native-type="submit" :loading="loading" style="width: 100%;">创建管理员并初始化</el-button>
+          <el-button type="primary" native-type="submit" :loading="loading" style="width: 100%"
+            >创建管理员并初始化</el-button
+          >
         </el-form-item>
       </el-form>
       <el-alert v-if="error" :title="error" type="error" show-icon style="margin-top: 16px" />
@@ -29,35 +31,35 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
-import { createOwner } from '../api/client'
+import { reactive, ref } from 'vue';
+import { createOwner } from '../api/client';
 
 const form = reactive({
   account: '',
   password: '',
   displayName: '',
   workspaceName: '',
-})
+});
 
-const loading = ref(false)
-const error = ref('')
-const success = ref(false)
+const loading = ref(false);
+const error = ref('');
+const success = ref(false);
 
 async function onSubmit() {
-  loading.value = true
-  error.value = ''
+  loading.value = true;
+  error.value = '';
   try {
     await createOwner({
       account: form.account,
       password: form.password,
       displayName: form.displayName || undefined,
       workspaceName: form.workspaceName,
-    })
-    success.value = true
+    });
+    success.value = true;
   } catch (e: any) {
-    error.value = e.response?.data?.message || '初始化失败，请重试'
+    error.value = e.response?.data?.message || '初始化失败，请重试';
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 </script>

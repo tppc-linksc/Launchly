@@ -24,17 +24,26 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: API tests (Jest)
-        run: pnpm test:api
+      - name: Reject skipped or focused tests
+        run: pnpm test:policy
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Formatting
+        run: pnpm format:check
+
+      - name: API tests and coverage floor (Jest)
+        run: pnpm --dir services/api test:coverage
 
       - name: API startup smoke test
         run: pnpm test:api:e2e
 
-      - name: Frontend tests (Vitest)
-        run: pnpm test:web
+      - name: Frontend tests and coverage floor (Vitest)
+        run: pnpm --dir apps/web test:coverage
 
-      - name: CLI tests (Vitest)
-        run: pnpm test:cli
+      - name: CLI tests and coverage floor (Vitest)
+        run: pnpm --dir cli test:coverage
 
   type-check:
     name: Type Check

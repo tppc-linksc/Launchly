@@ -86,7 +86,7 @@ export class TestService {
 
       if (testCases.length > 0) {
         await tx.testRunCase.createMany({
-          data: testCases.map(tc => ({
+          data: testCases.map((tc) => ({
             testRunId: run.id,
             testCaseId: tc.id,
           })),
@@ -144,10 +144,10 @@ export class TestService {
       where: { testRunId },
     });
 
-    const passed = cases.filter(c => c.result === 'PASSED').length;
-    const failed = cases.filter(c => c.result === 'FAILED').length;
-    const skipped = cases.filter(c => c.result === 'SKIPPED').length;
-    const allDone = cases.every(c => c.result !== 'PENDING');
+    const passed = cases.filter((c) => c.result === 'PASSED').length;
+    const failed = cases.filter((c) => c.result === 'FAILED').length;
+    const skipped = cases.filter((c) => c.result === 'SKIPPED').length;
+    const allDone = cases.every((c) => c.result !== 'PENDING');
 
     await this.prisma.testRun.update({
       where: { id: testRunId },

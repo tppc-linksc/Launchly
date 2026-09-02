@@ -94,7 +94,7 @@ export class AuthService {
       throw new UnauthorizedException('Refresh Token 类型或受众错误');
     }
     await this.pruneExpiredRefreshRevocations();
-    if (!payload.jti || await this.prisma.revokedRefreshToken.findUnique({ where: { jti: payload.jti } })) {
+    if (!payload.jti || (await this.prisma.revokedRefreshToken.findUnique({ where: { jti: payload.jti } }))) {
       throw new UnauthorizedException('Refresh Token 已撤销');
     }
 
@@ -157,25 +157,28 @@ export class AuthService {
 
     let result: { user: any; workspace: any };
     try {
-      result = await this.prisma.$transaction(async (tx) => {
-        // The count and writes share a SERIALIZABLE transaction. Concurrent first-owner
-        // attempts cannot both commit even when they use different account values.
-        if (await tx.user.count() > 0) throw new BadRequestException('系统已初始化');
-        const user = await tx.user.create({
-          data: {
-            account,
-            displayName: displayName || account,
-            passwordHash,
-          },
-        });
-        const workspace = await tx.workspace.create({
-          data: { name: workspaceName },
-        });
-        await tx.workspaceMember.create({
-          data: { workspaceId: workspace.id, userId: user.id, role: 'OWNER' },
-        });
-        return { user, workspace };
-      }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+      result = await this.prisma.$transaction(
+        async (tx) => {
+          // The count and writes share a SERIALIZABLE transaction. Concurrent first-owner
+          // attempts cannot both commit even when they use different account values.
+          if ((await tx.user.count()) > 0) throw new BadRequestException('系统已初始化');
+          const user = await tx.user.create({
+            data: {
+              account,
+              displayName: displayName || account,
+              passwordHash,
+            },
+          });
+          const workspace = await tx.workspace.create({
+            data: { name: workspaceName },
+          });
+          await tx.workspaceMember.create({
+            data: { workspaceId: workspace.id, userId: user.id, role: 'OWNER' },
+          });
+          return { user, workspace };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
     } catch (error: any) {
       if (error instanceof BadRequestException) throw error;
       if (error?.code === 'P2002' || error?.code === 'P2034') {
@@ -231,9 +234,7 @@ export class AuthService {
 
   private randomJti(): string {
     // 128-bit 随机 ID，十六进制编码。
-    return [...crypto.getRandomValues(new Uint8Array(16))]
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+    return [...crypto.getRandomValues(new Uint8Array(16))].map((b) => b.toString(16).padStart(2, '0')).join('');
   }
 
   private refreshExpiry(payload: RefreshTokenPayload): Date {
