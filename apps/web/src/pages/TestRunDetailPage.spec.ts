@@ -211,4 +211,37 @@ describe('TestRunDetailPage', () => {
 
     expect(elMessageError).toHaveBeenCalledWith('操作失败，请稍后重试');
   });
+
+  it('TR.8 edits notes, handles a failed issue request, and supports back navigation', async () => {
+    vi.mocked(fetchTestRun).mockResolvedValue({ data: RUN } as any);
+    vi.mocked(fetchTestRunCases).mockResolvedValue({ data: CASES } as any);
+    vi.mocked(updateTestRunCase).mockResolvedValue({ data: { ok: true } } as any);
+
+    const router = makeRouter();
+    await router.push('/tests/runs/tr1');
+    await router.isReady();
+    const backSpy = vi.spyOn(router, 'back');
+    const w = mount(TestRunDetailPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
+
+    const selects = w.findAllComponents({ name: 'ElSelect' });
+    await selects[0].vm.$emit('update:modelValue', 'PASSED');
+    await selects[0].vm.$emit('change', 'PASSED');
+
+    const notesInput = w.findAllComponents({ name: 'ElInput' })[0];
+    await notesInput.vm.$emit('update:modelValue', 'checked');
+    await notesInput.vm.$emit('blur', new FocusEvent('blur'));
+    await flushPromises();
+    expect(updateTestRunCase).toHaveBeenCalledWith('tr1', 'trc1', { result: 'PASSED', notes: 'checked' });
+
+    vi.mocked(createIssueFromFailedTest).mockRejectedValue({ response: { data: { message: 'issue denied' } } });
+    const issueButton = w.findAll('button').find((b) => b.text().trim() === '创建 Issue')!;
+    await issueButton.trigger('click');
+    await flushPromises();
+    expect(elMessageError).toHaveBeenCalledWith('issue denied');
+
+    const backButton = w.findAll('button').find((b) => b.text().includes('返回'))!;
+    await backButton.trigger('click');
+    expect(backSpy).toHaveBeenCalledTimes(1);
+  });
 });

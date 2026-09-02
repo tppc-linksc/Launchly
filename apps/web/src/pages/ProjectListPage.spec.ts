@@ -278,4 +278,40 @@ describe('ProjectListPage', () => {
     await flushPromises();
     expect(pushSpy).toHaveBeenCalledWith('/projects/p1');
   });
+
+  it('P.1.11 header, card, and empty-state CTAs navigate to their destinations', async () => {
+    setRole('OWNER');
+    vi.mocked(fetchProjects).mockResolvedValue({
+      data: [{ id: 'p1', name: 'App', projectType: 'APP', repositoryUrl: 'x', createdAt: '2026-01-01' }],
+    } as any);
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any);
+
+    const router = makeRouter();
+    await router.push('/projects');
+    await router.isReady();
+    const pushSpy = vi.spyOn(router, 'push');
+    const w = mount(ProjectListPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
+
+    await w
+      .findAll('button')
+      .find((b) => b.text().trim() === '新建资源')!
+      .trigger('click');
+    expect(pushSpy).toHaveBeenCalledWith('/resources/new');
+    await w.find('.project-card').trigger('click');
+    expect(pushSpy).toHaveBeenCalledWith('/projects/p1');
+
+    vi.mocked(fetchProjects).mockResolvedValue({ data: [] } as any);
+    const emptyRouter = makeRouter();
+    await emptyRouter.push('/projects');
+    await emptyRouter.isReady();
+    const empty = mount(ProjectListPage, { global: { plugins: [emptyRouter, ElementPlus] } });
+    await flushPromises();
+    const emptyPushSpy = vi.spyOn(emptyRouter, 'push');
+    await empty
+      .findAll('button')
+      .find((b) => b.text().trim() === '创建第一个资源')!
+      .trigger('click');
+    expect(emptyPushSpy).toHaveBeenCalledWith('/resources/new');
+  });
 });

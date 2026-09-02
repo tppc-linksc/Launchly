@@ -176,4 +176,21 @@ describe('TestRunListPage', () => {
     expect(w.text()).toContain('d1');
     expect(w.text()).toContain('alice');
   });
+
+  it('TL.7 clicking a test-run row navigates to its execution detail', async () => {
+    vi.mocked(fetchProjects).mockResolvedValue({ data: [{ id: 'p1', name: 'P1' }] } as any);
+    vi.mocked(fetchTestRuns).mockResolvedValue({
+      data: [{ id: 'tr1', deploymentId: 'd1', status: 'COMPLETED' }],
+    } as any);
+
+    const router = makeRouter();
+    await router.push({ path: '/tests/runs', query: { projectId: 'p1' } });
+    await router.isReady();
+    const pushSpy = vi.spyOn(router, 'push').mockResolvedValue(undefined as any);
+    const w = mount(TestRunListPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
+
+    await w.findComponent({ name: 'ElTable' }).vm.$emit('row-click', { id: 'tr1' });
+    expect(pushSpy).toHaveBeenCalledWith('/tests/runs/tr1');
+  });
 });

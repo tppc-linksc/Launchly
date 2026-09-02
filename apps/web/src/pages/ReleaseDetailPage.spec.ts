@@ -240,4 +240,33 @@ describe('ReleaseDetailPage', () => {
 
     expect(elMessageError).toHaveBeenCalledWith('操作失败，请稍后重试');
   });
+
+  it('RD.9 back navigation and exemption reason binding follow the dialog contract', async () => {
+    vi.mocked(fetchRelease).mockResolvedValue({ data: RELEASE_READY } as any);
+    vi.mocked(fetchReleaseGates).mockResolvedValue({ data: { gates: GATES } } as any);
+
+    const router = makeRouter();
+    await router.push('/releases/p1/r1');
+    await router.isReady();
+    const backSpy = vi.spyOn(router, 'back');
+    const w = mount(ReleaseDetailPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
+
+    const exemptBtn = w.findAll('button').find((b) => b.text().trim() === '豁免')!;
+    await exemptBtn.trigger('click');
+    await flushPromises();
+    const dialog = w.findAllComponents({ name: 'ElDialog' })[0];
+    const inputs = dialog.findAllComponents({ name: 'ElInput' });
+    await inputs[1].vm.$emit('update:modelValue', 'documented reason');
+    expect((inputs[1].props() as any).modelValue).toBe('documented reason');
+
+    const cancel = dialog.findAll('button').find((b) => b.text().trim() === '取消')!;
+    await cancel.trigger('click');
+    await flushPromises();
+    expect((dialog.props() as any).modelValue).toBe(false);
+
+    const backButton = w.findAll('button').find((b) => b.text().includes('返回'))!;
+    await backButton.trigger('click');
+    expect(backSpy).toHaveBeenCalledTimes(1);
+  });
 });

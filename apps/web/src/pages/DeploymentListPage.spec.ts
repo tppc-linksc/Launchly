@@ -244,4 +244,19 @@ describe('DeploymentListPage', () => {
 
     expect(elMessageError).toHaveBeenCalledWith('操作失败，请稍后重试');
   });
+
+  it('DL.7 clicking a table row opens that deployment detail', async () => {
+    setRole('OWNER');
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [DEPLOYMENT_LIST[0]] } as any);
+
+    const router = makeRouter();
+    await router.push('/deployments');
+    await router.isReady();
+    const pushSpy = vi.spyOn(router, 'push').mockResolvedValue(undefined as any);
+    const w = mount(DeploymentListPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
+
+    await w.findComponent({ name: 'ElTable' }).vm.$emit('row-click', DEPLOYMENT_LIST[0]);
+    expect(pushSpy).toHaveBeenCalledWith('/deployments/d1');
+  });
 });

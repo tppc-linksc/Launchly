@@ -525,4 +525,46 @@ describe('EnvironmentListPage', () => {
     expect(text).toContain('已禁用');
     expect(text).toContain('手动');
   });
+
+  it('EL.15 edit dialog controls update the form and cancel closes the dialog', async () => {
+    vi.mocked(fetchProjects).mockResolvedValue({ data: PROJECTS } as any);
+    vi.mocked(fetchEnvironments).mockResolvedValue({ data: ENVS } as any);
+
+    const router = makeRouter();
+    await router.push('/environments');
+    await router.isReady();
+    const w = mount(EnvironmentListPage, {
+      global: { plugins: [router, ElementPlus] },
+      attachTo: document.body,
+    });
+    await flushPromises();
+
+    await w
+      .findAll('button')
+      .find((b) => b.text().trim() === '编辑')!
+      .trigger('click');
+    await flushPromises();
+
+    const editDialog = w.findAllComponents({ name: 'ElDialog' })[1];
+    expect(editDialog.exists()).toBe(true);
+
+    const inputs = editDialog.findAllComponents({ name: 'ElInput' });
+    await inputs[0].find('input').setValue('测试环境');
+    await inputs[1].find('input').setValue('app.example.com');
+    await inputs[2].find('input').setValue('/srv/launchly');
+    await inputs[3].find('input').setValue('develop');
+    await editDialog.findComponent({ name: 'ElRadioGroup' }).vm.$emit('update:modelValue', 'local');
+    await editDialog.findComponent({ name: 'ElInputNumber' }).vm.$emit('update:modelValue', 8088);
+    await editDialog.findComponent({ name: 'ElSelect' }).vm.$emit('update:modelValue', 'sanitized');
+
+    const switches = editDialog.findAllComponents({ name: 'ElSwitch' });
+    expect(switches).toHaveLength(3);
+    for (const toggle of switches) await toggle.vm.$emit('update:modelValue', true);
+
+    const cancel = editDialog.findAll('button').find((b) => b.text().trim() === '取消');
+    expect(cancel, 'edit dialog cancel button must exist').toBeDefined();
+    await cancel!.trigger('click');
+    await flushPromises();
+    expect(editDialog.props('modelValue')).toBe(false);
+  });
 });

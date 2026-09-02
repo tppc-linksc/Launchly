@@ -399,4 +399,44 @@ describe('AppLayout', () => {
     expect(text).toContain('prod-node-1');
     expect(text).toContain('节点');
   });
+
+  it('A.1.14 header actions and account menu navigate to their destinations', async () => {
+    setUser({ role: 'OWNER' });
+    const router = makeRouter('/');
+    const pushSpy = vi.spyOn(router, 'push');
+    const w = mount(AppLayout, {
+      global: { plugins: [router, ElementPlus] },
+      attachTo: document.body,
+    });
+    await router.isReady();
+    await flushPromises();
+
+    const searchInput = w.find('input[placeholder^="搜索部署"]');
+    await searchInput.trigger('focus');
+    await w.find('.global-search-wrap').trigger('keydown.esc');
+
+    await w
+      .findAll('button')
+      .find((b) => b.text().trim() === '触发部署')!
+      .trigger('click');
+    expect(pushSpy).toHaveBeenCalledWith('/deployments');
+    await w
+      .findAll('button')
+      .find((b) => b.text().trim() === '新建资源')!
+      .trigger('click');
+    expect(pushSpy).toHaveBeenCalledWith('/resources/new');
+
+    const destinations = [
+      ['设置', '/settings'],
+      ['成员管理', '/members'],
+      ['审计日志', '/audit-logs'],
+      ['通知', '/notifications'],
+    ] as const;
+    for (const [label, path] of destinations) {
+      const item = w.findAllComponents({ name: 'ElDropdownItem' }).find((c) => c.text().trim() === label);
+      expect(item, `${label} menu item must exist`).toBeDefined();
+      await item!.vm.$emit('click');
+      expect(pushSpy).toHaveBeenCalledWith(path);
+    }
+  });
 });

@@ -210,4 +210,33 @@ describe('ReleaseListPage', () => {
 
     expect(elMessageError).toHaveBeenCalledWith('操作失败，请稍后重试');
   });
+
+  it('RL.7 selector, create CTA, dialog close, and row navigation use the visible UI bindings', async () => {
+    vi.mocked(fetchProjects).mockResolvedValue({ data: PROJECTS } as any);
+    vi.mocked(fetchReleases).mockResolvedValue({ data: RELEASES } as any);
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: DEPLOYMENTS } as any);
+
+    const router = makeRouter();
+    await router.push({ path: '/releases', query: { projectId: 'p1' } });
+    await router.isReady();
+    const pushSpy = vi.spyOn(router, 'push').mockResolvedValue(undefined as any);
+    const w = mount(ReleaseListPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
+
+    const projectSelect = w.findAllComponents({ name: 'ElSelect' })[0];
+    await projectSelect.vm.$emit('update:modelValue', 'p2');
+    await projectSelect.vm.$emit('change', 'p2');
+    await flushPromises();
+    expect(fetchReleases).toHaveBeenCalledWith('p2');
+
+    const createBtn = w.findAll('button').find((b) => b.text().trim() === '新建 Release')!;
+    await createBtn.trigger('click');
+    expect((w.vm as any).showCreate).toBe(true);
+    const dialog = w.findComponent({ name: 'ElDialog' });
+    await dialog.vm.$emit('update:modelValue', false);
+    expect((w.vm as any).showCreate).toBe(false);
+
+    await w.findComponent({ name: 'ElTable' }).vm.$emit('row-click', RELEASES[0]);
+    expect(pushSpy).toHaveBeenCalledWith('/releases/p2/r1');
+  });
 });

@@ -140,6 +140,22 @@ describe('DashboardPage', () => {
     expect(cta).toBeDefined();
   });
 
+  it('DB.3a empty-state CTA routes to the project list', async () => {
+    vi.mocked(fetchDeployments).mockResolvedValue({ data: [] } as any);
+    vi.mocked(fetchProjects).mockResolvedValue({ data: [] } as any);
+
+    const router = makeRouter();
+    await router.push('/');
+    await router.isReady();
+    const w = mount(DashboardPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
+
+    const cta = w.findAll('button').find((b) => b.text().trim() === '去创建项目')!;
+    await cta.trigger('click');
+    await flushPromises();
+    expect(router.currentRoute.value.fullPath).toBe('/projects');
+  });
+
   it('DB.4 clicking a deployment row navigates to /deployments/:id', async () => {
     vi.mocked(fetchDeployments).mockResolvedValue({ data: DEPLOYMENTS } as any);
     vi.mocked(fetchProjects).mockResolvedValue({ data: [{ id: 'p1', name: 'A' }] } as any);

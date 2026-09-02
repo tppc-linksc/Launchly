@@ -529,4 +529,31 @@ describe('DeploymentDetailPage', () => {
     expect(alert).toBeDefined();
     expect(alert!.textContent).toContain('https://app.example.com');
   });
+
+  it('DD.19 detail navigation buttons route to the related resources', async () => {
+    setRole('OWNER');
+    vi.mocked(fetchDeployment).mockResolvedValue({ data: SUCCEEDED_DEPLOY } as any);
+    vi.mocked(fetchDeploymentLogs).mockResolvedValue({ data: [] } as any);
+
+    const router = makeRouter();
+    await router.push('/deployments/d2');
+    await router.isReady();
+    const pushSpy = vi.spyOn(router, 'push').mockResolvedValue(undefined as any);
+    const w = mount(DeploymentDetailPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
+
+    const expected: Array<[string, string]> = [
+      ['返回', '/deployments'],
+      ['查看测试记录', '/tests/runs?projectId=p1'],
+      ['查看 Issue', '/issues?projectId=p1'],
+      ['查看发布', '/releases?projectId=p1'],
+      ['返回项目', '/projects/p1'],
+    ];
+    for (const [label, path] of expected) {
+      const button = w.findAll('button').find((b) => b.text().trim() === label || b.text().includes(label));
+      expect(button, `button ${label} must exist`).toBeDefined();
+      await button!.trigger('click');
+      expect(pushSpy).toHaveBeenCalledWith(path);
+    }
+  });
 });

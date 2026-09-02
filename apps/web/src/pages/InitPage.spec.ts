@@ -94,8 +94,10 @@ describe('InitPage', () => {
   it('I.1.2 successful submit calls createOwner and shows the el-result success block', async () => {
     vi.mocked(createOwner).mockResolvedValue({ data: { ok: true } } as any);
 
+    const router = makeRouter();
+    const pushSpy = vi.spyOn(router, 'push').mockResolvedValue(undefined as any);
     const wrapper = mount(InitPage, {
-      global: { plugins: [makeRouter(), ElementPlus] },
+      global: { plugins: [router, ElementPlus] },
     });
 
     await wrapper.find('input[placeholder="邮箱地址"]').setValue('admin@x.com');
@@ -113,6 +115,10 @@ describe('InitPage', () => {
     });
     // Success block: "初始化完成" + a "前往登录" button.
     expect(wrapper.text()).toContain('初始化完成');
+    const loginButton = wrapper.findAll('button').find((b) => b.text().trim() === '前往登录');
+    expect(loginButton).toBeDefined();
+    await loginButton!.trigger('click');
+    expect(pushSpy).toHaveBeenCalledWith('/login');
   });
 
   it('I.1.3 failure with a server message surfaces that message in the el-alert', async () => {

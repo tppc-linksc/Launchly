@@ -176,4 +176,24 @@ describe('SettingsPage', () => {
     expect(paths).toContain('/audit-logs');
     expect(paths).toContain('/notifications');
   });
+
+  it('SP.7 editing the workspace field sends the changed value to the save API', async () => {
+    setUser({ role: 'OWNER', workspace: { id: 'w-1', name: 'Old name' } });
+    const router = makeRouter();
+    await router.push('/settings');
+    await router.isReady();
+    const w = mount(SettingsPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
+
+    const input = w.find('input[placeholder="例如：My Team"]');
+    await input.setValue('New name');
+    await w
+      .findAll('button')
+      .find((b) => b.text().trim() === '保存')!
+      .trigger('click');
+    await flushPromises();
+
+    expect(updateWorkspace).toHaveBeenCalledWith({ name: 'New name' });
+    expect(elMessageSuccess).toHaveBeenCalledWith('工作空间设置已保存');
+  });
 });
