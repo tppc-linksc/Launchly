@@ -79,6 +79,8 @@ function makeRouter() {
     history: createMemoryHistory(),
     routes: [
       { path: '/', name: 'home', component: { template: '<div/>' } },
+      { path: '/projects', name: 'projects', component: { template: '<div/>' } },
+      { path: '/projects/:id', name: 'project-detail', component: { template: '<div/>' } },
       { path: '/projects/:id/deploy-targets', name: 'deploy-targets', component: DeployTargetListPage },
     ],
   });
@@ -235,7 +237,7 @@ describe('DeployTargetListPage', () => {
 
     const pop = w.findComponent({ name: 'ElPopconfirm' });
     expect(pop.exists()).toBe(true);
-    await pop.vm.$emit('confirm');
+    await pop.vm.$emit('confirm', new MouseEvent('click'));
     await flushPromises();
 
     // The first popconfirm in the table is for the first row.
@@ -321,12 +323,14 @@ describe('DeployTargetListPage', () => {
   it('DTL.9 openCreate without a projectId pops ElMessage.error and does NOT open the modal', async () => {
     setRole('OWNER');
     vi.mocked(fetchDeployTargets).mockResolvedValue({ data: [] } as any);
-    // Mount at a route without :id
+    // Mount at the static collection route; it intentionally has no :id param.
     const router = createRouter({
       history: createMemoryHistory(),
       routes: [
         { path: '/', name: 'home', component: { template: '<div/>' } },
-        // no /:id route — params.id is undefined
+        { path: '/projects', name: 'projects', component: { template: '<div/>' } },
+        { path: '/projects/:id', name: 'project-detail', component: { template: '<div/>' } },
+        // The static route wins over /projects/:id, so params.id is undefined.
         { path: '/projects/deploy-targets', name: 'deploy-targets-no-id', component: DeployTargetListPage },
       ],
     });
@@ -511,7 +515,7 @@ describe('DeployTargetListPage', () => {
     await flushPromises();
 
     const pop = w.findComponent({ name: 'ElPopconfirm' });
-    await pop.vm.$emit('confirm');
+    await pop.vm.$emit('confirm', new MouseEvent('click'));
     await flushPromises();
 
     expect(elMessageError).toHaveBeenCalledWith('forbidden');
@@ -565,6 +569,8 @@ describe('DeployTargetListPage', () => {
       history: createMemoryHistory(),
       routes: [
         { path: '/', name: 'home', component: { template: '<div/>' } },
+        { path: '/projects', name: 'projects', component: { template: '<div/>' } },
+        { path: '/projects/:id', name: 'project-detail', component: { template: '<div/>' } },
         { path: '/projects/deploy-targets', name: 'deploy-targets-no-id', component: DeployTargetListPage },
       ],
     });

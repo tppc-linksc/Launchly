@@ -14,3 +14,9 @@ allowBuilds:
   prisma: true
   ssh2: true
   vue-demi: true
+
+# Element Plus 2.14.1 declares VueUse 14.3, whose generated bundle contains
+# stale pure-annotation comments that trigger Rollup warnings. Keep the
+# compatible patched release in every workspace through the lockfile.
+overrides:
+  '@vueuse/core': ^14.4.0

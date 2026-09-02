@@ -385,7 +385,7 @@ describe('EnvironmentListPage', () => {
     const dialogRoot = w.findAllComponents({ name: 'ElDialog' })[0];
     const pop = dialogRoot.findComponent({ name: 'ElPopconfirm' });
     expect(pop.exists()).toBe(true);
-    await pop.vm.$emit('confirm');
+    await pop.vm.$emit('confirm', new MouseEvent('click'));
     await flushPromises();
 
     // The first row's id is v1 (PLAIN_VAR).

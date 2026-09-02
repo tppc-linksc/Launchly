@@ -196,6 +196,7 @@ describe('TestRunDetailPage', () => {
     // (case.projectId, case.id, testRun.deploymentId, case.testCaseId)
     expect(createIssueFromFailedTest).toHaveBeenCalledWith('p1', 'trc2', 'd1', 'tc-2');
     expect(elMessageSuccess).toHaveBeenCalledWith('Issue 已创建');
+    expect(router.currentRoute.value.fullPath).toBe('/issues/p1/i-new');
   });
 
   it('TR.7 failure of the initial load surfaces the error toast', async () => {

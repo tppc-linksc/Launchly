@@ -9,7 +9,7 @@
  * - Failure of fetchMembers (here `fetchAuditLogs`) is caught silently
  *   (the page only `console.error`s) so no toast is raised.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { mount, flushPromises } from '@vue/test-utils';
 import { createPinia, setActivePinia } from 'pinia';
 import { createMemoryHistory, createRouter } from 'vue-router';
@@ -51,9 +51,16 @@ function makeRouter() {
 }
 
 describe('AuditLogPage', () => {
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
   beforeEach(() => {
     setActivePinia(createPinia());
     vi.mocked(fetchAuditLogs).mockReset();
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+  });
+
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
   });
 
   it('AL.1 mount fetches the audit log list and renders rows', async () => {
@@ -104,6 +111,7 @@ describe('AuditLogPage', () => {
     // The page calls `console.error(e)` — verify the table did not render
     // bogus rows. The page does NOT mount an el-alert for this path.
     expect(w.findAll('.el-alert').length).toBe(0);
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.any(Error));
   });
 
   it('AL.3 the "导出 CSV" button creates an anchor with the right URL/filename and clicks it', async () => {
@@ -117,7 +125,7 @@ describe('AuditLogPage', () => {
 
     // Spy on the document.createElement / HTMLAnchorElement.click path
     // by intercepting the click on the dynamically created anchor.
-    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click');
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined);
 
     const exportBtn = w.findAll('button').find((b) => b.text().trim() === '导出 CSV');
     expect(exportBtn, 'export button must be rendered').toBeDefined();

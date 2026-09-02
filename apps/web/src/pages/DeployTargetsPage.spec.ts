@@ -259,7 +259,7 @@ describe('DeployTargetsPage', () => {
 
     const pop = w.findComponent({ name: 'ElPopconfirm' });
     expect(pop.exists()).toBe(true);
-    await pop.vm.$emit('confirm');
+    await pop.vm.$emit('confirm', new MouseEvent('click'));
     await flushPromises();
 
     expect(deleteDeployTarget).toHaveBeenCalledWith('t1');
@@ -706,7 +706,7 @@ describe('DeployTargetsPage', () => {
     await flushPromises();
 
     const pop = w.findComponent({ name: 'ElPopconfirm' });
-    await pop.vm.$emit('confirm');
+    await pop.vm.$emit('confirm', new MouseEvent('click'));
     await flushPromises();
 
     expect(elMessageError).toHaveBeenCalledWith('forbidden');

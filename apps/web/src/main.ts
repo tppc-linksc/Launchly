@@ -1,13 +1,20 @@
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
-import ElementPlus from 'element-plus';
-import 'element-plus/dist/index.css';
 import zhCn from 'element-plus/es/locale/lang/zh-cn';
+import ElMessage from 'element-plus/es/components/message/index.mjs';
+import ElNotification from 'element-plus/es/components/notification/index.mjs';
+import ElMessageBox from 'element-plus/es/components/message-box/index.mjs';
+import ElLoading from 'element-plus/es/components/loading/index.mjs';
+import { provideGlobalConfig } from 'element-plus/es/components/config-provider/index.mjs';
 import router from './router';
 import App from './App.vue';
 
 const app = createApp(App);
 app.use(createPinia());
 app.use(router);
-app.use(ElementPlus, { locale: zhCn });
+app.use(ElMessage);
+app.use(ElNotification);
+app.use(ElMessageBox);
+app.use(ElLoading);
+provideGlobalConfig({ locale: zhCn }, app, true);
 app.mount('#app');

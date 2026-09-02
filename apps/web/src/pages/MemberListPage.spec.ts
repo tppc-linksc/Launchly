@@ -194,7 +194,7 @@ describe('MemberListPage', () => {
     // component's `confirm` event (ElPopconfirm emits confirm).
     const pop = w.findComponent({ name: 'ElPopconfirm' });
     expect(pop.exists()).toBe(true);
-    await pop.vm.$emit('confirm');
+    await pop.vm.$emit('confirm', new MouseEvent('click'));
     await flushPromises();
 
     // The first popconfirm is for the FIRST non-OWNER row (Bob).
@@ -214,7 +214,7 @@ describe('MemberListPage', () => {
     await flushPromises();
 
     const pop = w.findComponent({ name: 'ElPopconfirm' });
-    await pop.vm.$emit('confirm');
+    await pop.vm.$emit('confirm', new MouseEvent('click'));
     await flushPromises();
 
     expect(elMessageError).toHaveBeenCalledWith('不能移除最后一个所有者');

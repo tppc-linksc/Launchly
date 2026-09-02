@@ -110,14 +110,10 @@ async function updateNotes(record: any) {
 
 async function handleCreateIssue(record: any) {
   try {
-    const res = await createIssueFromFailedTest(
-      record.projectId || testRun.value?.projectId,
-      record.id,
-      testRun.value?.deploymentId,
-      record.testCaseId,
-    );
+    const projectId = record.projectId || testRun.value?.projectId;
+    const res = await createIssueFromFailedTest(projectId, record.id, testRun.value?.deploymentId, record.testCaseId);
     ElMessage.success('Issue 已创建');
-    router.push(`/issues/${res.data.id}`);
+    router.push(`/issues/${projectId}/${res.data.id}`);
   } catch (e: any) {
     ElMessage.error(e.response?.data?.message || '创建 Issue 失败');
   }

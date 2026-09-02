@@ -256,7 +256,7 @@ describe('TestCaseListPage', () => {
     expect(updateTestCase).toHaveBeenCalledWith('p1', 'tc1', expect.objectContaining({ title: 'Login flow' }));
 
     const popconfirm = w.findComponent({ name: 'ElPopconfirm' });
-    await popconfirm.vm.$emit('confirm');
+    await popconfirm.vm.$emit('confirm', new MouseEvent('click'));
     await flushPromises();
     expect(deleteTestCase).toHaveBeenCalledWith('p1', 'tc1');
   });
