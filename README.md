@@ -20,7 +20,7 @@
   <a href="README.en.md">English Documentation</a>
 </p>
 
-> **当前状态（2026-09-02）**：项目继续推进 **R0 可信基线修复**。本地复跑 API 单元、API E2E、Web 与 CLI 均为绿；当前全量覆盖率为 API 78.21%/63.67%/65.07%/79.02%、Web 94.98%/84.88%/60.51%/94.98%、CLI 85.37%/87.06%/85.71%/85.37%（Statements/Branches/Functions/Lines）。当前 12 个 migration 已在临时 PostgreSQL 空库完整应用，重复执行幂等且 schema drift 为零；API 覆盖率、Web Functions、172 个跳过用例，以及真实升级库、Registry/SSH/HTTPS/部署与恢复演练仍未达到 R0/BASE/E2E 门槛。详细状态只看[项目重启路线图](docs/basic/项目重启路线图.md)和[交付验收规范](docs/basic/交付验收规范.md)。
+> **当前状态（2026-09-02）**：项目继续推进 **R0 可信基线修复**。本地复跑 API 单元、API E2E、Web 与 CLI 均为绿；所有历史 `.skip` 已清零，CI 现强制 ESLint、Prettier、禁用 skip/only/todo、schema drift 与三端覆盖率非回退门禁。当前全量覆盖率为 API 82.01%/67.00%/67.85%/82.82%、Web 94.10%/84.94%/60.67%/94.10%、CLI 86.60%/87.06%/85.71%/86.60%（Statements/Branches/Functions/Lines）。当前 12 个 migration 已在临时 PostgreSQL 空库完整应用，重复执行幂等且 schema drift 为零；API Branches/Functions、Web Functions，以及真实升级库、Registry/SSH/HTTPS/部署与恢复演练仍未达到 R0/BASE/E2E 门槛。详细状态只看[项目重启路线图](docs/basic/项目重启路线图.md)和[交付验收规范](docs/basic/交付验收规范.md)。
 
 ## Launchly 是什么
 
@@ -117,11 +117,11 @@ GitHub / GitLab + CI Checks
 
 | 范围 | 测试规模 | Statements | Branches | Functions | Lines |
 | --- | --- | ---: | ---: | ---: | ---: |
-| API | 45 suites / 1291 tests：1119 通过、172 跳过；另有 2 E2E suites / 94 通过 | 78.21% | 63.67% | 65.07% | 79.02% |
-| Web | 30 files / 354 tests | 94.98% | 84.88% | 60.51%（低于 70% 目标） | 94.98% |
-| CLI | 5 files / 56 tests | 85.37% | 87.06% | 85.71% | 85.37% |
+| API | 45 suites / 1093 tests 全通过；另有 2 E2E suites / 94 通过 | 82.01% | 67.00% | 67.85% | 82.82% |
+| Web | 30 files / 354 tests | 94.10% | 84.94% | 60.67%（低于 70% 目标） | 94.10% |
+| CLI | 5 files / 56 tests | 86.60% | 87.06% | 85.71% | 86.60% |
 
-这些数字只说明当前自动化测试可复跑，仍不能取代 BASE-11 真实验收。API 四项均未达到门槛，Web Functions 也低于 70% 目标。临时 PostgreSQL 已证明空库 migration、幂等执行和 schema 无漂移，但双 Workspace 真实数据库、上一版本升级、备份恢复、真实 SSH/Registry/GitHub/HTTPS、回滚和故障恢复仍没有完整 E2E 证据。剩余工作见[项目重启路线图](docs/basic/项目重启路线图.md)的下一批工作。
+这些数字只说明当前自动化测试可复跑，仍不能取代 BASE-11 真实验收。API Statements/Lines 已达到 R0 数值门槛，但 Branches/Functions 尚未达到 70%/80%，Web Functions 也低于 70% 目标。CI 中的当前覆盖率下限是防回退棘轮，不等于 R0 完成。临时 PostgreSQL 已证明空库 migration、幂等执行和 schema 无漂移，但双 Workspace 真实数据库、上一版本升级、备份恢复、真实 SSH/Registry/GitHub/HTTPS、回滚和故障恢复仍没有完整 E2E 证据。剩余工作见[项目重启路线图](docs/basic/项目重启路线图.md)的下一批工作。
 
 ## 项目路线图
 
