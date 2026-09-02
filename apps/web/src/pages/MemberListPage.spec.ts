@@ -50,9 +50,10 @@ vi.mock('../api/client', () => ({
   fetchMembers: vi.fn(),
   updateMemberRole: vi.fn(),
   removeMember: vi.fn(),
+  createInvitation: vi.fn(),
 }));
 
-import { fetchMembers, updateMemberRole, removeMember } from '../api/client';
+import { createInvitation, fetchMembers, updateMemberRole, removeMember } from '../api/client';
 import { useAuthStore } from '../stores/auth';
 import MemberListPage from './MemberListPage.vue';
 
@@ -83,6 +84,7 @@ describe('MemberListPage', () => {
     vi.mocked(fetchMembers).mockReset();
     vi.mocked(updateMemberRole).mockReset();
     vi.mocked(removeMember).mockReset();
+    vi.mocked(createInvitation).mockReset();
     elMessageError.mockReset();
     elMessageSuccess.mockReset();
   });
@@ -228,5 +230,31 @@ describe('MemberListPage', () => {
     await flushPromises();
 
     expect(elMessageError).toHaveBeenCalledWith('加载成员列表失败');
+  });
+
+  it('ML.8 an owner can generate an invitation link through the dialog', async () => {
+    vi.mocked(fetchMembers).mockResolvedValue({ data: MEMBERS } as any);
+    vi.mocked(createInvitation).mockResolvedValue({ data: { token: 'invite-token' } } as any);
+    setRole('OWNER');
+    const router = makeRouter();
+    await router.push('/members');
+    await router.isReady();
+    const w = mount(MemberListPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
+
+    const open = w.findAll('button').find((button) => button.text().trim() === '邀请成员');
+    expect(open).toBeDefined();
+    await open!.trigger('click');
+    await flushPromises();
+
+    const generate = w.findAll('button').find((button) => button.text().trim() === '生成链接');
+    expect(generate).toBeDefined();
+    await generate!.trigger('click');
+    await flushPromises();
+
+    expect(createInvitation).toHaveBeenCalledWith({ role: 'DEVELOPER' });
+    expect(elMessageSuccess).toHaveBeenCalledWith('邀请链接已生成');
+    const readonlyValues = w.findAll('input[readonly]').map((input) => (input.element as HTMLInputElement).value);
+    expect(readonlyValues.some((value) => value.includes('invite-token'))).toBe(true);
   });
 });

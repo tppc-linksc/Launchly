@@ -794,4 +794,31 @@ describe('B — Full API contract table', () => {
     client.removeMember('m1');
     expect(mockDelete).toHaveBeenLastCalledWith('/members/m1');
   });
+
+  it('B.workspace.update updateWorkspace → PUT /workspace with body', () => {
+    client.updateWorkspace({ name: 'Launchly Team' });
+    expect(mockPut).toHaveBeenLastCalledWith('/workspace', { name: 'Launchly Team' });
+  });
+
+  it('B.system.info fetchSystemInfo → GET /system/info', () => {
+    client.fetchSystemInfo();
+    expect(mockGet).toHaveBeenLastCalledWith('/system/info');
+  });
+
+  it('B.invitation.create createInvitation → POST /invitations with policy', () => {
+    const body = { role: 'DEVELOPER', expiresInHours: 24, maxUses: 1 };
+    client.createInvitation(body);
+    expect(mockPost).toHaveBeenLastCalledWith('/invitations', body);
+  });
+
+  it('B.invitation.accept acceptInvitation encodes the token and posts credentials', () => {
+    const body = { account: 'alice', password: 'strong-password', displayName: 'Alice' };
+    client.acceptInvitation('token/with space', body);
+    expect(mockPost).toHaveBeenLastCalledWith('/invitations/token%2Fwith%20space/accept', body);
+  });
+
+  it('B.auth.logout logoutSession → POST /auth/logout with refresh token', () => {
+    client.logoutSession('refresh-token');
+    expect(mockPost).toHaveBeenLastCalledWith('/auth/logout', { refreshToken: 'refresh-token' });
+  });
 });

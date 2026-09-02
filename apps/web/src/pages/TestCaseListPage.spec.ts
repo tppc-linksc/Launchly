@@ -219,4 +219,45 @@ describe('TestCaseListPage', () => {
     // list was reloaded
     expect(fetchTestCases).toHaveBeenCalledTimes(2); // initial + after create
   });
+
+  it('TC.8 editing and deleting use the selected project and exact case identity', async () => {
+    setRole('OWNER');
+    const existing = {
+      id: 'tc1',
+      title: 'Login flow',
+      module: 'Auth',
+      steps: 'Open login',
+      expectedResult: 'Signed in',
+      priority: 'P1',
+      tags: 'smoke',
+      status: 'ACTIVE',
+    };
+    vi.mocked(fetchProjects).mockResolvedValue({ data: [{ id: 'p1', name: 'P1' }] } as any);
+    vi.mocked(fetchTestCases).mockResolvedValue({ data: [existing] } as any);
+    vi.mocked(updateTestCase).mockResolvedValue({ data: existing } as any);
+    vi.mocked(deleteTestCase).mockResolvedValue({ data: { success: true } } as any);
+
+    const router = makeRouter();
+    await router.push('/tests');
+    await router.isReady();
+    const w = mount(TestCaseListPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
+    await selectProject(w, 'p1');
+
+    const edit = w.findAll('button').find((button) => button.text().trim() === '编辑');
+    expect(edit).toBeDefined();
+    await edit!.trigger('click');
+    await flushPromises();
+    expect((w.find('input[placeholder="测试用例标题"]').element as HTMLInputElement).value).toBe('Login flow');
+
+    const confirm = w.findAll('button').find((button) => button.text().trim() === '确定');
+    await confirm!.trigger('click');
+    await flushPromises();
+    expect(updateTestCase).toHaveBeenCalledWith('p1', 'tc1', expect.objectContaining({ title: 'Login flow' }));
+
+    const popconfirm = w.findComponent({ name: 'ElPopconfirm' });
+    await popconfirm.vm.$emit('confirm');
+    await flushPromises();
+    expect(deleteTestCase).toHaveBeenCalledWith('p1', 'tc1');
+  });
 });

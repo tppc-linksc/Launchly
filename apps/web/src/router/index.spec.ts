@@ -117,6 +117,18 @@ describe('router auth guard (KI-009)', () => {
     expect((router as any).currentRoute).toBeDefined();
   });
 
+  it('keeps every declared lazy route component loadable', async () => {
+    const loaders = router
+      .getRoutes()
+      .map((route) => route.components?.default)
+      .filter((component): component is () => Promise<unknown> => typeof component === 'function');
+
+    expect(loaders).toHaveLength(25);
+    const loaded = await Promise.all(loaders.map((load) => load()));
+    expect(loaded).toHaveLength(loaders.length);
+    expect(loaded.every(Boolean)).toBe(true);
+  });
+
   // ── B.1  Initial state scenarios ─────────────────────────────────────
   describe('B.1 — runAuthGuard initial state', () => {
     it('B.1.1 cold start with no tokens at all → redirect to /login', () => {

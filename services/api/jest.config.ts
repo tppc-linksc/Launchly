@@ -21,13 +21,13 @@ const config: Config = {
   coveragePathIgnorePatterns: ['/node_modules/', '/dist/'],
   coverageReporters: ['text', 'json-summary'],
   coverageDirectory: './coverage',
-  // Ratchet at the verified 2026-09-02 baseline. These floors prevent silent
-  // regression while the remaining API function/branch gaps are filled to R0.
+  // R0 floor plus the higher verified statement/line baseline. Coverage combines
+  // unit contracts with the existing HTTP E2E suite (see jest.coverage.config.ts).
   coverageThreshold: {
     global: {
       statements: 82,
-      branches: 67,
-      functions: 67,
+      branches: 70,
+      functions: 80,
       lines: 82,
     },
   },

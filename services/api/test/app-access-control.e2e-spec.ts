@@ -1585,6 +1585,14 @@ describe('TEST-API-08 control plane access control + DTO contract', () => {
       expect(res.body).not.toHaveProperty('privateKey');
       expect(res.body).not.toHaveProperty('encryptedCredential');
       expect(res.body).not.toHaveProperty('hostKey');
+      expect(prisma.auditLog.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          action: 'DEPLOY_TARGET_CREATE',
+          targetType: 'DEPLOY_TARGET',
+          targetId: DEPLOY_TARGET_A,
+          detail: JSON.stringify({ path: '/api/projects/:projectId/deploy-targets' }),
+        }),
+      });
     });
 
     it('POST /projects/:projectId/deploy-targets 400 for port=0 (DTO @Min(1))', async () => {

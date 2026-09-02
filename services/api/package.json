@@ -12,7 +12,7 @@
     "prisma:migrate": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "test": "jest",
-    "test:coverage": "prisma generate && jest --coverage",
+    "test:coverage": "prisma generate && jest --config ./jest.coverage.config.ts --coverage --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json"
   },
   "dependencies": {

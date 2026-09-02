@@ -203,8 +203,13 @@ describe('AppLayout', () => {
 
     const navRow = w.find('nav.nav-row');
     expect(navRow.exists()).toBe(true);
-    const pills = navRow.findAll('button.nav-pill').map((b) => b.text().trim());
+    const navButtons = navRow.findAll('button.nav-pill');
+    const pills = navButtons.map((b) => b.text().trim());
     expect(pills).toEqual(['概览', '部署与运行', '项目', '环境管理', '发布', '测试与 Issue', '部署目标']);
+
+    await navButtons[2].trigger('click');
+    await flushPromises();
+    expect(router.currentRoute.value.path).toBe('/projects');
   });
 
   it('A.1.4 active 胶囊跟随当前路由', async () => {

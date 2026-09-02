@@ -197,4 +197,42 @@ describe('IssueListPage', () => {
     expect(w.text()).toContain('P0');
     expect(w.text()).toContain('u-1');
   });
+
+  it('IL.7 creating an issue uses the selected project and reloads its list', async () => {
+    setRole('OWNER');
+    vi.mocked(fetchProjects).mockResolvedValue({ data: [{ id: 'p1', name: 'P1' }] } as any);
+    vi.mocked(fetchIssues).mockResolvedValue({ data: [] } as any);
+    vi.mocked(createIssue).mockResolvedValue({ data: { id: 'i-new' } } as any);
+
+    const router = makeRouter();
+    await router.push('/issues');
+    await router.isReady();
+    const w = mount(IssueListPage, { global: { plugins: [router, ElementPlus] } });
+    await flushPromises();
+
+    const projectSelect = w.findAllComponents({ name: 'ElSelect' })[0].vm as any;
+    projectSelect.$emit('update:modelValue', 'p1');
+    projectSelect.$emit('change', 'p1');
+    await flushPromises();
+
+    await w
+      .findAll('button')
+      .find((button) => button.text().trim() === '新建 Issue')!
+      .trigger('click');
+    await w.find('input[placeholder="Issue 标题"]').setValue('Login is unavailable');
+    await flushPromises();
+
+    const dialog = w.findComponent({ name: 'ElDialog' });
+    const confirm = dialog.findAll('button').find((button) => button.text().trim() === '确定');
+    expect(confirm).toBeDefined();
+    await confirm!.trigger('click');
+    await flushPromises();
+
+    expect(createIssue).toHaveBeenCalledWith('p1', {
+      title: 'Login is unavailable',
+      description: '',
+      priority: 'P2',
+    });
+    expect(fetchIssues).toHaveBeenCalledTimes(2);
+  });
 });
